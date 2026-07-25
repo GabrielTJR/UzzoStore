@@ -1,22 +1,20 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { Geist, Geist_Mono, Playfair_Display } from "next/font/google";
+import { CATEGORIES } from "@/lib/categories";
 import "./globals.css";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
-  subsets: ["latin"],
-});
-
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
-});
-
+const geistSans = Geist({ variable: "--font-geist-sans", subsets: ["latin"] });
+const geistMono = Geist_Mono({ variable: "--font-geist-mono", subsets: ["latin"] });
 const playfair = Playfair_Display({
   variable: "--font-playfair",
   subsets: ["latin"],
   weight: ["500", "600", "700"],
 });
+
+const WHATSAPP_URL = "https://wa.me/5547992203156";
+const MAPS_URL = "https://share.google/N41K8J1yUshjn93Yq";
+const INSTAGRAM_URL = "https://www.instagram.com/uzzostorebc/";
 
 export const metadata: Metadata = {
   metadataBase: new URL(
@@ -28,16 +26,12 @@ export const metadata: Metadata = {
   },
   description:
     "Moda masculina da Uzzo Store: tecnologia aplicada ao vestir — conforto, praticidade e elegância. Balneário Camboriú, com envio para todo o Brasil.",
-  openGraph: {
-    type: "website",
-    locale: "pt_BR",
-    siteName: "Uzzo Store",
-  },
+  openGraph: { type: "website", locale: "pt_BR", siteName: "Uzzo Store" },
 };
 
-function Wordmark({ className = "" }: { className?: string }) {
+function Wordmark() {
   return (
-    <span className={`flex items-baseline gap-1.5 ${className}`}>
+    <span className="flex items-baseline gap-1.5">
       <span className="font-serif text-2xl font-semibold tracking-tight">
         UZZO
       </span>
@@ -50,9 +44,7 @@ function Wordmark({ className = "" }: { className?: string }) {
 
 export default function RootLayout({
   children,
-}: Readonly<{
-  children: React.ReactNode;
-}>) {
+}: Readonly<{ children: React.ReactNode }>) {
   return (
     <html
       lang="pt-BR"
@@ -61,39 +53,99 @@ export default function RootLayout({
       <body className="min-h-full flex flex-col">
         <header className="sticky top-0 z-10 border-b border-border bg-background/80 backdrop-blur">
           <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
-            <a href="/" aria-label="Uzzo Store — início">
+            <Link href="/" aria-label="Uzzo Store — início">
               <Wordmark />
+            </Link>
+            <a
+              href={WHATSAPP_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-xs font-medium uppercase tracking-[0.2em] text-muted transition-colors hover:text-foreground"
+            >
+              WhatsApp
             </a>
-            <nav className="text-xs font-medium uppercase tracking-[0.2em] text-muted">
-              Balneário Camboriú · SC
-            </nav>
           </div>
+          <nav className="border-t border-border">
+            <div className="mx-auto flex max-w-6xl gap-6 overflow-x-auto px-6 py-3 text-sm">
+              <Link href="/produtos" className="whitespace-nowrap text-muted hover:text-foreground">
+                Todos
+              </Link>
+              {CATEGORIES.map((c) => (
+                <Link
+                  key={c.slug}
+                  href={`/produtos?categoria=${c.slug}`}
+                  className="whitespace-nowrap text-muted hover:text-foreground"
+                >
+                  {c.name}
+                </Link>
+              ))}
+            </div>
+          </nav>
         </header>
 
         <main className="flex-1">{children}</main>
 
         <footer className="border-t border-border">
-          <div className="mx-auto flex max-w-6xl flex-col gap-6 px-6 py-10 sm:flex-row sm:items-end sm:justify-between">
-            <div className="space-y-2">
+          <div className="mx-auto grid max-w-6xl gap-8 px-6 py-12 sm:grid-cols-2 lg:grid-cols-4">
+            <div className="space-y-3">
               <Wordmark />
               <p className="max-w-xs text-sm text-muted">
                 Tecnologia aplicada ao vestir — conforto, praticidade e
                 elegância.
               </p>
             </div>
-            <div className="flex flex-col gap-1 text-sm text-muted sm:items-end">
-              <a
-                href="https://www.instagram.com/uzzostorebc/"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="font-medium text-foreground underline-offset-4 hover:underline"
-              >
-                @uzzostorebc
-              </a>
-              <span>Balneário Camboriú · SC · Envio para todo o Brasil</span>
-              <span className="mt-2 text-xs">
-                © 2026 Uzzo Store. Todos os direitos reservados.
-              </span>
+
+            <div className="space-y-2 text-sm text-muted">
+              <h3 className="font-medium text-foreground">Contato</h3>
+              <p>
+                <a
+                  href={WHATSAPP_URL}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="hover:text-foreground"
+                >
+                  WhatsApp (47) 99220-3156
+                </a>
+              </p>
+              <p>Seg a Sex: 10h às 19h</p>
+              <p>Sábado: 10h às 14h</p>
+            </div>
+
+            <div className="space-y-2 text-sm text-muted">
+              <h3 className="font-medium text-foreground">Visite a loja</h3>
+              <p>Rua 3650, nº 3573 — Sala 2</p>
+              <p>Balneário Camboriú · SC</p>
+              <p>
+                <a
+                  href={MAPS_URL}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="underline underline-offset-4 hover:text-foreground"
+                >
+                  Ver no mapa
+                </a>
+              </p>
+            </div>
+
+            <div className="space-y-2 text-sm text-muted">
+              <h3 className="font-medium text-foreground">Redes</h3>
+              <p>
+                <a
+                  href={INSTAGRAM_URL}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="hover:text-foreground"
+                >
+                  @uzzostorebc
+                </a>
+              </p>
+              <p>Envio para todo o Brasil</p>
+            </div>
+          </div>
+
+          <div className="border-t border-border">
+            <div className="mx-auto max-w-6xl px-6 py-4 text-xs text-muted">
+              © 2026 Uzzo Store. Todos os direitos reservados.
             </div>
           </div>
         </footer>
