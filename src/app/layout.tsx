@@ -1,7 +1,8 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import Image from "next/image";
 import { Geist, Geist_Mono, Playfair_Display } from "next/font/google";
-import { CATEGORIES } from "@/lib/categories";
+import { CartButton } from "@/components/cart-button";
 import "./globals.css";
 
 const geistSans = Geist({ variable: "--font-geist-sans", subsets: ["latin"] });
@@ -29,16 +30,16 @@ export const metadata: Metadata = {
   openGraph: { type: "website", locale: "pt_BR", siteName: "Uzzo Store" },
 };
 
-function Wordmark() {
+function Logo({ className = "h-11 w-auto" }: { className?: string }) {
   return (
-    <span className="flex items-baseline gap-1.5">
-      <span className="font-serif text-2xl font-semibold tracking-tight">
-        UZZO
-      </span>
-      <span className="text-[0.6rem] font-medium uppercase tracking-[0.35em] text-muted">
-        Store
-      </span>
-    </span>
+    <Image
+      src="/logo.png"
+      alt="Uzzo Store"
+      width={150}
+      height={150}
+      priority
+      className={className}
+    />
   );
 }
 
@@ -54,31 +55,31 @@ export default function RootLayout({
         <header className="sticky top-0 z-10 border-b border-border bg-background/80 backdrop-blur">
           <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
             <Link href="/" aria-label="Uzzo Store — início">
-              <Wordmark />
+              <Logo />
             </Link>
-            <a
-              href={WHATSAPP_URL}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-xs font-medium uppercase tracking-[0.2em] text-muted transition-colors hover:text-foreground"
-            >
-              WhatsApp
-            </a>
+            <div className="flex items-center gap-5">
+              <a
+                href={WHATSAPP_URL}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="hidden text-xs font-medium uppercase tracking-[0.2em] text-muted transition-colors hover:text-foreground sm:inline"
+              >
+                WhatsApp
+              </a>
+              <CartButton />
+            </div>
           </div>
           <nav className="border-t border-border">
-            <div className="mx-auto flex max-w-6xl gap-6 overflow-x-auto px-6 py-3 text-sm">
-              <Link href="/produtos" className="whitespace-nowrap text-muted hover:text-foreground">
-                Todos
+            <div className="mx-auto flex max-w-6xl gap-6 px-6 py-3 text-sm">
+              <Link href="/" className="text-muted hover:text-foreground">
+                Home
               </Link>
-              {CATEGORIES.map((c) => (
-                <Link
-                  key={c.slug}
-                  href={`/produtos?categoria=${c.slug}`}
-                  className="whitespace-nowrap text-muted hover:text-foreground"
-                >
-                  {c.name}
-                </Link>
-              ))}
+              <Link
+                href="/produtos"
+                className="text-muted hover:text-foreground"
+              >
+                Produtos
+              </Link>
             </div>
           </nav>
         </header>
@@ -88,7 +89,7 @@ export default function RootLayout({
         <footer className="border-t border-border">
           <div className="mx-auto grid max-w-6xl gap-8 px-6 py-12 sm:grid-cols-2 lg:grid-cols-4">
             <div className="space-y-3">
-              <Wordmark />
+              <Logo />
               <p className="max-w-xs text-sm text-muted">
                 Tecnologia aplicada ao vestir — conforto, praticidade e
                 elegância.

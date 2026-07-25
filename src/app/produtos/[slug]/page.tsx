@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { getProductBySlug } from "@/lib/products";
 import { formatBRL } from "@/lib/format";
 import { ProductPlaceholder } from "@/components/product-placeholder";
+import { AddToCart } from "@/components/add-to-cart";
 
 export async function generateMetadata({
   params,
@@ -28,9 +29,6 @@ export default async function ProdutoPage({
   const product = await getProductBySlug(slug);
   if (!product) notFound();
 
-  const sizes = Array.from(
-    new Set(product.variants.map((v) => v.size).filter((s): s is string => !!s)),
-  );
   const inStock = product.variants.some((v) => v.qty > 0);
 
   return (
@@ -68,39 +66,12 @@ export default async function ProdutoPage({
             {inStock ? "Em estoque" : "Indisponível no momento"}
           </p>
 
-          {sizes.length > 0 && (
-            <div className="mt-8">
-              <p className="text-sm font-medium">Tamanho</p>
-              <div className="mt-3 flex flex-wrap gap-2">
-                {sizes.map((s) => (
-                  <span
-                    key={s}
-                    className="flex h-10 min-w-10 items-center justify-center rounded-md border border-border px-3 text-sm"
-                  >
-                    {s}
-                  </span>
-                ))}
-              </div>
-            </div>
-          )}
-
           <div className="mt-8">
-            <span className="inline-flex h-12 w-full items-center justify-center rounded-full bg-foreground px-8 text-sm font-medium text-background opacity-60 sm:w-auto">
-              Adicionar à sacola — em breve
-            </span>
-            <p className="mt-3 max-w-sm text-xs text-muted">
-              Carrinho e checkout chegam na próxima fase. Por enquanto, fale com a
-              gente pelo Instagram{" "}
-              <a
-                className="underline underline-offset-2"
-                href="https://www.instagram.com/uzzostorebc/"
-                target="_blank"
-                rel="noopener noreferrer"
-              >
-                @uzzostorebc
-              </a>
-              .
-            </p>
+            <AddToCart
+              slug={product.slug}
+              name={product.name}
+              variants={product.variants}
+            />
           </div>
 
           {product.description && (
