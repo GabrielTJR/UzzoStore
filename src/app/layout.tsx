@@ -30,15 +30,20 @@ export const metadata: Metadata = {
   openGraph: { type: "website", locale: "pt_BR", siteName: "Uzzo Store" },
 };
 
-function Logo({ className = "h-11 w-auto" }: { className?: string }) {
+function Logo({
+  size = 56,
+  priority = false,
+}: {
+  size?: number;
+  priority?: boolean;
+}) {
   return (
     <Image
       src="/logo.png"
       alt="Uzzo Store"
-      width={150}
-      height={150}
-      priority
-      className={className}
+      width={size}
+      height={size}
+      priority={priority}
     />
   );
 }
@@ -55,7 +60,7 @@ export default function RootLayout({
         <header className="sticky top-0 z-10 border-b border-border bg-background/80 backdrop-blur">
           <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
             <Link href="/" aria-label="Uzzo Store — início">
-              <Logo />
+              <Logo size={72} priority />
             </Link>
             <div className="flex items-center gap-5">
               <a
@@ -89,7 +94,7 @@ export default function RootLayout({
         <footer className="border-t border-border">
           <div className="mx-auto grid max-w-6xl gap-8 px-6 py-12 sm:grid-cols-2 lg:grid-cols-4">
             <div className="space-y-3">
-              <Logo />
+              <Logo size={64} />
               <p className="max-w-xs text-sm text-muted">
                 Tecnologia aplicada ao vestir — conforto, praticidade e
                 elegância.
