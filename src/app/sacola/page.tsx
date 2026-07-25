@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 import { useCart, cartSubtotal, type CartItem } from "@/lib/cart-store";
 import { formatBRL } from "@/lib/format";
 
-const WHATSAPP_NUMBER = "5547992203156";
+const WHATSAPP_NUMBER = "5547991744865";
 
 function buildWhatsappMessage(items: CartItem[], subtotal: number): string {
   const lines = items.map((i) => {

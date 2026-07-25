@@ -13,7 +13,7 @@ const playfair = Playfair_Display({
   weight: ["500", "600", "700"],
 });
 
-const WHATSAPP_URL = "https://wa.me/5547992203156";
+const WHATSAPP_URL = "https://wa.me/5547991744865";
 const MAPS_URL = "https://maps.app.goo.gl/bUxWeib7bJHjGp3K6";
 const INSTAGRAM_URL = "https://www.instagram.com/uzzostorebc/";
 
@@ -30,20 +30,25 @@ export const metadata: Metadata = {
   openGraph: { type: "website", locale: "pt_BR", siteName: "Uzzo Store" },
 };
 
+// Proporção real do arquivo public/logo.png (wordmark horizontal).
+const LOGO_W = 120;
+const LOGO_H = 50;
+
 function Logo({
-  size = 56,
+  height = 44,
   priority = false,
 }: {
-  size?: number;
+  height?: number;
   priority?: boolean;
 }) {
   return (
     <Image
       src="/logo.png"
       alt="Uzzo Store"
-      width={size}
-      height={size}
+      width={Math.round((height * LOGO_W) / LOGO_H)}
+      height={height}
       priority={priority}
+      className="w-auto"
     />
   );
 }
@@ -60,7 +65,7 @@ export default function RootLayout({
         <header className="sticky top-0 z-10 border-b border-border bg-background/80 backdrop-blur">
           <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
             <Link href="/" aria-label="Uzzo Store — início">
-              <Logo size={72} priority />
+              <Logo height={56} priority />
             </Link>
             <div className="flex items-center gap-5">
               <a
@@ -94,7 +99,7 @@ export default function RootLayout({
         <footer className="border-t border-border">
           <div className="mx-auto grid max-w-6xl gap-8 px-6 py-12 sm:grid-cols-2 lg:grid-cols-4">
             <div className="space-y-3">
-              <Logo size={64} />
+              <Logo height={44} />
               <p className="max-w-xs text-sm text-muted">
                 Tecnologia aplicada ao vestir — conforto, praticidade e
                 elegância.
@@ -110,7 +115,7 @@ export default function RootLayout({
                   rel="noopener noreferrer"
                   className="hover:text-foreground"
                 >
-                  WhatsApp (47) 99220-3156
+                  WhatsApp (47) 99174-4865
                 </a>
               </p>
               <p>Seg a Sex: 10h às 19h</p>
