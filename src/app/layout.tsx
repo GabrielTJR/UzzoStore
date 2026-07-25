@@ -13,7 +13,7 @@ const playfair = Playfair_Display({
 });
 
 const WHATSAPP_URL = "https://wa.me/5547992203156";
-const MAPS_URL = "https://share.google/N41K8J1yUshjn93Yq";
+const MAPS_URL = "https://maps.app.goo.gl/bUxWeib7bJHjGp3K6";
 const INSTAGRAM_URL = "https://www.instagram.com/uzzostorebc/";
 
 export const metadata: Metadata = {
