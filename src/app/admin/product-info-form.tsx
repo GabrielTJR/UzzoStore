@@ -1,8 +1,9 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useEffect, useState } from "react";
 import { updateProductAction, type ActionResult } from "./actions";
 import { CATEGORIES } from "@/lib/categories";
+import { useToast } from "@/components/toast";
 import type { AdminProduct } from "@/lib/admin-products";
 
 const field =
@@ -14,6 +15,16 @@ export function ProductInfoForm({ product }: { product: AdminProduct }) {
     updateProductAction,
     null,
   );
+  const { showToast } = useToast();
+  const [dirty, setDirty] = useState(false);
+
+  useEffect(() => {
+    if (state?.ok) {
+      showToast("Alteração salva");
+      setDirty(false);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state]);
 
   const categoryNames: string[] = CATEGORIES.map((c) => c.name);
   const extraCategory =
@@ -22,7 +33,7 @@ export function ProductInfoForm({ product }: { product: AdminProduct }) {
       : [];
 
   return (
-    <form action={action} className="space-y-5">
+    <form action={action} onChange={() => setDirty(true)} className="space-y-5">
       <input type="hidden" name="productId" value={product.id} />
 
       <div className="space-y-1.5">
@@ -107,12 +118,11 @@ export function ProductInfoForm({ product }: { product: AdminProduct }) {
       <div className="flex items-center gap-4">
         <button
           type="submit"
-          disabled={pending}
+          disabled={pending || !dirty}
           className="h-11 rounded-full bg-foreground px-8 text-sm font-medium text-background transition-opacity hover:opacity-90 disabled:opacity-50"
         >
           {pending ? "Salvando…" : "Salvar informações"}
         </button>
-        {state?.ok && <span className="text-sm text-green-600">Salvo ✓</span>}
         {state?.error && (
           <span className="text-sm text-red-600">{state.error}</span>
         )}

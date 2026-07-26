@@ -3,6 +3,8 @@ import Link from "next/link";
 import Image from "next/image";
 import { Geist, Geist_Mono, Playfair_Display } from "next/font/google";
 import { CartButton } from "@/components/cart-button";
+import { ToastProvider } from "@/components/toast";
+import { getAdminUser } from "@/lib/admin";
 import "./globals.css";
 
 const geistSans = Geist({ variable: "--font-geist-sans", subsets: ["latin"] });
@@ -53,9 +55,10 @@ function Logo({
   );
 }
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
+  const isAdmin = !!(await getAdminUser());
   return (
     <html
       lang="pt-BR"
@@ -80,7 +83,7 @@ export default function RootLayout({
             </div>
           </div>
           <nav className="border-t border-border">
-            <div className="mx-auto flex max-w-6xl gap-6 px-6 py-3 text-sm">
+            <div className="mx-auto flex max-w-6xl items-center gap-6 px-6 py-3 text-sm">
               <Link href="/" className="text-muted hover:text-foreground">
                 Home
               </Link>
@@ -90,11 +93,21 @@ export default function RootLayout({
               >
                 Produtos
               </Link>
+              {isAdmin && (
+                <Link
+                  href="/admin"
+                  className="ml-auto font-medium text-foreground underline-offset-4 hover:underline"
+                >
+                  Admin
+                </Link>
+              )}
             </div>
           </nav>
         </header>
 
-        <main className="flex-1">{children}</main>
+        <main className="flex-1">
+          <ToastProvider>{children}</ToastProvider>
+        </main>
 
         <footer className="border-t border-border">
           <div className="mx-auto grid max-w-6xl gap-8 px-6 py-12 sm:grid-cols-2 lg:grid-cols-4">

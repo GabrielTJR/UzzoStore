@@ -1,6 +1,7 @@
 "use client";
 
 import { deleteProductAction } from "./actions";
+import { SubmitButton } from "@/components/submit-button";
 
 export function DeleteProductButton({ productId }: { productId: string }) {
   return (
@@ -17,12 +18,12 @@ export function DeleteProductButton({ productId }: { productId: string }) {
       }}
     >
       <input type="hidden" name="productId" value={productId} />
-      <button
-        type="submit"
+      <SubmitButton
+        pendingText="Excluindo…"
         className="text-sm text-red-600 underline-offset-4 hover:underline dark:text-red-400"
       >
         Excluir produto
-      </button>
+      </SubmitButton>
     </form>
   );
 }

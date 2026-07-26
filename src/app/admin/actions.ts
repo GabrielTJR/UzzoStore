@@ -302,16 +302,22 @@ export async function deleteProductAction(formData: FormData): Promise<void> {
   redirect("/admin");
 }
 
-export async function saveVariantAction(formData: FormData): Promise<void> {
-  if (!(await getAdminUser())) return;
-  if (serviceRoleMissing()) return;
+export async function saveVariantAction(
+  _prev: ActionResult | null,
+  formData: FormData,
+): Promise<ActionResult> {
+  if (!(await getAdminUser())) return { ok: false, error: "Não autorizado." };
+  if (serviceRoleMissing())
+    return { ok: false, error: "Falta SUPABASE_SERVICE_ROLE_KEY no servidor." };
 
   const productId = String(formData.get("productId") ?? "");
   const variantId = String(formData.get("variantId") ?? "").trim();
   const size = String(formData.get("size") ?? "").trim().toUpperCase() || null;
   const price = parsePrice(formData.get("price"));
   const qty = parseQty(formData.get("qty"));
-  if (!productId) return;
+  if (!productId) return { ok: false, error: "Produto inválido." };
+  if (!Number.isFinite(price) || price <= 0)
+    return { ok: false, error: "Informe um preço válido." };
 
   const admin = createAdminClient();
   let vId = variantId;
@@ -329,18 +335,16 @@ export async function saveVariantAction(formData: FormData): Promise<void> {
       })
       .select("id")
       .single();
-    if (!created) return;
+    if (!created) return { ok: false, error: "Erro ao criar a variante." };
     vId = created.id;
   }
 
-  if (Number.isFinite(price) && price > 0) {
-    await admin
-      .from("prices")
-      .upsert(
-        { variant_id: vId, tabela_id: "default", price },
-        { onConflict: "variant_id,tabela_id" },
-      );
-  }
+  await admin
+    .from("prices")
+    .upsert(
+      { variant_id: vId, tabela_id: "default", price },
+      { onConflict: "variant_id,tabela_id" },
+    );
   await admin
     .from("stock_cache")
     .upsert(
@@ -349,6 +353,7 @@ export async function saveVariantAction(formData: FormData): Promise<void> {
     );
 
   revalidateProduct(productId);
+  return { ok: true };
 }
 
 export async function deleteVariantAction(formData: FormData): Promise<void> {
@@ -364,16 +369,21 @@ export async function deleteVariantAction(formData: FormData): Promise<void> {
   revalidateProduct(productId);
 }
 
-export async function addPhotosAction(formData: FormData): Promise<void> {
-  if (!(await getAdminUser())) return;
-  if (serviceRoleMissing()) return;
+export async function addPhotosAction(
+  _prev: ActionResult | null,
+  formData: FormData,
+): Promise<ActionResult> {
+  if (!(await getAdminUser())) return { ok: false, error: "Não autorizado." };
+  if (serviceRoleMissing())
+    return { ok: false, error: "Falta SUPABASE_SERVICE_ROLE_KEY no servidor." };
 
   const productId = String(formData.get("productId") ?? "");
-  if (!productId) return;
+  if (!productId) return { ok: false, error: "Produto inválido." };
   const files = formData
     .getAll("images")
     .filter((f): f is File => f instanceof File && f.size > 0);
-  if (!files.length) return;
+  if (!files.length)
+    return { ok: false, error: "Selecione ao menos uma imagem." };
 
   const admin = createAdminClient();
   await ensureProductContent(admin, productId);
@@ -386,16 +396,23 @@ export async function addPhotosAction(formData: FormData): Promise<void> {
     ? (content!.gallery as string[])
     : [];
 
+  let uploaded = 0;
   for (const file of files) {
     const url = await uploadImage(admin, productId, file);
-    if (url) gallery.push(url);
+    if (url) {
+      gallery.push(url);
+      uploaded++;
+    }
   }
+  if (uploaded === 0)
+    return { ok: false, error: "Falha ao enviar as imagens." };
 
   await admin
     .from("product_content")
     .update({ gallery })
     .eq("product_id", productId);
   revalidateProduct(productId);
+  return { ok: true };
 }
 
 export async function removePhotoAction(formData: FormData): Promise<void> {
