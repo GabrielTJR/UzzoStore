@@ -15,8 +15,15 @@ export async function getAdminUser(): Promise<User | null> {
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user?.email) return null;
-  return adminEmails().includes(user.email.toLowerCase()) ? user : null;
+  if (!user) return null;
+  // Fonte da verdade: tabela public.admins via is_admin(). O allowlist por env
+  // (ADMIN_EMAILS) fica só como rede de segurança de bootstrap.
+  const { data: isAdmin } = await supabase.rpc("is_admin");
+  if (isAdmin) return user;
+  if (user.email && adminEmails().includes(user.email.toLowerCase())) {
+    return user;
+  }
+  return null;
 }
 
 /** Gera um slug amigável a partir de um texto. */

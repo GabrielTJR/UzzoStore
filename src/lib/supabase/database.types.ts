@@ -67,6 +67,72 @@ export type Database = {
           },
         ]
       }
+      admins: {
+        Row: {
+          created_at: string
+          full_name: string | null
+          must_change_password: boolean
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          full_name?: string | null
+          must_change_password?: boolean
+          role?: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          full_name?: string | null
+          must_change_password?: boolean
+          role?: Database["public"]["Enums"]["app_role"]
+          user_id?: string
+        }
+        Relationships: []
+      }
+      audit_log: {
+        Row: {
+          action: string
+          actor_email: string | null
+          actor_id: string | null
+          created_at: string
+          entity_id: string | null
+          entity_label: string | null
+          entity_type: string | null
+          id: number
+          ip: string | null
+          metadata: Json
+          user_agent: string | null
+        }
+        Insert: {
+          action: string
+          actor_email?: string | null
+          actor_id?: string | null
+          created_at?: string
+          entity_id?: string | null
+          entity_label?: string | null
+          entity_type?: string | null
+          id?: never
+          ip?: string | null
+          metadata?: Json
+          user_agent?: string | null
+        }
+        Update: {
+          action?: string
+          actor_email?: string | null
+          actor_id?: string | null
+          created_at?: string
+          entity_id?: string | null
+          entity_label?: string | null
+          entity_type?: string | null
+          id?: never
+          ip?: string | null
+          metadata?: Json
+          user_agent?: string | null
+        }
+        Relationships: []
+      }
       cart_items: {
         Row: {
           cart_id: string
@@ -654,10 +720,13 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      is_admin: {
+        Args: never
+        Returns: boolean
+      }
     }
     Enums: {
-      [_ in never]: never
+      app_role: "owner" | "admin"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -784,6 +853,8 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      app_role: ["owner", "admin"],
+    },
   },
 } as const

@@ -6,6 +6,7 @@ import { revalidatePath } from "next/cache";
 import { getAdminUser, slugify } from "@/lib/admin";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
+import { logAudit } from "@/lib/audit";
 
 const BUCKET = "product-images";
 
@@ -129,7 +130,8 @@ export async function createProductAction(
   _prev: ActionResult | null,
   formData: FormData,
 ): Promise<ActionResult> {
-  if (!(await getAdminUser())) return { ok: false, error: "Não autorizado." };
+  const actor = await getAdminUser();
+  if (!actor) return { ok: false, error: "Não autorizado." };
   if (serviceRoleMissing())
     return { ok: false, error: "Falta SUPABASE_SERVICE_ROLE_KEY no servidor." };
 
@@ -215,6 +217,13 @@ export async function createProductAction(
     gallery,
   });
 
+  await logAudit(actor, {
+    action: "product.create",
+    entityType: "product",
+    entityId: product.id,
+    entityLabel: name,
+    metadata: { price, sizes },
+  });
   revalidateProduct(product.id);
   redirect(`/admin/produtos/${product.id}`);
 }
@@ -223,7 +232,8 @@ export async function updateProductAction(
   _prev: ActionResult | null,
   formData: FormData,
 ): Promise<ActionResult> {
-  if (!(await getAdminUser())) return { ok: false, error: "Não autorizado." };
+  const actor = await getAdminUser();
+  if (!actor) return { ok: false, error: "Não autorizado." };
   if (serviceRoleMissing())
     return { ok: false, error: "Falta SUPABASE_SERVICE_ROLE_KEY no servidor." };
 
@@ -262,12 +272,20 @@ export async function updateProductAction(
     })
     .eq("product_id", id);
 
+  await logAudit(actor, {
+    action: "product.update",
+    entityType: "product",
+    entityId: id,
+    entityLabel: name,
+    metadata: { active, featured },
+  });
   revalidateProduct(id);
   return { ok: true };
 }
 
 export async function deleteProductAction(formData: FormData): Promise<void> {
-  if (!(await getAdminUser())) return;
+  const actor = await getAdminUser();
+  if (!actor) return;
   if (serviceRoleMissing()) return;
 
   const id = String(formData.get("productId") ?? "");
@@ -298,6 +316,11 @@ export async function deleteProductAction(formData: FormData): Promise<void> {
   // Só então remove as imagens do Storage (best-effort).
   if (paths.length) await admin.storage.from(BUCKET).remove(paths);
 
+  await logAudit(actor, {
+    action: "product.delete",
+    entityType: "product",
+    entityId: id,
+  });
   revalidateProduct(id);
   redirect("/admin");
 }
@@ -306,7 +329,8 @@ export async function saveVariantAction(
   _prev: ActionResult | null,
   formData: FormData,
 ): Promise<ActionResult> {
-  if (!(await getAdminUser())) return { ok: false, error: "Não autorizado." };
+  const actor = await getAdminUser();
+  if (!actor) return { ok: false, error: "Não autorizado." };
   if (serviceRoleMissing())
     return { ok: false, error: "Falta SUPABASE_SERVICE_ROLE_KEY no servidor." };
 
@@ -352,12 +376,19 @@ export async function saveVariantAction(
       { onConflict: "variant_id,deposito_id" },
     );
 
+  await logAudit(actor, {
+    action: "variant.save",
+    entityType: "product",
+    entityId: productId,
+    metadata: { variantId: vId, size, price, qty },
+  });
   revalidateProduct(productId);
   return { ok: true };
 }
 
 export async function deleteVariantAction(formData: FormData): Promise<void> {
-  if (!(await getAdminUser())) return;
+  const actor = await getAdminUser();
+  if (!actor) return;
   if (serviceRoleMissing()) return;
 
   const productId = String(formData.get("productId") ?? "");
@@ -366,6 +397,12 @@ export async function deleteVariantAction(formData: FormData): Promise<void> {
 
   const admin = createAdminClient();
   await admin.from("product_variants").delete().eq("id", variantId);
+  await logAudit(actor, {
+    action: "variant.delete",
+    entityType: "product",
+    entityId: productId,
+    metadata: { variantId },
+  });
   revalidateProduct(productId);
 }
 
@@ -373,7 +410,8 @@ export async function addPhotosAction(
   _prev: ActionResult | null,
   formData: FormData,
 ): Promise<ActionResult> {
-  if (!(await getAdminUser())) return { ok: false, error: "Não autorizado." };
+  const actor = await getAdminUser();
+  if (!actor) return { ok: false, error: "Não autorizado." };
   if (serviceRoleMissing())
     return { ok: false, error: "Falta SUPABASE_SERVICE_ROLE_KEY no servidor." };
 
@@ -411,12 +449,19 @@ export async function addPhotosAction(
     .from("product_content")
     .update({ gallery })
     .eq("product_id", productId);
+  await logAudit(actor, {
+    action: "photo.add",
+    entityType: "product",
+    entityId: productId,
+    metadata: { count: uploaded },
+  });
   revalidateProduct(productId);
   return { ok: true };
 }
 
 export async function removePhotoAction(formData: FormData): Promise<void> {
-  if (!(await getAdminUser())) return;
+  const actor = await getAdminUser();
+  if (!actor) return;
   if (serviceRoleMissing()) return;
 
   const productId = String(formData.get("productId") ?? "");
@@ -442,5 +487,10 @@ export async function removePhotoAction(formData: FormData): Promise<void> {
   const path = storagePathFromUrl(url);
   if (path) await admin.storage.from(BUCKET).remove([path]);
 
+  await logAudit(actor, {
+    action: "photo.remove",
+    entityType: "product",
+    entityId: productId,
+  });
   revalidateProduct(productId);
 }

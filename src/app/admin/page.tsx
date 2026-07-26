@@ -24,11 +24,19 @@ export default async function AdminPage() {
           </h1>
           <p className="mt-1 text-sm text-muted">{user.email}</p>
         </div>
-        <form action={signOutAction}>
-          <button className="text-sm text-muted underline-offset-4 hover:text-foreground hover:underline">
-            Sair
-          </button>
-        </form>
+        <div className="flex items-center gap-4">
+          <Link
+            href="/admin/logs"
+            className="text-sm text-muted underline-offset-4 hover:text-foreground hover:underline"
+          >
+            Logs
+          </Link>
+          <form action={signOutAction}>
+            <button className="text-sm text-muted underline-offset-4 hover:text-foreground hover:underline">
+              Sair
+            </button>
+          </form>
+        </div>
       </header>
 
       {serviceRoleMissing && (
