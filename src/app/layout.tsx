@@ -33,8 +33,8 @@ export const metadata: Metadata = {
 };
 
 // Proporção real do arquivo public/logo.png (recortado ao conteúdo).
-const LOGO_W = 103;
-const LOGO_H = 31;
+const LOGO_W = 1815;
+const LOGO_H = 524;
 
 function Logo({
   height = 44,
@@ -50,7 +50,7 @@ function Logo({
       width={Math.round((height * LOGO_W) / LOGO_H)}
       height={height}
       priority={priority}
-      className="w-auto"
+      className="w-auto dark:invert"
     />
   );
 }
