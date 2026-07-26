@@ -1,10 +1,10 @@
 "use client";
 
 import { useActionState } from "react";
-import { createProductAction, type CreateProductResult } from "./actions";
+import { createProductAction, type ActionResult } from "./actions";
 import { CATEGORIES } from "@/lib/categories";
 
-const initialState: CreateProductResult | null = null;
+const initialState: ActionResult | null = null;
 
 export function NewProductForm() {
   const [state, formAction, pending] = useActionState(

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import Image from "next/image";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { getProductBySlug } from "@/lib/products";
@@ -46,8 +47,19 @@ export default async function ProdutoPage({
       </nav>
 
       <div className="grid gap-10 md:grid-cols-2">
-        <div className="overflow-hidden rounded-lg border border-border">
-          <ProductPlaceholder />
+        <div className="relative aspect-[3/4] overflow-hidden rounded-lg border border-border">
+          {product.gallery[0] ? (
+            <Image
+              src={product.gallery[0]}
+              alt={product.name}
+              fill
+              sizes="(max-width: 768px) 100vw, 50vw"
+              priority
+              className="object-cover"
+            />
+          ) : (
+            <ProductPlaceholder />
+          )}
         </div>
 
         <div>

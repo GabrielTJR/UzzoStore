@@ -6,6 +6,7 @@ export type ProductListItem = {
   category: string | null;
   price: number | null;
   featured: boolean;
+  image: string | null;
 };
 
 export type ProductVariant = {
@@ -36,6 +37,7 @@ type ListRow = {
   slug: string;
   featured: boolean;
   sort_order: number;
+  gallery: unknown;
   products: {
     name: string;
     categories: { name: string } | null;
@@ -81,7 +83,7 @@ export async function getProducts(
   let query = supabase
     .from("product_content")
     .select(
-      `slug, featured, sort_order,
+      `slug, featured, sort_order, gallery,
        products!inner ( name, active_ecommerce, categories ( name ),
          product_variants ( prices ( price, promo_price ) ) )`,
     )
@@ -94,13 +96,17 @@ export async function getProducts(
   if (error || !data) return [];
 
   const rows = data as unknown as ListRow[];
-  return rows.map((row) => ({
-    slug: row.slug,
-    name: row.products.name,
-    category: row.products.categories?.name ?? null,
-    price: lowestPrice(row.products.product_variants ?? []),
-    featured: row.featured,
-  }));
+  return rows.map((row) => {
+    const gallery = Array.isArray(row.gallery) ? (row.gallery as string[]) : [];
+    return {
+      slug: row.slug,
+      name: row.products.name,
+      category: row.products.categories?.name ?? null,
+      price: lowestPrice(row.products.product_variants ?? []),
+      featured: row.featured,
+      image: gallery[0] ?? null,
+    };
+  });
 }
 
 export async function getProductBySlug(

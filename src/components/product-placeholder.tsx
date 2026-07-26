@@ -1,10 +1,10 @@
 /**
- * Placeholder de imagem enquanto os produtos não têm foto cadastrada.
- * Substituído pela imagem real (Supabase Storage) quando a galeria for preenchida.
+ * Placeholder de imagem enquanto o produto não tem foto cadastrada.
+ * Preenche o container (que define a proporção).
  */
 export function ProductPlaceholder() {
   return (
-    <div className="flex aspect-[3/4] w-full items-center justify-center bg-gradient-to-br from-zinc-100 to-zinc-200 dark:from-zinc-900 dark:to-zinc-800">
+    <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-zinc-100 to-zinc-200 dark:from-zinc-900 dark:to-zinc-800">
       <span className="flex items-baseline gap-1 opacity-40">
         <span className="font-serif text-xl font-semibold tracking-tight">
           UZZO
