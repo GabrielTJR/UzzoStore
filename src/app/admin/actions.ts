@@ -11,6 +11,7 @@ import { logAudit } from "@/lib/audit";
 const BUCKET = "product-images";
 
 export type ActionResult = { ok: boolean; error?: string };
+export type UploadTarget = { path: string; token: string };
 
 type AdminClient = ReturnType<typeof createAdminClient>;
 
@@ -33,17 +34,23 @@ function storagePathFromUrl(url: string): string | null {
   return i === -1 ? null : url.slice(i + marker.length);
 }
 
-async function uploadImage(
-  admin: AdminClient,
-  productId: string,
-  file: File,
-): Promise<string | null> {
-  const ext = file.name.split(".").pop()?.toLowerCase() || "jpg";
-  const path = `${productId}/${randomUUID()}.${ext}`;
-  const { error } = await admin.storage
-    .from(BUCKET)
-    .upload(path, file, { contentType: file.type || "image/jpeg" });
-  if (error) return null;
+const ALLOWED_EXT = new Set([
+  "jpg",
+  "jpeg",
+  "png",
+  "webp",
+  "gif",
+  "avif",
+  "heic",
+  "heif",
+]);
+
+/** Valida um caminho de objeto no Storage ("pasta/arquivo.ext") — sem barra inicial nem traversal. */
+function isSafeStoragePath(path: string): boolean {
+  return /^[A-Za-z0-9_-]+\/[A-Za-z0-9._-]+\.[A-Za-z0-9]+$/.test(path);
+}
+
+function publicUrlForPath(admin: AdminClient, path: string): string {
   return admin.storage.from(BUCKET).getPublicUrl(path).data.publicUrl;
 }
 
@@ -144,7 +151,7 @@ export async function createProductAction(
     .map((s) => s.trim().toUpperCase())
     .filter(Boolean);
   const description = String(formData.get("description") ?? "").trim() || null;
-  const image = formData.get("image");
+  const imagePath = String(formData.get("imagePath") ?? "").trim();
 
   if (!name) return { ok: false, error: "Informe o nome do produto." };
   if (!Number.isFinite(price) || price <= 0)
@@ -193,9 +200,8 @@ export async function createProductAction(
   }
 
   let gallery: string[] = [];
-  if (image instanceof File && image.size > 0) {
-    const url = await uploadImage(admin, product.id, image);
-    if (url) gallery = [url];
+  if (imagePath && isSafeStoragePath(imagePath)) {
+    gallery = [publicUrlForPath(admin, imagePath)];
   }
 
   let slug = slugify(name) || `produto-${product.id.slice(0, 8)}`;
@@ -406,22 +412,61 @@ export async function deleteVariantAction(formData: FormData): Promise<void> {
   revalidateProduct(productId);
 }
 
-export async function addPhotosAction(
-  _prev: ActionResult | null,
-  formData: FormData,
+/**
+ * Gera URLs de upload ASSINADAS para o navegador enviar as imagens DIRETO ao
+ * Storage do Supabase, sem trafegar os bytes pela Server Action. O corpo de uma
+ * Server Action é limitado a 1 MB no Next e a 4,5 MB na Vercel; várias fotos de
+ * celular estouram esses limites e derrubavam a página. Só um admin autenticado
+ * consegue gerar os alvos; o caminho é reconstruído no servidor no commit.
+ */
+export async function createUploadUrlsAction(
+  files: { name: string }[],
+  folder: string,
+): Promise<{ ok: boolean; error?: string; targets?: UploadTarget[] }> {
+  const actor = await getAdminUser();
+  if (!actor) return { ok: false, error: "Não autorizado." };
+  if (serviceRoleMissing())
+    return { ok: false, error: "Falta SUPABASE_SERVICE_ROLE_KEY no servidor." };
+  if (!Array.isArray(files) || files.length === 0)
+    return { ok: false, error: "Selecione ao menos uma imagem." };
+  if (files.length > 30)
+    return { ok: false, error: "Máximo de 30 imagens por vez." };
+
+  const safeFolder = /^[A-Za-z0-9_-]+$/.test(folder) ? folder : "pending";
+  const admin = createAdminClient();
+  const targets: UploadTarget[] = [];
+  for (const f of files) {
+    const rawExt = (f?.name?.split(".").pop() ?? "").toLowerCase();
+    const ext = ALLOWED_EXT.has(rawExt) ? rawExt : "jpg";
+    const path = `${safeFolder}/${randomUUID()}.${ext}`;
+    const { data, error } = await admin.storage
+      .from(BUCKET)
+      .createSignedUploadUrl(path);
+    if (error || !data)
+      return { ok: false, error: "Erro ao preparar o envio das imagens." };
+    targets.push({ path: data.path, token: data.token });
+  }
+  return { ok: true, targets };
+}
+
+/**
+ * Confirma as fotos já enviadas ao Storage (pelo navegador, via URLs assinadas)
+ * e as anexa à galeria do produto. Recebe apenas os CAMINHOS; a URL pública é
+ * remontada no servidor para não confiar em URL vinda do cliente.
+ */
+export async function commitPhotosAction(
+  productId: string,
+  paths: string[],
 ): Promise<ActionResult> {
   const actor = await getAdminUser();
   if (!actor) return { ok: false, error: "Não autorizado." };
   if (serviceRoleMissing())
     return { ok: false, error: "Falta SUPABASE_SERVICE_ROLE_KEY no servidor." };
-
-  const productId = String(formData.get("productId") ?? "");
   if (!productId) return { ok: false, error: "Produto inválido." };
-  const files = formData
-    .getAll("images")
-    .filter((f): f is File => f instanceof File && f.size > 0);
-  if (!files.length)
-    return { ok: false, error: "Selecione ao menos uma imagem." };
+
+  const safePaths = (Array.isArray(paths) ? paths : []).filter(isSafeStoragePath);
+  if (safePaths.length === 0)
+    return { ok: false, error: "Nenhuma imagem para salvar." };
 
   const admin = createAdminClient();
   await ensureProductContent(admin, productId);
@@ -433,27 +478,17 @@ export async function addPhotosAction(
   const gallery = Array.isArray(content?.gallery)
     ? (content!.gallery as string[])
     : [];
-
-  let uploaded = 0;
-  for (const file of files) {
-    const url = await uploadImage(admin, productId, file);
-    if (url) {
-      gallery.push(url);
-      uploaded++;
-    }
-  }
-  if (uploaded === 0)
-    return { ok: false, error: "Falha ao enviar as imagens." };
+  const urls = safePaths.map((p) => publicUrlForPath(admin, p));
 
   await admin
     .from("product_content")
-    .update({ gallery })
+    .update({ gallery: [...gallery, ...urls] })
     .eq("product_id", productId);
   await logAudit(actor, {
     action: "photo.add",
     entityType: "product",
     entityId: productId,
-    metadata: { count: uploaded },
+    metadata: { count: urls.length },
   });
   revalidateProduct(productId);
   return { ok: true };
