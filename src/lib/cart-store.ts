@@ -5,6 +5,7 @@ export type CartItem = {
   variantId: string;
   productSlug: string;
   productName: string;
+  color: string | null;
   size: string | null;
   price: number;
   qty: number;

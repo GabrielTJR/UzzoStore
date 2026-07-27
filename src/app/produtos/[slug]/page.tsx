@@ -1,11 +1,8 @@
 import Link from "next/link";
-import Image from "next/image";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { getProductBySlug } from "@/lib/products";
-import { formatBRL } from "@/lib/format";
-import { ProductPlaceholder } from "@/components/product-placeholder";
-import { AddToCart } from "@/components/add-to-cart";
+import { ProductView } from "@/components/product-view";
 
 export async function generateMetadata({
   params,
@@ -30,8 +27,6 @@ export default async function ProdutoPage({
   const product = await getProductBySlug(slug);
   if (!product) notFound();
 
-  const inStock = product.variants.some((v) => v.qty > 0);
-
   return (
     <article className="mx-auto max-w-6xl px-6 py-12">
       <nav className="mb-8 text-sm text-muted">
@@ -46,55 +41,16 @@ export default async function ProdutoPage({
         )}
       </nav>
 
-      <div className="grid gap-10 md:grid-cols-2">
-        <div className="relative aspect-[3/4] overflow-hidden rounded-lg border border-border">
-          {product.gallery[0] ? (
-            <Image
-              src={product.gallery[0]}
-              alt={product.name}
-              fill
-              sizes="(max-width: 768px) 100vw, 50vw"
-              priority
-              className="object-cover"
-            />
-          ) : (
-            <ProductPlaceholder />
-          )}
-        </div>
-
-        <div>
-          {product.category && (
-            <p className="text-xs font-medium uppercase tracking-[0.2em] text-muted">
-              {product.category}
-            </p>
-          )}
-          <h1 className="mt-2 font-serif text-4xl font-semibold tracking-tight">
-            {product.name}
-          </h1>
-          {product.price != null && (
-            <p className="mt-4 text-2xl">{formatBRL(product.price)}</p>
-          )}
-          <p className="mt-2 text-sm text-muted">
-            {inStock ? "Em estoque" : "Indisponível no momento"}
-          </p>
-
-          <div className="mt-8">
-            <AddToCart
-              slug={product.slug}
-              name={product.name}
-              variants={product.variants}
-            />
-          </div>
-
-          {product.description && (
-            <div className="mt-10 border-t border-border pt-6">
-              <p className="text-sm leading-relaxed text-muted">
-                {product.description}
-              </p>
-            </div>
-          )}
-        </div>
-      </div>
+      <ProductView
+        slug={product.slug}
+        name={product.name}
+        category={product.category}
+        description={product.description}
+        price={product.price}
+        basePrice={product.basePrice}
+        promoPrice={product.promoPrice}
+        colors={product.colors}
+      />
     </article>
   );
 }

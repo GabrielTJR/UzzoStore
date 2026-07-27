@@ -1,10 +1,12 @@
 import { createClient } from "@/lib/supabase/server";
+import { compareSizes } from "@/lib/sizes";
 
 export type ProductListItem = {
   slug: string;
   name: string;
   category: string | null;
-  price: number | null;
+  price: number | null; // preço efetivo (promo ?? cheio)
+  basePrice: number | null; // preço cheio (para riscar quando há promo)
   featured: boolean;
   image: string | null;
 };
@@ -12,9 +14,16 @@ export type ProductListItem = {
 export type ProductVariant = {
   id: string;
   size: string | null;
-  color: string | null;
-  price: number | null;
   qty: number;
+};
+
+/** Uma cor do produto: tem galeria própria e sua própria grade de tamanhos. */
+export type ProductColor = {
+  id: string; // product_colors.id
+  name: string; // colors.name
+  hex: string | null;
+  gallery: string[];
+  variants: ProductVariant[];
 };
 
 export type ProductDetail = {
@@ -26,9 +35,11 @@ export type ProductDetail = {
   description: string | null;
   metaTitle: string | null;
   metaDescription: string | null;
-  gallery: string[];
-  price: number | null;
-  variants: ProductVariant[];
+  gallery: string[]; // fallback (1ª cor) — usado em metadados/OG
+  price: number | null; // preço efetivo (promo ?? cheio)
+  basePrice: number | null; // preço cheio
+  promoPrice: number | null; // promo, se houver
+  colors: ProductColor[];
 };
 
 // Formatos das linhas retornadas pelo Supabase (embeds many-to-one = objeto,
@@ -37,11 +48,12 @@ type ListRow = {
   slug: string;
   featured: boolean;
   sort_order: number;
-  gallery: unknown;
   products: {
     name: string;
+    price: number | null;
+    promo_price: number | null;
     categories: { name: string } | null;
-    product_variants: { prices: { price: number; promo_price: number | null }[] }[];
+    product_colors: { sort_order: number; gallery: unknown }[];
   };
 };
 
@@ -50,30 +62,40 @@ type DetailRow = {
   rich_description: string | null;
   meta_title: string | null;
   meta_description: string | null;
-  gallery: unknown;
   products: {
     name: string;
     brand: string | null;
     reference: string | null;
+    price: number | null;
+    promo_price: number | null;
     categories: { name: string } | null;
-    product_variants: {
+    product_colors: {
       id: string;
-      size: string | null;
-      color: string | null;
-      prices: { price: number; promo_price: number | null }[];
-      stock_cache: { qty_available: number }[];
+      sort_order: number;
+      gallery: unknown;
+      colors: { name: string; hex: string | null } | null;
+      product_variants: {
+        id: string;
+        size: string | null;
+        stock_cache: { qty_available: number }[];
+      }[];
     }[];
   };
 };
 
-function lowestPrice(
-  variants: { prices: { price: number; promo_price: number | null }[] }[],
+function toGallery(value: unknown): string[] {
+  return Array.isArray(value) ? (value as string[]) : [];
+}
+
+/** Preço efetivo (numérico) a partir dos campos do produto. */
+function effectivePrice(
+  price: number | null,
+  promo: number | null,
 ): number | null {
-  const values = variants
-    .flatMap((v) => v.prices ?? [])
-    .map((p) => Number(p.promo_price ?? p.price))
-    .filter((n) => Number.isFinite(n));
-  return values.length ? Math.min(...values) : null;
+  const p = price != null ? Number(price) : null;
+  const promoN = promo != null ? Number(promo) : null;
+  if (promoN != null && Number.isFinite(promoN) && promoN > 0) return promoN;
+  return p != null && Number.isFinite(p) ? p : null;
 }
 
 export async function getProducts(
@@ -83,9 +105,10 @@ export async function getProducts(
   let query = supabase
     .from("product_content")
     .select(
-      `slug, featured, sort_order, gallery,
-       products!inner ( name, active_ecommerce, categories ( name ),
-         product_variants ( prices ( price, promo_price ) ) )`,
+      `slug, featured, sort_order,
+       products!inner ( name, active_ecommerce, price, promo_price,
+         categories ( name ),
+         product_colors ( sort_order, gallery ) )`,
     )
     .eq("products.active_ecommerce", true)
     .order("sort_order");
@@ -97,14 +120,18 @@ export async function getProducts(
 
   const rows = data as unknown as ListRow[];
   return rows.map((row) => {
-    const gallery = Array.isArray(row.gallery) ? (row.gallery as string[]) : [];
+    const colors = (row.products.product_colors ?? [])
+      .slice()
+      .sort((a, b) => a.sort_order - b.sort_order);
+    const image = colors.flatMap((c) => toGallery(c.gallery))[0] ?? null;
     return {
       slug: row.slug,
       name: row.products.name,
       category: row.products.categories?.name ?? null,
-      price: lowestPrice(row.products.product_variants ?? []),
+      price: effectivePrice(row.products.price, row.products.promo_price),
+      basePrice: row.products.price != null ? Number(row.products.price) : null,
       featured: row.featured,
-      image: gallery[0] ?? null,
+      image,
     };
   });
 }
@@ -116,10 +143,13 @@ export async function getProductBySlug(
   const { data, error } = await supabase
     .from("product_content")
     .select(
-      `slug, rich_description, meta_title, meta_description, gallery,
-       products!inner ( name, brand, reference, active_ecommerce, categories ( name ),
-         product_variants ( id, size, color, prices ( price, promo_price ),
-           stock_cache ( qty_available ) ) )`,
+      `slug, rich_description, meta_title, meta_description,
+       products!inner ( name, brand, reference, active_ecommerce, price, promo_price,
+         categories ( name ),
+         product_colors ( id, sort_order, gallery,
+           colors ( name, hex ),
+           product_variants!product_variants_product_color_id_fkey (
+             id, size, stock_cache ( qty_available ) ) ) )`,
     )
     .eq("slug", slug)
     .eq("products.active_ecommerce", true)
@@ -128,15 +158,28 @@ export async function getProductBySlug(
   if (error || !data) return null;
 
   const row = data as unknown as DetailRow;
-  const variants: ProductVariant[] = (row.products.product_variants ?? []).map(
-    (v) => ({
-      id: v.id,
-      size: v.size,
-      color: v.color,
-      price: v.prices?.[0] ? Number(v.prices[0].promo_price ?? v.prices[0].price) : null,
-      qty: (v.stock_cache ?? []).reduce((sum, s) => sum + (s.qty_available ?? 0), 0),
-    }),
-  );
+
+  const colors: ProductColor[] = (row.products.product_colors ?? [])
+    .slice()
+    .sort((a, b) => a.sort_order - b.sort_order)
+    .map((c) => ({
+      id: c.id,
+      name: c.colors?.name ?? "Cor",
+      hex: c.colors?.hex ?? null,
+      gallery: toGallery(c.gallery),
+      variants: (c.product_variants ?? [])
+        .map((v) => ({
+          id: v.id,
+          size: v.size,
+          qty: (v.stock_cache ?? []).reduce(
+            (sum, s) => sum + (s.qty_available ?? 0),
+            0,
+          ),
+        }))
+        .sort((a, b) => compareSizes(a.size, b.size)),
+    }));
+
+  const gallery = colors.flatMap((c) => c.gallery);
 
   return {
     slug: row.slug,
@@ -147,8 +190,13 @@ export async function getProductBySlug(
     description: row.rich_description,
     metaTitle: row.meta_title,
     metaDescription: row.meta_description,
-    gallery: Array.isArray(row.gallery) ? (row.gallery as string[]) : [],
-    price: lowestPrice(row.products.product_variants ?? []),
-    variants,
+    gallery,
+    price: effectivePrice(row.products.price, row.products.promo_price),
+    basePrice: row.products.price != null ? Number(row.products.price) : null,
+    promoPrice:
+      row.products.promo_price != null
+        ? Number(row.products.promo_price)
+        : null,
+    colors,
   };
 }

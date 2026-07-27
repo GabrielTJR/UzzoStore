@@ -24,6 +24,12 @@ export default async function AdminPage() {
         </div>
         <div className="flex items-center gap-4">
           <Link
+            href="/admin/cores"
+            className="text-sm text-muted underline-offset-4 hover:text-foreground hover:underline"
+          >
+            Cores
+          </Link>
+          <Link
             href="/admin/logs"
             className="text-sm text-muted underline-offset-4 hover:text-foreground hover:underline"
           >

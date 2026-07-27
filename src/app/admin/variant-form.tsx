@@ -15,20 +15,20 @@ const smallField =
 
 export function VariantForm({
   productId,
+  productColorId,
   variant,
 }: {
   productId: string;
+  productColorId: string;
   variant?: AdminVariant;
 }) {
   const isNew = !variant;
   const initial = {
     size: variant?.size ?? "",
-    price: variant?.price != null ? String(variant.price) : "",
     qty: String(variant?.qty ?? 0),
   };
 
   const [size, setSize] = useState(initial.size);
-  const [price, setPrice] = useState(initial.price);
   const [qty, setQty] = useState(initial.qty);
   const [baseline, setBaseline] = useState(initial);
 
@@ -38,19 +38,17 @@ export function VariantForm({
   );
   const { showToast } = useToast();
 
-  const dirty =
-    size !== baseline.size || price !== baseline.price || qty !== baseline.qty;
+  const dirty = size !== baseline.size || qty !== baseline.qty;
 
   useEffect(() => {
     if (!state?.ok) return;
     showToast(isNew ? "Tamanho adicionado" : "Alteração salva");
     if (isNew) {
       setSize("");
-      setPrice("");
       setQty("0");
-      setBaseline({ size: "", price: "", qty: "0" });
+      setBaseline({ size: "", qty: "0" });
     } else {
-      setBaseline({ size, price, qty });
+      setBaseline({ size, qty });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state]);
@@ -63,6 +61,7 @@ export function VariantForm({
     >
       <form action={action} className="flex flex-1 flex-wrap items-end gap-3">
         <input type="hidden" name="productId" value={productId} />
+        <input type="hidden" name="productColorId" value={productColorId} />
         {variant && <input type="hidden" name="variantId" value={variant.id} />}
         <label className="text-xs text-muted">
           Tamanho
@@ -72,18 +71,6 @@ export function VariantForm({
             onChange={(e) => setSize(e.target.value)}
             placeholder="Único"
             className={`${smallField} mt-1 w-24`}
-          />
-        </label>
-        <label className="text-xs text-muted">
-          Preço (R$)
-          <input
-            name="price"
-            inputMode="decimal"
-            required
-            value={price}
-            onChange={(e) => setPrice(e.target.value)}
-            placeholder="0,00"
-            className={`${smallField} mt-1 w-28`}
           />
         </label>
         <label className="text-xs text-muted">

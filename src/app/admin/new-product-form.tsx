@@ -1,67 +1,24 @@
 "use client";
 
-import { useActionState, useRef, useState } from "react";
+import { useActionState } from "react";
 import { createProductAction, type ActionResult } from "./actions";
-import { uploadPhotos } from "@/lib/upload-photos";
 import { CATEGORIES } from "@/lib/categories";
+import type { ColorOption } from "@/lib/admin-products";
 
 const initialState: ActionResult | null = null;
 
-export function NewProductForm() {
+const field =
+  "w-full rounded-md border border-border bg-transparent px-4 py-2.5 text-sm outline-none focus:border-foreground";
+const label = "block text-sm font-medium";
+
+export function NewProductForm({ colors }: { colors: ColorOption[] }) {
   const [state, formAction, pending] = useActionState(
     createProductAction,
     initialState,
   );
 
-  const formRef = useRef<HTMLFormElement>(null);
-  const fileRef = useRef<HTMLInputElement>(null);
-  const imagePathRef = useRef<HTMLInputElement>(null);
-  const preparedRef = useRef(false);
-  const [uploading, setUploading] = useState(false);
-  const [uploadError, setUploadError] = useState<string | null>(null);
-
-  // Envia a foto (se houver) DIRETO ao Storage antes de submeter o formulário,
-  // e injeta só o caminho no campo oculto — os bytes não trafegam pela action.
-  async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
-    const file = fileRef.current?.files?.[0];
-    if (!file || preparedRef.current) return; // sem foto, ou já enviada: segue o fluxo normal
-
-    e.preventDefault();
-    setUploadError(null);
-    setUploading(true);
-    try {
-      const { paths } = await uploadPhotos([file], "pending");
-      if (paths.length === 0) {
-        setUploadError("Falha ao enviar a foto. Tente novamente.");
-        return;
-      }
-      if (imagePathRef.current) imagePathRef.current.value = paths[0];
-      if (fileRef.current) fileRef.current.value = ""; // não enviar os bytes no corpo
-      preparedRef.current = true;
-      formRef.current?.requestSubmit();
-    } catch (err) {
-      setUploadError(
-        err instanceof Error ? err.message : "Falha ao enviar a foto.",
-      );
-    } finally {
-      setUploading(false);
-    }
-  }
-
-  const busy = uploading || pending;
-
-  const field =
-    "w-full rounded-md border border-border bg-transparent px-4 py-2.5 text-sm outline-none focus:border-foreground";
-  const label = "block text-sm font-medium";
-
   return (
-    <form
-      ref={formRef}
-      action={formAction}
-      onSubmit={handleSubmit}
-      className="space-y-5"
-    >
-      <input type="hidden" name="imagePath" ref={imagePathRef} />
+    <form action={formAction} className="space-y-5">
       <div className="space-y-1.5">
         <label className={label} htmlFor="name">
           Nome do produto *
@@ -108,17 +65,72 @@ export function NewProductForm() {
           />
         </div>
         <div className="space-y-1.5">
-          <label className={label} htmlFor="sizes">
-            Tamanhos *
+          <label className={label} htmlFor="promoPrice">
+            Preço promocional (R$)
           </label>
           <input
-            id="sizes"
-            name="sizes"
-            required
-            placeholder="P, M, G"
+            id="promoPrice"
+            name="promoPrice"
+            inputMode="decimal"
+            placeholder="opcional"
             className={field}
           />
         </div>
+      </div>
+
+      {/* Cores */}
+      <div className="space-y-2">
+        <span className={label}>Cores *</span>
+        <p className="text-xs text-muted">
+          Escolha uma ou mais cores do cadastro geral. Cada cor terá suas fotos
+          e seu estoque na tela de edição.
+        </p>
+        {colors.length > 0 && (
+          <div className="flex flex-wrap gap-3 pt-1">
+            {colors.map((c) => (
+              <label
+                key={c.id}
+                className="flex items-center gap-2 rounded-md border border-border px-3 py-2 text-sm"
+              >
+                <input type="checkbox" name="colorIds" value={c.id} />
+                <span
+                  aria-hidden
+                  className="inline-block h-4 w-4 rounded-full border border-border"
+                  style={c.hex ? { backgroundColor: c.hex } : undefined}
+                />
+                {c.name}
+              </label>
+            ))}
+          </div>
+        )}
+        <div className="space-y-1.5 pt-1">
+          <label className="text-xs text-muted" htmlFor="newColors">
+            Ou crie novas cores (separadas por vírgula)
+          </label>
+          <input
+            id="newColors"
+            name="newColors"
+            placeholder="Ex.: Azul marinho, Vinho"
+            className={field}
+          />
+        </div>
+      </div>
+
+      <div className="space-y-1.5">
+        <label className={label} htmlFor="sizes">
+          Tamanhos *
+        </label>
+        <input
+          id="sizes"
+          name="sizes"
+          required
+          placeholder="P, M, G"
+          className={field}
+        />
+        <p className="text-xs text-muted">
+          A grade é criada para cada cor × tamanho. O estoque começa em 0 —
+          ajuste na edição.
+        </p>
       </div>
 
       <div className="space-y-1.5">
@@ -128,37 +140,16 @@ export function NewProductForm() {
         <textarea id="description" name="description" rows={3} className={field} />
       </div>
 
-      <div className="space-y-1.5">
-        <label className={label} htmlFor="image">
-          Foto do produto
-        </label>
-        <input
-          id="image"
-          ref={fileRef}
-          type="file"
-          accept="image/*"
-          onChange={() => {
-            preparedRef.current = false;
-          }}
-          className="block w-full text-sm text-muted file:mr-4 file:rounded-full file:border file:border-border file:bg-transparent file:px-4 file:py-2 file:text-sm file:text-foreground"
-        />
-        <p className="text-xs text-muted">
-          Opcional agora — dá para adicionar/trocar a foto depois.
-        </p>
-      </div>
-
-      {(uploadError || state?.error) && (
-        <p className="text-sm text-red-600 dark:text-red-400">
-          {uploadError ?? state?.error}
-        </p>
+      {state?.error && (
+        <p className="text-sm text-red-600 dark:text-red-400">{state.error}</p>
       )}
 
       <button
         type="submit"
-        disabled={busy}
+        disabled={pending}
         className="h-11 rounded-full bg-foreground px-8 text-sm font-medium text-background transition-opacity hover:opacity-90 disabled:opacity-50"
       >
-        {busy ? "Salvando…" : "Cadastrar produto"}
+        {pending ? "Salvando…" : "Cadastrar produto"}
       </button>
     </form>
   );

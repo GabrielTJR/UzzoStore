@@ -9,7 +9,11 @@ const WHATSAPP_NUMBER = "5547991744865";
 
 function buildWhatsappMessage(items: CartItem[], subtotal: number): string {
   const lines = items.map((i) => {
-    const label = i.size ? ` — Tam. ${i.size}` : "";
+    const attrs = [
+      i.color ? `Cor ${i.color}` : null,
+      i.size ? `Tam. ${i.size}` : null,
+    ].filter(Boolean);
+    const label = attrs.length ? ` — ${attrs.join(" / ")}` : "";
     return `• ${i.qty}x ${i.productName}${label} — ${formatBRL(i.price * i.qty)}`;
   });
   return [
@@ -77,8 +81,15 @@ export default function SacolaPage() {
               >
                 {item.productName}
               </Link>
-              {item.size && (
-                <p className="text-xs text-muted">Tamanho: {item.size}</p>
+              {(item.color || item.size) && (
+                <p className="text-xs text-muted">
+                  {[
+                    item.color ? `Cor: ${item.color}` : null,
+                    item.size ? `Tam.: ${item.size}` : null,
+                  ]
+                    .filter(Boolean)
+                    .join(" · ")}
+                </p>
               )}
               <p className="mt-1 text-sm text-muted">{formatBRL(item.price)}</p>
             </div>

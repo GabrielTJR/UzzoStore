@@ -242,6 +242,33 @@ export type Database = {
           },
         ]
       }
+      colors: {
+        Row: {
+          created_at: string
+          hex: string | null
+          id: string
+          name: string
+          sort_order: number
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          hex?: string | null
+          id?: string
+          name: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          hex?: string | null
+          id?: string
+          name?: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
       customers: {
         Row: {
           cpf: string | null
@@ -458,6 +485,51 @@ export type Database = {
           },
         ]
       }
+      product_colors: {
+        Row: {
+          color_id: string
+          created_at: string
+          gallery: Json
+          id: string
+          product_id: string
+          sort_order: number
+          updated_at: string
+        }
+        Insert: {
+          color_id: string
+          created_at?: string
+          gallery?: Json
+          id?: string
+          product_id: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Update: {
+          color_id?: string
+          created_at?: string
+          gallery?: Json
+          id?: string
+          product_id?: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "product_colors_color_id_fkey"
+            columns: ["color_id"]
+            isOneToOne: false
+            referencedRelation: "colors"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "product_colors_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       product_content: {
         Row: {
           featured: boolean
@@ -508,6 +580,7 @@ export type Database = {
           ean: string | null
           id: string
           microvix_id: string
+          product_color_id: string | null
           product_id: string
           size: string | null
           source_timestamp: number | null
@@ -518,6 +591,7 @@ export type Database = {
           ean?: string | null
           id?: string
           microvix_id: string
+          product_color_id?: string | null
           product_id: string
           size?: string | null
           source_timestamp?: number | null
@@ -528,12 +602,20 @@ export type Database = {
           ean?: string | null
           id?: string
           microvix_id?: string
+          product_color_id?: string | null
           product_id?: string
           size?: string | null
           source_timestamp?: number | null
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "product_variants_product_color_id_fkey"
+            columns: ["product_color_id"]
+            isOneToOne: false
+            referencedRelation: "product_colors"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "product_variants_product_id_fkey"
             columns: ["product_id"]
@@ -552,6 +634,8 @@ export type Database = {
           microvix_id: string
           name: string
           ncm: string | null
+          price: number | null
+          promo_price: number | null
           reference: string | null
           source_timestamp: number | null
           updated_at: string
@@ -564,6 +648,8 @@ export type Database = {
           microvix_id: string
           name: string
           ncm?: string | null
+          price?: number | null
+          promo_price?: number | null
           reference?: string | null
           source_timestamp?: number | null
           updated_at?: string
@@ -576,6 +662,8 @@ export type Database = {
           microvix_id?: string
           name?: string
           ncm?: string | null
+          price?: number | null
+          promo_price?: number | null
           reference?: string | null
           source_timestamp?: number | null
           updated_at?: string

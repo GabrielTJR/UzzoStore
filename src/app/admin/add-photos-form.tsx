@@ -5,7 +5,7 @@ import { commitPhotosAction } from "./actions";
 import { uploadPhotos } from "@/lib/upload-photos";
 import { useToast } from "@/components/toast";
 
-export function AddPhotosForm({ productId }: { productId: string }) {
+export function AddPhotosForm({ productColorId }: { productColorId: string }) {
   const { showToast } = useToast();
   const formRef = useRef<HTMLFormElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -24,12 +24,12 @@ export function AddPhotosForm({ productId }: { productId: string }) {
 
     setBusy(true);
     try {
-      const { paths, failed } = await uploadPhotos(files, productId);
+      const { paths, failed } = await uploadPhotos(files, productColorId);
       if (paths.length === 0) {
         setError("Falha ao enviar as imagens.");
         return;
       }
-      const res = await commitPhotosAction(productId, paths);
+      const res = await commitPhotosAction(productColorId, paths);
       if (!res.ok) {
         setError(res.error ?? "Erro ao salvar as fotos.");
         return;

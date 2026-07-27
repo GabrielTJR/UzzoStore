@@ -1,5 +1,6 @@
--- Dados de TESTE (Fase 1). Todos com microvix_id/prefixo 'seed-' para fácil remoção:
---   delete from public.products where microvix_id like 'seed-%';  (cascata para variantes/preços/estoque/conteúdo)
+-- Dados de TESTE (Fase 1). Produtos/variantes com microvix_id/prefixo 'seed-' para fácil remoção:
+--   delete from public.products where microvix_id like 'seed-%';  (cascata para cores/variantes/estoque/conteúdo)
+-- As cores do cadastro geral (public.colors) são globais e permanecem.
 -- Substituídos pelos dados reais quando a sincronização com o Microvix entrar.
 
 -- Categorias
@@ -12,41 +13,58 @@ insert into public.categories (microvix_id, kind, name) values
   ('seed-cat-acessorios','setor','Acessórios')
 on conflict (microvix_id) do nothing;
 
--- Produtos
-insert into public.products (microvix_id, reference, name, brand, category_id, active_ecommerce)
-select d.mid, d.ref, d.name, 'Uzzo', c.id, true
+-- Cadastro GERAL de cores (nomes padronizados + swatch)
+insert into public.colors (name, hex, sort_order) values
+  ('Preto','#111111',1),
+  ('Off-White','#efe9dd',2),
+  ('Areia','#cbb491',3),
+  ('Azul-marinho','#1f2a44',4)
+on conflict (name) do nothing;
+
+-- Produtos (preço GLOBAL por produto)
+insert into public.products (microvix_id, reference, name, brand, category_id, active_ecommerce, price)
+select d.mid, d.ref, d.name, 'Uzzo', c.id, true, d.price
 from (values
-  ('seed-prod-1','UZ-CAM-001','Camiseta Tech Dry Preta','seed-cat-camisetas'),
-  ('seed-prod-2','UZ-CAM-002','Camiseta Básica Off-White','seed-cat-camisetas'),
-  ('seed-prod-3','UZ-CMS-001','Camisa Slim de Linho','seed-cat-camisas'),
-  ('seed-prod-4','UZ-CMS-002','Camisa Social Preta','seed-cat-camisas'),
-  ('seed-prod-5','UZ-CAL-001','Calça de Alfaiataria','seed-cat-calcas'),
-  ('seed-prod-6','UZ-BER-001','Bermuda Sarja Areia','seed-cat-bermudas'),
-  ('seed-prod-7','UZ-MOL-001','Moletom Essential','seed-cat-moletons'),
-  ('seed-prod-8','UZ-ACS-001','Boné Uzzo Logo','seed-cat-acessorios')
-) as d(mid, ref, name, cat)
+  ('seed-prod-1','UZ-CAM-001','Camiseta Tech Dry Preta','seed-cat-camisetas',129.90),
+  ('seed-prod-2','UZ-CAM-002','Camiseta Básica Off-White','seed-cat-camisetas',99.90),
+  ('seed-prod-3','UZ-CMS-001','Camisa Slim de Linho','seed-cat-camisas',199.90),
+  ('seed-prod-4','UZ-CMS-002','Camisa Social Preta','seed-cat-camisas',219.90),
+  ('seed-prod-5','UZ-CAL-001','Calça de Alfaiataria','seed-cat-calcas',259.90),
+  ('seed-prod-6','UZ-BER-001','Bermuda Sarja Areia','seed-cat-bermudas',149.90),
+  ('seed-prod-7','UZ-MOL-001','Moletom Essential','seed-cat-moletons',189.90),
+  ('seed-prod-8','UZ-ACS-001','Boné Uzzo Logo','seed-cat-acessorios',89.90)
+) as d(mid, ref, name, cat, price)
 join public.categories c on c.microvix_id = d.cat
 on conflict (microvix_id) do nothing;
 
--- Variantes (grade P/M/G)
-insert into public.product_variants (microvix_id, product_id, size, color)
-select 'seed-var-'||p.microvix_id||'-'||s.size, p.id, s.size, null
+-- Cor de cada produto (product_colors) — 1 cor por produto de teste, herda a galeria (vazia)
+insert into public.product_colors (product_id, color_id, sort_order)
+select p.id, col.id, 0
+from (values
+  ('seed-prod-1','Preto'),
+  ('seed-prod-2','Off-White'),
+  ('seed-prod-3','Off-White'),
+  ('seed-prod-4','Preto'),
+  ('seed-prod-5','Preto'),
+  ('seed-prod-6','Areia'),
+  ('seed-prod-7','Azul-marinho'),
+  ('seed-prod-8','Preto')
+) as m(mid, color)
+join public.products p on p.microvix_id = m.mid
+join public.colors col on col.name = m.color
+where not exists (
+  select 1 from public.product_colors x where x.product_id = p.id
+);
+
+-- Variantes (grade P/M/G) sob a cor do produto
+insert into public.product_variants (microvix_id, product_id, product_color_id, size, color)
+select 'seed-var-'||p.microvix_id||'-'||s.size, p.id, pc.id, s.size, col.name
 from public.products p
+join public.product_colors pc on pc.product_id = p.id
+join public.colors col on col.id = pc.color_id
 cross join (values ('P'),('M'),('G')) as s(size)
 where p.microvix_id like 'seed-prod-%'
 on conflict (microvix_id) do nothing;
-
--- Preços (por variante)
-insert into public.prices (variant_id, tabela_id, price)
-select v.id, 'default', d.price
-from public.product_variants v
-join public.products p on p.id = v.product_id
-join (values
-  ('seed-prod-1',129.90),('seed-prod-2',99.90),('seed-prod-3',199.90),('seed-prod-4',219.90),
-  ('seed-prod-5',259.90),('seed-prod-6',149.90),('seed-prod-7',189.90),('seed-prod-8',89.90)
-) as d(mid, price) on d.mid = p.microvix_id
-where v.microvix_id like 'seed-var-%'
-on conflict (variant_id, tabela_id) do nothing;
 
 -- Estoque
 insert into public.stock_cache (variant_id, deposito_id, qty_available)
@@ -55,7 +73,7 @@ from public.product_variants v
 where v.microvix_id like 'seed-var-%'
 on conflict (variant_id, deposito_id) do nothing;
 
--- Conteúdo/SEO (slug, destaque) — galeria vazia (imagens serão cadastradas depois)
+-- Conteúdo/SEO (slug, destaque). A galeria de fotos agora vive em product_colors.
 insert into public.product_content (product_id, slug, meta_title, meta_description, rich_description, featured, sort_order, gallery)
 select p.id, d.slug, d.name, 'Moda masculina Uzzo Store.',
        'Peça da coleção Uzzo Store. Descrição detalhada em breve.', d.featured, d.ord, '[]'::jsonb

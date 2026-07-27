@@ -81,6 +81,41 @@ export function ProductInfoForm({ product }: { product: AdminProduct }) {
         </div>
       </div>
 
+      <div className="grid gap-5 sm:grid-cols-2">
+        <div className="space-y-1.5">
+          <label className={label} htmlFor="price">
+            Preço (R$) *
+          </label>
+          <input
+            id="price"
+            name="price"
+            required
+            inputMode="decimal"
+            placeholder="129,90"
+            defaultValue={product.price != null ? String(product.price) : ""}
+            className={field}
+          />
+          <p className="text-xs text-muted">
+            Preço único do produto — vale para todas as cores e tamanhos.
+          </p>
+        </div>
+        <div className="space-y-1.5">
+          <label className={label} htmlFor="promoPrice">
+            Preço promocional (R$)
+          </label>
+          <input
+            id="promoPrice"
+            name="promoPrice"
+            inputMode="decimal"
+            placeholder="opcional"
+            defaultValue={
+              product.promoPrice != null ? String(product.promoPrice) : ""
+            }
+            className={field}
+          />
+        </div>
+      </div>
+
       <div className="space-y-1.5">
         <label className={label} htmlFor="description">
           Descrição
