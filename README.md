@@ -17,7 +17,7 @@ Abre em http://localhost:3000.
 
 ## Banco de dados (Supabase)
 
-O esquema inicial (tabelas + RLS) está em [`supabase/migrations/0001_initial_schema.sql`](supabase/migrations/0001_initial_schema.sql).
+O esquema inicial (tabelas + RLS) está em [`supabase/migrations/20260725163425_0001_initial_schema.sql`](supabase/migrations/20260725163425_0001_initial_schema.sql).
 Aplique via Supabase CLI (`supabase db push`) ou colando no SQL Editor do projeto.
 
 ## Estrutura

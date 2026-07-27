@@ -30,7 +30,7 @@ The store's ERP, **Linx Microvix, is the *intended* source of truth** for produc
 
 Session refresh runs in `src/proxy.ts` → `src/lib/supabase/middleware.ts` (`updateSession`).
 
-## Data model (see `supabase/migrations/0001_initial_schema.sql`)
+## Data model (see `supabase/migrations/20260725163425_0001_initial_schema.sql`)
 
 Two categories of tables — this split drives everything:
 
@@ -63,7 +63,7 @@ Server Components fetch via `src/lib/products.ts` (`getProducts`, `getProductByS
 
 ## Schema changes
 
-Add SQL migrations under `supabase/migrations/`, apply them via the Supabase MCP (`apply_migration`) or the SQL editor, and keep repo migrations in sync with the live DB. Regenerate `src/lib/supabase/database.types.ts` after schema changes. Test data is in `supabase/seed.sql` (prefixed `seed-`; remove with `delete from public.products where microvix_id like 'seed-%'`).
+Add SQL migrations under `supabase/migrations/`, apply them via the Supabase MCP (`apply_migration`) or the SQL editor, and keep repo migrations in sync with the live DB. **File naming matters:** `apply_migration` records the migration in the remote `schema_migrations` table with a generated 14-digit timestamp version (e.g. `20260726153929`). The Supabase GitHub "Preview" check compares that remote version against the version parsed from each local filename's leading digits — so the local file MUST be prefixed with that exact timestamp (`<timestamp>_<name>.sql`, e.g. `20260726153929_0003_auth_roles_audit.sql`), or the check fails with "Remote migration versions not found in local migrations directory". Regenerate `src/lib/supabase/database.types.ts` after schema changes. Test data is in `supabase/seed.sql` (prefixed `seed-`; remove with `delete from public.products where microvix_id like 'seed-%'`).
 
 ## Deploy
 
