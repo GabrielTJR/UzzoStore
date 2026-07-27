@@ -1,7 +1,6 @@
 import Link from "next/link";
 import type { Metadata } from "next";
-import { redirect } from "next/navigation";
-import { getAdminUser } from "@/lib/admin";
+import { requireAdmin } from "@/lib/admin";
 import { getAdminProducts } from "@/lib/admin-products";
 import { formatBRL } from "@/lib/format";
 import { signOutAction } from "./actions";
@@ -9,8 +8,7 @@ import { signOutAction } from "./actions";
 export const metadata: Metadata = { title: "Admin" };
 
 export default async function AdminPage() {
-  const user = await getAdminUser();
-  if (!user) redirect("/admin/login");
+  const user = await requireAdmin();
 
   const products = await getAdminProducts();
   const serviceRoleMissing = !process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -30,6 +28,18 @@ export default async function AdminPage() {
             className="text-sm text-muted underline-offset-4 hover:text-foreground hover:underline"
           >
             Logs
+          </Link>
+          <Link
+            href="/admin/equipe"
+            className="text-sm text-muted underline-offset-4 hover:text-foreground hover:underline"
+          >
+            Equipe
+          </Link>
+          <Link
+            href="/admin/conta"
+            className="text-sm text-muted underline-offset-4 hover:text-foreground hover:underline"
+          >
+            Conta
           </Link>
           <form action={signOutAction}>
             <button className="text-sm text-muted underline-offset-4 hover:text-foreground hover:underline">

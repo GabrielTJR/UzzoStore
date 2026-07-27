@@ -1,13 +1,12 @@
 import Link from "next/link";
 import type { Metadata } from "next";
-import { redirect } from "next/navigation";
-import { getAdminUser } from "@/lib/admin";
+import { requireAdmin } from "@/lib/admin";
 import { NewProductForm } from "../../new-product-form";
 
 export const metadata: Metadata = { title: "Novo produto" };
 
 export default async function NovoProdutoPage() {
-  if (!(await getAdminUser())) redirect("/admin/login");
+  await requireAdmin();
 
   return (
     <section className="mx-auto max-w-2xl px-6 py-12">

@@ -1,8 +1,8 @@
 import Link from "next/link";
 import Image from "next/image";
 import type { Metadata } from "next";
-import { notFound, redirect } from "next/navigation";
-import { getAdminUser } from "@/lib/admin";
+import { notFound } from "next/navigation";
+import { requireAdmin } from "@/lib/admin";
 import { getAdminProduct } from "@/lib/admin-products";
 import { SubmitButton } from "@/components/submit-button";
 import { ProductInfoForm } from "../../product-info-form";
@@ -18,7 +18,7 @@ export default async function EditarProdutoPage({
 }: {
   params: Promise<{ id: string }>;
 }) {
-  if (!(await getAdminUser())) redirect("/admin/login");
+  await requireAdmin();
   const { id } = await params;
   const product = await getAdminProduct(id);
   if (!product) notFound();

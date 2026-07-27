@@ -1,7 +1,6 @@
 import Link from "next/link";
 import type { Metadata } from "next";
-import { redirect } from "next/navigation";
-import { getAdminUser } from "@/lib/admin";
+import { requireAdmin } from "@/lib/admin";
 import { getAuditLog, getAuditActions } from "@/lib/audit-queries";
 
 export const metadata: Metadata = { title: "Logs" };
@@ -60,7 +59,7 @@ export default async function LogsPage({
 }: {
   searchParams: Promise<{ action?: string }>;
 }) {
-  if (!(await getAdminUser())) redirect("/admin/login");
+  await requireAdmin();
   const { action } = await searchParams;
 
   const [rows, actions] = await Promise.all([

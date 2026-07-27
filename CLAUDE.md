@@ -45,12 +45,15 @@ Key facts: the **sellable unit is the variant** (size×color "grade"), not the p
 
 Server Components fetch via `src/lib/products.ts` (`getProducts`, `getProductBySlug`). Nested Supabase embeds are cast to local `Row` types via `as unknown as` — deliberate, to avoid brittle generated-type inference on deep selects. The category menu is a **static list in `src/lib/categories.ts`** whose names must match the DB category names. Cart is **client-side** (`src/lib/cart-store.ts`, Zustand + localStorage); checkout currently builds a **WhatsApp order message** (`/sacola`) — no online payment yet.
 
-## Admin (`/admin`)
+## Admin (`/admin`) & auth roles
 
-- Auth = Supabase Auth restricted to the `ADMIN_EMAILS` allowlist (`src/lib/admin.ts` → `getAdminUser`). **Server actions are public endpoints**, so every action in `src/app/admin/actions.ts` calls `getAdminUser()` before writing.
-- All writes use the service_role admin client. `src/lib/admin-products.ts` (`getAdminProducts`/`getAdminProduct`) also uses service_role so it can see inactive products.
-- Conventions in `actions.ts`: `ensureProductContent()` creates a `product_content` row if missing (ERP products may lack one); `parsePrice()` accepts pt-BR input (`1.299,90`); product images upload to the public **`product-images`** Storage bucket.
-- Client forms use `useActionState` + a toast (`src/components/toast.tsx`) + `SubmitButton` (`useFormStatus`) for pending state.
+- **Roles live in the DB** (migration `0003`): table `public.admins` (`role` owner|admin, `full_name`, `must_change_password`) + SQL function `is_admin()`. `getAdminUser` (`src/lib/admin.ts`) is a **dual-gate** — `is_admin()` is the source of truth; the `ADMIN_EMAILS` env is only a bootstrap fallback. `getAdminRecord()` returns role/name/flag; `requireAdmin()` is the page guard (redirects to `/admin/login`, or `/admin/definir-senha` when `must_change_password`).
+- **Server actions are public endpoints** — every action (`admin/actions.ts`, `admin/auth-actions.ts`, `admin/equipe/actions.ts`) re-checks authorization server-side; never trust the UI. Owner-only actions (add/remove admin) check `role === "owner"` and never demote/remove an owner. `changePassword` clears `must_change_password` ONLY after a real password update — do NOT reintroduce a standalone "clear flag" action (it lets a first-access admin skip the mandatory change).
+- **First-access flow**: `/admin/login` is email-first — `checkAdminEmail` says if it's a first-access admin → inline "set new password"; else normal password. Admins created in `/admin/equipe` start with `must_change_password = true`. Forgot-password → `resetPasswordForEmail` → `/auth/callback` (code exchange, anti open-redirect) → `/admin/definir-senha`. **Email delivery needs SMTP (Resend) configured in Supabase Auth.**
+- **Pages**: `/admin` (products), `/admin/produtos/novo` + `/admin/produtos/[id]` (CRUD), `/admin/logs` (audit), `/admin/equipe` (manage admins — add/remove owner-only), `/admin/conta` (own name/password).
+- **Audit log** (migration `0003`): `public.audit_log` + `logAudit()` (`src/lib/audit.ts`) called after each admin mutation — who/what/when/IP. The human actor is only known in the Next layer (writes use service_role, which carries no user JWT). Read via `src/lib/audit-queries.ts` (service_role, guarded by `requireAdmin`).
+- **Product writes** use the service_role admin client; `src/lib/admin-products.ts` reads all products (incl. inactive). Conventions: `ensureProductContent()` (ERP products may lack a content row), `parsePrice()` accepts pt-BR (`1.299,90`), images → public `product-images` bucket. Client forms use `useActionState` + toast (`src/components/toast.tsx`) + `SubmitButton` (`useFormStatus`).
+- **Customer accounts** (signup/login, `/conta`, purchase history) are **not built yet** — that's the next step; it needs orders persisted at checkout (currently WhatsApp-only) and SMTP for email confirmation.
 
 ## Environment
 

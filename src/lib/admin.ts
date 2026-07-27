@@ -1,5 +1,12 @@
+import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import type { User } from "@supabase/supabase-js";
+
+export type AdminRecord = {
+  role: "owner" | "admin";
+  full_name: string | null;
+  must_change_password: boolean;
+};
 
 /** E-mails autorizados a acessar o /admin (env ADMIN_EMAILS, separados por vírgula). */
 export function adminEmails(): string[] {
@@ -24,6 +31,46 @@ export async function getAdminUser(): Promise<User | null> {
     return user;
   }
   return null;
+}
+
+/** Usuário logado + registro em public.admins (papel, nome, flag de 1º acesso). */
+export async function getAdminRecord(): Promise<{
+  user: User;
+  record: AdminRecord;
+} | null> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return null;
+
+  const { data } = await supabase
+    .from("admins")
+    .select("role, full_name, must_change_password")
+    .eq("user_id", user.id)
+    .maybeSingle();
+
+  if (data) return { user, record: data as AdminRecord };
+
+  // Fallback de bootstrap: admin por ADMIN_EMAILS ainda sem linha em admins.
+  if (user.email && adminEmails().includes(user.email.toLowerCase())) {
+    return {
+      user,
+      record: { role: "admin", full_name: null, must_change_password: false },
+    };
+  }
+  return null;
+}
+
+/**
+ * Guard de página: exige admin. Redireciona para /admin/login se não for admin,
+ * ou para /admin/definir-senha se estiver no primeiro acesso (troca obrigatória).
+ */
+export async function requireAdmin(): Promise<User> {
+  const res = await getAdminRecord();
+  if (!res) redirect("/admin/login");
+  if (res.record.must_change_password) redirect("/admin/definir-senha");
+  return res.user;
 }
 
 /** Gera um slug amigável a partir de um texto. */
