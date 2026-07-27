@@ -68,7 +68,7 @@ export default async function RootLayout({
         <header className="sticky top-0 z-10 border-b border-border bg-background/80 backdrop-blur">
           <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-3">
             <Link href="/" aria-label="Uzzo Store — início">
-              <Logo height={40} priority />
+              <Logo height={27} priority />
             </Link>
             <div className="flex items-center gap-5">
               <a
