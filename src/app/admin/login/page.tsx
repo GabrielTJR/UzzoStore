@@ -54,6 +54,7 @@ export default function AdminLoginPage() {
 
       await recordLogin();
 
+      await new Promise((r) => setTimeout(r, 500));
       router.replace("/admin");
       router.refresh();
     } 
