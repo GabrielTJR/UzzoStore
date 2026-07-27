@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { checkAdminEmail, changePassword, recordLogin } from "../auth-actions";
 
@@ -13,7 +12,6 @@ const buttonClass =
   "h-11 w-full rounded-full bg-foreground text-sm font-medium text-background transition-opacity hover:opacity-90 disabled:opacity-50";
 
 export default function AdminLoginPage() {
-  const router = useRouter();
   const [supabase] = useState(() => createClient());
 
   const [mode, setMode] = useState<Mode>("email");
@@ -31,6 +29,8 @@ export default function AdminLoginPage() {
     try {
       const { mustChange } = await checkAdminEmail(email);
       setMode(mustChange ? "firstAccess" : "password");
+    } catch {
+      setMode("password"); // fallback: segue para a senha normal
     } finally {
       setLoading(false);
     }
@@ -52,11 +52,11 @@ export default function AdminLoginPage() {
         return;
       }
 
-      await recordLogin();
-
-      await new Promise((r) => setTimeout(r, 500));
-      router.replace("/admin");
-      router.refresh();
+      // Auditoria é best-effort: não deve bloquear/travar o login.
+      void recordLogin().catch(() => {});
+      // Navegação COMPLETA: esta requisição já leva o cookie da sessão, então
+      // o servidor autoriza o /admin de primeira (elimina a corrida, sem delay).
+      window.location.assign("/admin");
     } 
     catch (err) {
       console.error(err);
@@ -84,14 +84,18 @@ export default function AdminLoginPage() {
       setLoading(false);
       return;
     }
-    const res = await changePassword(newPassword);
+    let res: { ok: boolean; error?: string };
+    try {
+      res = await changePassword(newPassword);
+    } catch {
+      res = { ok: false, error: "Erro ao definir a senha. Tente novamente." };
+    }
     if (!res.ok) {
       setError(res.error ?? "Não foi possível definir a nova senha.");
       setLoading(false);
       return;
     }
-    router.replace("/admin");
-    router.refresh();
+    window.location.assign("/admin");
   }
 
   async function forgotPassword() {

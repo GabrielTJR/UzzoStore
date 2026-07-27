@@ -41,8 +41,7 @@ export default function DefinirSenhaPage() {
       setLoading(false);
       return;
     }
-    router.replace("/admin");
-    router.refresh();
+    window.location.assign("/admin");
   }
 
   return (
