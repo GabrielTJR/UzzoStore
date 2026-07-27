@@ -40,18 +40,30 @@ export default function AdminLoginPage() {
     e.preventDefault();
     setLoading(true);
     setError(null);
-    const { error: signErr } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
-    if (signErr) {
-      setError("E-mail ou senha inválidos.");
+
+    try {
+      const { error: signErr } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
+
+      if (signErr) {
+        setError("E-mail ou senha inválidos.");
+        return;
+      }
+
+      await recordLogin();
+
+      router.replace("/admin");
+      router.refresh();
+    } 
+    catch (err) {
+      console.error(err);
+      setError("Erro inesperado ao fazer login.");
+    } 
+    finally {
       setLoading(false);
-      return;
     }
-    await recordLogin();
-    router.replace("/admin");
-    router.refresh();
   }
 
   async function submitFirstAccess(e: React.FormEvent) {
