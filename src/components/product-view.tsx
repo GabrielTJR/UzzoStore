@@ -59,6 +59,8 @@ export function ProductView({
   );
   const [imageIndex, setImageIndex] = useState(0);
   const [added, setAdded] = useState(false);
+  const [qtyText, setQtyText] = useState("1");
+  const qty = Math.max(1, parseInt(qtyText, 10) || 1);
 
   const color = colors.find((c) => c.id === selectedColorId) ?? null;
   const gallery = color?.gallery ?? [];
@@ -90,14 +92,18 @@ export function ProductView({
   function handleAdd() {
     if (!color || !selectedVariant || !variantBuyable(selectedVariant, price))
       return;
-    addItem({
-      variantId: selectedVariant.id,
-      productSlug: slug,
-      productName: name,
-      color: color.name,
-      size: selectedVariant.size,
-      price: price as number,
-    });
+    addItem(
+      {
+        variantId: selectedVariant.id,
+        productSlug: slug,
+        productName: name,
+        color: color.name,
+        size: selectedVariant.size,
+        price: price as number,
+      },
+      qty,
+    );
+    setQtyText("1");
     setAdded(true);
     window.setTimeout(() => setAdded(false), 2500);
   }
@@ -232,6 +238,42 @@ export function ProductView({
                   </button>
                 );
               })}
+            </div>
+          </div>
+        )}
+
+        {/* Quantidade */}
+        {anyBuyable && (
+          <div className="mt-6">
+            <p className="text-sm font-medium">Quantidade</p>
+            <div className="mt-3 inline-flex items-center rounded-md border border-border">
+              <button
+                type="button"
+                aria-label="Diminuir quantidade"
+                onClick={() => setQtyText(String(Math.max(1, qty - 1)))}
+                disabled={qty <= 1}
+                className="flex h-11 w-11 items-center justify-center text-lg text-muted transition-colors hover:text-foreground disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                −
+              </button>
+              <input
+                inputMode="numeric"
+                aria-label="Quantidade"
+                value={qtyText}
+                onChange={(e) => setQtyText(e.target.value.replace(/\D/g, ""))}
+                onBlur={() =>
+                  setQtyText(String(Math.max(1, parseInt(qtyText, 10) || 1)))
+                }
+                className="h-11 w-14 border-x border-border bg-transparent text-center text-sm outline-none"
+              />
+              <button
+                type="button"
+                aria-label="Aumentar quantidade"
+                onClick={() => setQtyText(String(qty + 1))}
+                className="flex h-11 w-11 items-center justify-center text-lg text-muted transition-colors hover:text-foreground"
+              >
+                +
+              </button>
             </div>
           </div>
         )}
