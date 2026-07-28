@@ -26,7 +26,7 @@ function PencilIcon() {
 }
 
 const overlayButton =
-  "flex h-8 w-8 items-center justify-center rounded-full border border-border bg-background/80 shadow-sm backdrop-blur transition-colors hover:bg-background";
+  "flex h-8 w-8 items-center justify-center rounded-full border border-border bg-background/90 text-foreground shadow-sm backdrop-blur transition duration-150 ease-out hover:scale-110 hover:bg-background active:scale-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-foreground/40";
 
 export function ProductCard({
   product,

@@ -6,7 +6,7 @@ import { toggleFeaturedAction, type ActionResult } from "@/app/admin/actions";
 import { useToast } from "@/components/toast";
 
 const overlayButton =
-  "flex h-8 w-8 items-center justify-center rounded-full border border-border bg-background/80 shadow-sm backdrop-blur transition-colors hover:bg-background disabled:opacity-60";
+  "flex h-8 w-8 items-center justify-center rounded-full border border-border bg-background/90 text-foreground shadow-sm backdrop-blur transition duration-150 ease-out hover:scale-110 hover:bg-background active:scale-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-foreground/40 disabled:pointer-events-none disabled:opacity-70";
 
 function StarIcon({ filled }: { filled: boolean }) {
   return (
@@ -39,7 +39,9 @@ function StarButton({ featured }: { featured: boolean }) {
       }
       className={overlayButton}
     >
-      <StarIcon filled={featured} />
+      <span className={pending ? "animate-pulse" : "transition-transform"}>
+        <StarIcon filled={featured} />
+      </span>
     </button>
   );
 }
