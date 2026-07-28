@@ -4,7 +4,7 @@ import { useState } from "react";
 import Image from "next/image";
 import { useCart } from "@/lib/cart-store";
 import { formatBRL } from "@/lib/format";
-import { ProductPlaceholder } from "@/components/product-placeholder";
+import { SlideTrack } from "@/components/slide-track";
 import { CarouselArrows } from "@/components/carousel-arrows";
 import type { ProductColor, ProductVariant } from "@/lib/products";
 
@@ -109,34 +109,27 @@ export function ProductView({
     window.setTimeout(() => setAdded(false), 2500);
   }
 
-  const cover = gallery[imageIndex] ?? gallery[0] ?? null;
   const hasPromo = promoPrice != null && basePrice != null;
 
   return (
-    <div className="grid gap-10 md:grid-cols-2">
+    <div className="grid gap-10 md:grid-cols-[minmax(0,22rem)_1fr] md:items-start lg:grid-cols-[minmax(0,26rem)_1fr]">
       {/* Galeria (troca conforme a cor) */}
       <div>
-        <div className="relative aspect-[3/4] overflow-hidden rounded-lg border border-border">
-          {cover ? (
-            <Image
-              src={cover}
-              alt={color ? `${name} — ${color.name}` : name}
-              fill
-              sizes="(max-width: 768px) 100vw, 50vw"
-              priority
-              className="object-cover"
-            />
-          ) : (
-            <ProductPlaceholder />
-          )}
+        <div className="relative">
+          <SlideTrack
+            key={selectedColorId ?? "none"}
+            images={gallery}
+            index={imageIndex}
+            alt={color ? `${name} — ${color.name}` : name}
+            sizes="(max-width: 768px) 100vw, 50vw"
+            priority
+          />
           {gallery.length > 1 && (
             <CarouselArrows
               onPrev={() =>
                 setImageIndex((i) => (i - 1 + gallery.length) % gallery.length)
               }
-              onNext={() =>
-                setImageIndex((i) => (i + 1) % gallery.length)
-              }
+              onNext={() => setImageIndex((i) => (i + 1) % gallery.length)}
             />
           )}
         </div>

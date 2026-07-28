@@ -2,8 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import Image from "next/image";
-import { ProductPlaceholder } from "./product-placeholder";
+import { SlideTrack } from "./slide-track";
 import { CarouselArrows } from "./carousel-arrows";
 import type { ProductListItem } from "@/lib/products";
 
@@ -18,7 +17,6 @@ export function CardColorMedia({ product }: { product: ProductListItem }) {
 
   const active = colors[colorIdx];
   const gallery = active?.images ?? [];
-  const image = gallery[photoIdx] ?? gallery[0] ?? null;
   const multi = gallery.length > 1;
 
   function selectColor(i: number) {
@@ -30,19 +28,13 @@ export function CardColorMedia({ product }: { product: ProductListItem }) {
     <>
       <div className="relative">
         <Link href={`/produtos/${product.slug}`} className="block">
-          <div className="relative aspect-[3/4] overflow-hidden rounded-lg border border-border transition-opacity group-hover:opacity-90">
-            {image ? (
-              <Image
-                src={image}
-                alt={active ? `${product.name} — ${active.name}` : product.name}
-                fill
-                sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw"
-                className="object-cover"
-              />
-            ) : (
-              <ProductPlaceholder />
-            )}
-          </div>
+          <SlideTrack
+            key={colorIdx}
+            images={gallery}
+            index={photoIdx}
+            alt={active ? `${product.name} — ${active.name}` : product.name}
+            sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw"
+          />
         </Link>
         {multi && (
           <CarouselArrows
