@@ -395,13 +395,17 @@ export async function updateProductAction(
 }
 
 /** Liga/desliga o "destaque na home" de um produto (mesma função do checkbox da edição). */
-export async function toggleFeaturedAction(formData: FormData): Promise<void> {
+export async function toggleFeaturedAction(
+  _prev: ActionResult | null,
+  formData: FormData,
+): Promise<ActionResult> {
   const actor = await getAdminUser();
-  if (!actor) return;
-  if (serviceRoleMissing()) return;
+  if (!actor) return { ok: false, error: "Não autorizado." };
+  if (serviceRoleMissing())
+    return { ok: false, error: "Falta SUPABASE_SERVICE_ROLE_KEY no servidor." };
 
   const id = String(formData.get("productId") ?? "");
-  if (!id) return;
+  if (!id) return { ok: false, error: "Produto inválido." };
 
   const admin = createAdminClient();
   await ensureProductContent(admin, id);
@@ -416,10 +420,7 @@ export async function toggleFeaturedAction(formData: FormData): Promise<void> {
     .from("product_content")
     .update({ featured: next })
     .eq("product_id", id);
-  if (error) {
-    revalidateProduct(id);
-    return;
-  }
+  if (error) return { ok: false, error: "Erro ao atualizar o destaque." };
 
   await logAudit(actor, {
     action: "product.featured",
@@ -428,6 +429,7 @@ export async function toggleFeaturedAction(formData: FormData): Promise<void> {
     metadata: { featured: next },
   });
   revalidateProduct(id);
+  return { ok: true };
 }
 
 export async function deleteProductAction(formData: FormData): Promise<void> {

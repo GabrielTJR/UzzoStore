@@ -8,11 +8,12 @@ import {
   useState,
 } from "react";
 
-type ToastItem = { id: number; message: string };
+type ToastVariant = "success" | "error";
+type ToastItem = { id: number; message: string; variant: ToastVariant };
 
-const ToastContext = createContext<{ showToast: (message: string) => void } | null>(
-  null,
-);
+const ToastContext = createContext<{
+  showToast: (message: string, variant?: ToastVariant) => void;
+} | null>(null);
 
 export function useToast() {
   const ctx = useContext(ToastContext);
@@ -24,13 +25,16 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
   const [toasts, setToasts] = useState<ToastItem[]>([]);
   const nextId = useRef(0);
 
-  const showToast = useCallback((message: string) => {
-    const id = nextId.current++;
-    setToasts((prev) => [...prev, { id, message }]);
-    window.setTimeout(() => {
-      setToasts((prev) => prev.filter((t) => t.id !== id));
-    }, 2600);
-  }, []);
+  const showToast = useCallback(
+    (message: string, variant: ToastVariant = "success") => {
+      const id = nextId.current++;
+      setToasts((prev) => [...prev, { id, message, variant }]);
+      window.setTimeout(() => {
+        setToasts((prev) => prev.filter((t) => t.id !== id));
+      }, 2600);
+    },
+    [],
+  );
 
   return (
     <ToastContext.Provider value={{ showToast }}>
@@ -40,9 +44,11 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
           <div
             key={t.id}
             role="status"
-            className="animate-toast-in pointer-events-auto flex items-center gap-2 rounded-lg bg-green-600 px-4 py-2.5 text-sm font-medium text-white shadow-lg"
+            className={`animate-toast-in pointer-events-auto flex items-center gap-2 rounded-lg px-4 py-2.5 text-sm font-medium text-white shadow-lg ${
+              t.variant === "error" ? "bg-red-600" : "bg-green-600"
+            }`}
           >
-            <span aria-hidden>✓</span>
+            <span aria-hidden>{t.variant === "error" ? "!" : "✓"}</span>
             {t.message}
           </div>
         ))}

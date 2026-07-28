@@ -2,26 +2,8 @@ import Link from "next/link";
 import Image from "next/image";
 import { formatBRL } from "@/lib/format";
 import { ProductPlaceholder } from "./product-placeholder";
-import { toggleFeaturedAction } from "@/app/admin/actions";
+import { FeaturedStar } from "./featured-star";
 import type { ProductListItem } from "@/lib/products";
-
-function StarIcon({ filled }: { filled: boolean }) {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      width="16"
-      height="16"
-      fill={filled ? "currentColor" : "none"}
-      stroke="currentColor"
-      strokeWidth="1.8"
-      strokeLinejoin="round"
-      className={filled ? "text-amber-500" : "text-muted"}
-      aria-hidden
-    >
-      <path d="M12 3l2.7 5.47 6.04.88-4.37 4.26 1.03 6.02L12 17.77 6.6 19.63l1.03-6.02L3.26 9.35l6.04-.88L12 3z" />
-    </svg>
-  );
-}
 
 function PencilIcon() {
   return (
@@ -84,25 +66,7 @@ export function ProductCard({
 
       {isAdmin && (
         <div className="absolute right-2 top-2 z-10 flex gap-1.5">
-          <form action={toggleFeaturedAction}>
-            <input type="hidden" name="productId" value={product.id} />
-            <button
-              type="submit"
-              title={
-                product.featured
-                  ? "Remover destaque da home"
-                  : "Destacar na home"
-              }
-              aria-label={
-                product.featured
-                  ? "Remover destaque da home"
-                  : "Marcar como destaque na home"
-              }
-              className={overlayButton}
-            >
-              <StarIcon filled={product.featured} />
-            </button>
-          </form>
+          <FeaturedStar productId={product.id} featured={product.featured} />
           <Link
             href={`/admin/produtos/${product.id}`}
             title="Editar produto"
