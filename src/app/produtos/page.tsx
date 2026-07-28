@@ -126,14 +126,9 @@ export default async function ProdutosPage({
         {catalogColors.length >= 2 && (
           <div className="flex flex-wrap items-center gap-2">
             <span className="mr-1 text-xs font-medium uppercase tracking-wide text-muted">
-              Cor
+              Cor:
             </span>
-            <FilterChip
-              href={buildHref(activeCatSlug, [])}
-              active={selectedColors.length === 0}
-            >
-              Geral
-            </FilterChip>
+            
             {catalogColors.map((cc) => {
               const isSel = selectedColorSet.has(cc.name.toLowerCase());
               const next = isSel
