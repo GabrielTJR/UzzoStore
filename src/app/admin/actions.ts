@@ -394,6 +394,42 @@ export async function updateProductAction(
   return { ok: true };
 }
 
+/** Liga/desliga o "destaque na home" de um produto (mesma função do checkbox da edição). */
+export async function toggleFeaturedAction(formData: FormData): Promise<void> {
+  const actor = await getAdminUser();
+  if (!actor) return;
+  if (serviceRoleMissing()) return;
+
+  const id = String(formData.get("productId") ?? "");
+  if (!id) return;
+
+  const admin = createAdminClient();
+  await ensureProductContent(admin, id);
+  const { data } = await admin
+    .from("product_content")
+    .select("featured")
+    .eq("product_id", id)
+    .maybeSingle();
+  const next = !(data?.featured ?? false);
+
+  const { error } = await admin
+    .from("product_content")
+    .update({ featured: next })
+    .eq("product_id", id);
+  if (error) {
+    revalidateProduct(id);
+    return;
+  }
+
+  await logAudit(actor, {
+    action: "product.featured",
+    entityType: "product",
+    entityId: id,
+    metadata: { featured: next },
+  });
+  revalidateProduct(id);
+}
+
 export async function deleteProductAction(formData: FormData): Promise<void> {
   const actor = await getAdminUser();
   if (!actor) return;

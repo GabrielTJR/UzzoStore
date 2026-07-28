@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import { getProducts } from "@/lib/products";
 import { ProductCard } from "@/components/product-card";
 import { CATEGORIES } from "@/lib/categories";
+import { getAdminUser } from "@/lib/admin";
 
 export const metadata: Metadata = {
   title: "Produtos",
@@ -39,7 +40,8 @@ export default async function ProdutosPage({
 }) {
   const { categoria } = await searchParams;
   const selected = CATEGORIES.find((c) => c.slug === categoria) ?? null;
-  const all = await getProducts();
+  const [all, adminUser] = await Promise.all([getProducts(), getAdminUser()]);
+  const isAdmin = !!adminUser;
   const products = selected
     ? all.filter((p) => p.category === selected.name)
     : all;
@@ -75,7 +77,7 @@ export default async function ProdutosPage({
       ) : (
         <div className="grid grid-cols-2 gap-x-6 gap-y-10 sm:grid-cols-3 lg:grid-cols-4">
           {products.map((p) => (
-            <ProductCard key={p.slug} product={p} />
+            <ProductCard key={p.slug} product={p} isAdmin={isAdmin} />
           ))}
         </div>
       )}

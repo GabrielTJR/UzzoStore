@@ -2,6 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import { compareSizes } from "@/lib/sizes";
 
 export type ProductListItem = {
+  id: string;
   slug: string;
   name: string;
   category: string | null;
@@ -49,6 +50,7 @@ type ListRow = {
   featured: boolean;
   sort_order: number;
   products: {
+    id: string;
     name: string;
     price: number | null;
     promo_price: number | null;
@@ -106,7 +108,7 @@ export async function getProducts(
     .from("product_content")
     .select(
       `slug, featured, sort_order,
-       products!inner ( name, active_ecommerce, price, promo_price,
+       products!inner ( id, name, active_ecommerce, price, promo_price,
          categories ( name ),
          product_colors ( sort_order, gallery ) )`,
     )
@@ -125,6 +127,7 @@ export async function getProducts(
       .sort((a, b) => a.sort_order - b.sort_order);
     const image = colors.flatMap((c) => toGallery(c.gallery))[0] ?? null;
     return {
+      id: row.products.id,
       slug: row.slug,
       name: row.products.name,
       category: row.products.categories?.name ?? null,
