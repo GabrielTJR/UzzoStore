@@ -5,6 +5,7 @@ import Image from "next/image";
 import { useCart } from "@/lib/cart-store";
 import { formatBRL } from "@/lib/format";
 import { ProductPlaceholder } from "@/components/product-placeholder";
+import { CarouselArrows } from "@/components/carousel-arrows";
 import type { ProductColor, ProductVariant } from "@/lib/products";
 
 function variantBuyable(v: ProductVariant, price: number | null): boolean {
@@ -127,6 +128,16 @@ export function ProductView({
             />
           ) : (
             <ProductPlaceholder />
+          )}
+          {gallery.length > 1 && (
+            <CarouselArrows
+              onPrev={() =>
+                setImageIndex((i) => (i - 1 + gallery.length) % gallery.length)
+              }
+              onNext={() =>
+                setImageIndex((i) => (i + 1) % gallery.length)
+              }
+            />
           )}
         </div>
         {gallery.length > 1 && (

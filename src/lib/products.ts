@@ -1,6 +1,13 @@
 import { createClient } from "@/lib/supabase/server";
 import { compareSizes } from "@/lib/sizes";
 
+/** Cor exibida no card da vitrine: swatch + galeria daquela cor (capa = images[0]). */
+export type ProductListColor = {
+  name: string;
+  hex: string | null;
+  images: string[];
+};
+
 export type ProductListItem = {
   id: string;
   slug: string;
@@ -9,7 +16,8 @@ export type ProductListItem = {
   price: number | null; // preço efetivo (promo ?? cheio)
   basePrice: number | null; // preço cheio (para riscar quando há promo)
   featured: boolean;
-  image: string | null;
+  image: string | null; // capa padrão (1ª cor com foto)
+  colors: ProductListColor[];
 };
 
 export type ProductVariant = {
@@ -55,7 +63,11 @@ type ListRow = {
     price: number | null;
     promo_price: number | null;
     categories: { name: string } | null;
-    product_colors: { sort_order: number; gallery: unknown }[];
+    product_colors: {
+      sort_order: number;
+      gallery: unknown;
+      colors: { name: string; hex: string | null } | null;
+    }[];
   };
 };
 
@@ -110,7 +122,7 @@ export async function getProducts(
       `slug, featured, sort_order,
        products!inner ( id, name, active_ecommerce, price, promo_price,
          categories ( name ),
-         product_colors ( sort_order, gallery ) )`,
+         product_colors ( sort_order, gallery, colors ( name, hex ) ) )`,
     )
     .eq("products.active_ecommerce", true)
     .order("sort_order");
@@ -122,10 +134,15 @@ export async function getProducts(
 
   const rows = data as unknown as ListRow[];
   return rows.map((row) => {
-    const colors = (row.products.product_colors ?? [])
+    const colors: ProductListColor[] = (row.products.product_colors ?? [])
       .slice()
-      .sort((a, b) => a.sort_order - b.sort_order);
-    const image = colors.flatMap((c) => toGallery(c.gallery))[0] ?? null;
+      .sort((a, b) => a.sort_order - b.sort_order)
+      .map((c) => ({
+        name: c.colors?.name ?? "Cor",
+        hex: c.colors?.hex ?? null,
+        images: toGallery(c.gallery),
+      }));
+    const image = colors.find((c) => c.images.length > 0)?.images[0] ?? null;
     return {
       id: row.products.id,
       slug: row.slug,
@@ -135,6 +152,7 @@ export async function getProducts(
       basePrice: row.products.price != null ? Number(row.products.price) : null,
       featured: row.featured,
       image,
+      colors,
     };
   });
 }
