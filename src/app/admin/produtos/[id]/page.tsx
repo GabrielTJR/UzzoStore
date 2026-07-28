@@ -4,6 +4,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { requireAdmin } from "@/lib/admin";
 import { getAdminProduct, getAllColors } from "@/lib/admin-products";
+import { getCategories } from "@/lib/products";
 import { SubmitButton } from "@/components/submit-button";
 import { ProductInfoForm } from "../../product-info-form";
 import { DeleteProductButton } from "../../delete-product-button";
@@ -22,9 +23,10 @@ export default async function EditarProdutoPage({
 }) {
   await requireAdmin();
   const { id } = await params;
-  const [product, allColors] = await Promise.all([
+  const [product, allColors, categories] = await Promise.all([
     getAdminProduct(id),
     getAllColors(),
+    getCategories(),
   ]);
   if (!product) notFound();
 
@@ -62,7 +64,7 @@ export default async function EditarProdutoPage({
         <h2 className="mb-4 text-sm font-medium uppercase tracking-[0.2em] text-muted">
           Informações
         </h2>
-        <ProductInfoForm product={product} />
+        <ProductInfoForm product={product} categories={categories} />
       </div>
 
       {/* Cores */}

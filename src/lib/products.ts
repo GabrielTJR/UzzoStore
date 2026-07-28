@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { compareSizes } from "@/lib/sizes";
+import type { StoreCategory } from "@/lib/categories";
 
 /** Cor exibida no card da vitrine: swatch + galeria daquela cor (capa = images[0]). */
 export type ProductListColor = {
@@ -159,6 +160,18 @@ export async function getProducts(
       colors,
     };
   });
+}
+
+/** Categorias (setores) para o menu/filtro da vitrine — lidas do banco. */
+export async function getCategories(): Promise<StoreCategory[]> {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("categories")
+    .select("id, name")
+    .eq("kind", "setor")
+    .order("name");
+  if (error || !data) return [];
+  return data.map((c) => ({ id: c.id, name: c.name }));
 }
 
 export async function getProductBySlug(

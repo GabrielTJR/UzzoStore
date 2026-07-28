@@ -2,13 +2,17 @@ import Link from "next/link";
 import type { Metadata } from "next";
 import { requireAdmin } from "@/lib/admin";
 import { getAllColors } from "@/lib/admin-products";
+import { getCategories } from "@/lib/products";
 import { NewProductForm } from "../../new-product-form";
 
 export const metadata: Metadata = { title: "Novo produto" };
 
 export default async function NovoProdutoPage() {
   await requireAdmin();
-  const colors = await getAllColors();
+  const [colors, categories] = await Promise.all([
+    getAllColors(),
+    getCategories(),
+  ]);
 
   return (
     <section className="mx-auto max-w-2xl px-6 py-12">
@@ -27,7 +31,7 @@ export default async function NovoProdutoPage() {
       </p>
 
       <div className="mt-8 rounded-lg border border-border p-6">
-        <NewProductForm colors={colors} />
+        <NewProductForm colors={colors} categories={categories} />
       </div>
     </section>
   );

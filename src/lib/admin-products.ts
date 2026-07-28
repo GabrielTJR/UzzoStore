@@ -194,6 +194,31 @@ export async function getAdminProduct(id: string): Promise<AdminProduct | null> 
   };
 }
 
+export type AdminCategory = {
+  id: string;
+  name: string;
+  products: number;
+};
+
+/** Categorias (setores) + quantos produtos cada uma tem — tela /admin/categorias. */
+export async function getAdminCategories(): Promise<AdminCategory[]> {
+  const admin = createAdminClient();
+  const [cats, prods] = await Promise.all([
+    admin.from("categories").select("id, name").eq("kind", "setor").order("name"),
+    admin.from("products").select("category_id"),
+  ]);
+  if (cats.error || !cats.data) return [];
+  const counts: Record<string, number> = {};
+  for (const p of (prods.data ?? []) as { category_id: string | null }[]) {
+    if (p.category_id) counts[p.category_id] = (counts[p.category_id] ?? 0) + 1;
+  }
+  return cats.data.map((c) => ({
+    id: c.id,
+    name: c.name,
+    products: counts[c.id] ?? 0,
+  }));
+}
+
 /** Cadastro GERAL de cores (para selects e para a tela /admin/cores). */
 export async function getAllColors(): Promise<ColorOption[]> {
   const admin = createAdminClient();

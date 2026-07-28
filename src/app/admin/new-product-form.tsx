@@ -2,7 +2,7 @@
 
 import { useActionState } from "react";
 import { createProductAction, type ActionResult } from "./actions";
-import { CATEGORIES } from "@/lib/categories";
+import type { StoreCategory } from "@/lib/categories";
 import type { ColorOption } from "@/lib/admin-products";
 
 const initialState: ActionResult | null = null;
@@ -11,7 +11,13 @@ const field =
   "w-full rounded-md border border-border bg-transparent px-4 py-2.5 text-sm outline-none focus:border-foreground";
 const label = "block text-sm font-medium";
 
-export function NewProductForm({ colors }: { colors: ColorOption[] }) {
+export function NewProductForm({
+  colors,
+  categories,
+}: {
+  colors: ColorOption[];
+  categories: StoreCategory[];
+}) {
   const [state, formAction, pending] = useActionState(
     createProductAction,
     initialState,
@@ -35,8 +41,8 @@ export function NewProductForm({ colors }: { colors: ColorOption[] }) {
             <option value="" disabled>
               Selecione…
             </option>
-            {CATEGORIES.map((c) => (
-              <option key={c.slug} value={c.name}>
+            {categories.map((c) => (
+              <option key={c.id} value={c.name}>
                 {c.name}
               </option>
             ))}

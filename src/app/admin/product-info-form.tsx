@@ -2,7 +2,7 @@
 
 import { useActionState, useEffect, useState } from "react";
 import { updateProductAction, type ActionResult } from "./actions";
-import { CATEGORIES } from "@/lib/categories";
+import type { StoreCategory } from "@/lib/categories";
 import { useToast } from "@/components/toast";
 import type { AdminProduct } from "@/lib/admin-products";
 
@@ -10,7 +10,13 @@ const field =
   "w-full rounded-md border border-border bg-transparent px-4 py-2.5 text-sm outline-none focus:border-foreground";
 const label = "block text-sm font-medium";
 
-export function ProductInfoForm({ product }: { product: AdminProduct }) {
+export function ProductInfoForm({
+  product,
+  categories,
+}: {
+  product: AdminProduct;
+  categories: StoreCategory[];
+}) {
   const [state, action, pending] = useActionState<ActionResult | null, FormData>(
     updateProductAction,
     null,
@@ -26,7 +32,7 @@ export function ProductInfoForm({ product }: { product: AdminProduct }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state]);
 
-  const categoryNames: string[] = CATEGORIES.map((c) => c.name);
+  const categoryNames: string[] = categories.map((c) => c.name);
   const extraCategory =
     product.categoryName && !categoryNames.includes(product.categoryName)
       ? [product.categoryName]

@@ -791,6 +791,113 @@ export async function deleteColorAction(formData: FormData): Promise<void> {
   revalidatePath("/admin/cores");
 }
 
+// --- Categorias (setores) ---------------------------------------------------
+
+function revalidateCategories() {
+  revalidatePath("/admin/categorias");
+  revalidatePath("/admin");
+  revalidatePath("/produtos");
+  revalidatePath("/");
+}
+
+export async function createCategoryAction(
+  _prev: ActionResult | null,
+  formData: FormData,
+): Promise<ActionResult> {
+  const actor = await getAdminUser();
+  if (!actor) return { ok: false, error: "Não autorizado." };
+  if (serviceRoleMissing())
+    return { ok: false, error: "Falta SUPABASE_SERVICE_ROLE_KEY no servidor." };
+
+  const name = String(formData.get("name") ?? "").trim();
+  if (!name) return { ok: false, error: "Informe o nome da categoria." };
+
+  const admin = createAdminClient();
+  const { data: dup } = await admin
+    .from("categories")
+    .select("id")
+    .ilike("name", name)
+    .maybeSingle();
+  if (dup) return { ok: false, error: "Já existe uma categoria com esse nome." };
+
+  const { error } = await admin.from("categories").insert({
+    microvix_id: `manual-cat-${randomUUID()}`,
+    name,
+    kind: "setor",
+  });
+  if (error) return { ok: false, error: "Erro ao criar a categoria." };
+
+  await logAudit(actor, {
+    action: "category.create",
+    entityType: "category",
+    entityLabel: name,
+  });
+  revalidateCategories();
+  return { ok: true };
+}
+
+export async function updateCategoryAction(
+  _prev: ActionResult | null,
+  formData: FormData,
+): Promise<ActionResult> {
+  const actor = await getAdminUser();
+  if (!actor) return { ok: false, error: "Não autorizado." };
+  if (serviceRoleMissing())
+    return { ok: false, error: "Falta SUPABASE_SERVICE_ROLE_KEY no servidor." };
+
+  const id = String(formData.get("categoryId") ?? "");
+  const name = String(formData.get("name") ?? "").trim();
+  if (!id) return { ok: false, error: "Categoria inválida." };
+  if (!name) return { ok: false, error: "Informe o nome da categoria." };
+
+  const admin = createAdminClient();
+  const { data: dup } = await admin
+    .from("categories")
+    .select("id")
+    .ilike("name", name)
+    .neq("id", id)
+    .maybeSingle();
+  if (dup) return { ok: false, error: "Já existe uma categoria com esse nome." };
+
+  const { error } = await admin
+    .from("categories")
+    .update({ name, updated_at: new Date().toISOString() })
+    .eq("id", id);
+  if (error) return { ok: false, error: "Erro ao salvar a categoria." };
+
+  await logAudit(actor, {
+    action: "category.update",
+    entityType: "category",
+    entityId: id,
+    entityLabel: name,
+  });
+  revalidateCategories();
+  return { ok: true };
+}
+
+export async function deleteCategoryAction(formData: FormData): Promise<void> {
+  const actor = await getAdminUser();
+  if (!actor) return;
+  if (serviceRoleMissing()) return;
+
+  const id = String(formData.get("categoryId") ?? "");
+  if (!id) return;
+
+  const admin = createAdminClient();
+  // products.category_id tem ON DELETE SET NULL: os produtos ficam sem categoria.
+  const { error } = await admin.from("categories").delete().eq("id", id);
+  if (error) {
+    revalidateCategories();
+    return;
+  }
+  await logAudit(actor, {
+    action: "category.delete",
+    entityType: "category",
+    entityId: id,
+  });
+  revalidateCategories();
+}
+
 // --- Fotos (por cor) --------------------------------------------------------
 
 /**

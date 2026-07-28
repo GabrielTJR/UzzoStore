@@ -1,14 +1,19 @@
 /**
- * Categorias do menu (provisórias até virem do Microvix).
- * Os `slug` batem com os dados de teste em supabase/seed.sql.
+ * Categorias agora são dirigidas pelo banco (tabela `categories`, kind `setor`),
+ * geridas em /admin/categorias. Este módulo guarda só o helper de slug — puro,
+ * seguro para client e server — usado nas URLs de filtro da vitrine.
+ * Os dados vêm de `getCategories()` (vitrine) e `getAdminCategories()` (admin).
  */
-export const CATEGORIES = [
-  { slug: "camisetas", name: "Camisetas" },
-  { slug: "camisas", name: "Camisas" },
-  { slug: "calcas", name: "Calças" },
-  { slug: "bermudas", name: "Bermudas" },
-  { slug: "moletons", name: "Moletons" },
-  { slug: "acessorios", name: "Acessórios" },
-] as const;
+export type StoreCategory = { id: string; name: string };
 
-export type CategorySlug = (typeof CATEGORIES)[number]["slug"];
+/** Slug amigável e estável a partir do nome da categoria (ex.: "Calças" -> "calcas"). */
+export function categorySlug(name: string): string {
+  const diacritics = new RegExp("[\\u0300-\\u036f]", "g");
+  return name
+    .normalize("NFD")
+    .replace(diacritics, "")
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/(^-|-$)/g, "");
+}
