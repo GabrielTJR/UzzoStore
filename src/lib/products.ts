@@ -36,8 +36,10 @@ export type ProductColor = {
 };
 
 export type ProductDetail = {
+  id: string;
   slug: string;
   name: string;
+  featured: boolean;
   brand: string | null;
   reference: string | null;
   category: string | null;
@@ -73,10 +75,12 @@ type ListRow = {
 
 type DetailRow = {
   slug: string;
+  featured: boolean;
   rich_description: string | null;
   meta_title: string | null;
   meta_description: string | null;
   products: {
+    id: string;
     name: string;
     brand: string | null;
     reference: string | null;
@@ -164,8 +168,8 @@ export async function getProductBySlug(
   const { data, error } = await supabase
     .from("product_content")
     .select(
-      `slug, rich_description, meta_title, meta_description,
-       products!inner ( name, brand, reference, active_ecommerce, price, promo_price,
+      `slug, featured, rich_description, meta_title, meta_description,
+       products!inner ( id, name, brand, reference, active_ecommerce, price, promo_price,
          categories ( name ),
          product_colors ( id, sort_order, gallery,
            colors ( name, hex ),
@@ -203,8 +207,10 @@ export async function getProductBySlug(
   const gallery = colors.flatMap((c) => c.gallery);
 
   return {
+    id: row.products.id,
     slug: row.slug,
     name: row.products.name,
+    featured: row.featured,
     brand: row.products.brand,
     reference: row.products.reference,
     category: row.products.categories?.name ?? null,

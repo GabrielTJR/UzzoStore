@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { getProductBySlug } from "@/lib/products";
 import { ProductView } from "@/components/product-view";
+import { getAdminUser } from "@/lib/admin";
 
 export async function generateMetadata({
   params,
@@ -24,8 +25,12 @@ export default async function ProdutoPage({
   params: Promise<{ slug: string }>;
 }) {
   const { slug } = await params;
-  const product = await getProductBySlug(slug);
+  const [product, adminUser] = await Promise.all([
+    getProductBySlug(slug),
+    getAdminUser(),
+  ]);
   if (!product) notFound();
+  const isAdmin = !!adminUser;
 
   return (
     <article className="mx-auto max-w-6xl px-6 py-12">
@@ -42,6 +47,7 @@ export default async function ProdutoPage({
       </nav>
 
       <ProductView
+        productId={product.id}
         slug={product.slug}
         name={product.name}
         category={product.category}
@@ -49,6 +55,8 @@ export default async function ProdutoPage({
         price={product.price}
         basePrice={product.basePrice}
         promoPrice={product.promoPrice}
+        featured={product.featured}
+        isAdmin={isAdmin}
         colors={product.colors}
       />
     </article>

@@ -163,6 +163,7 @@ function revalidateProduct(id?: string) {
   revalidatePath("/admin");
   if (id) revalidatePath(`/admin/produtos/${id}`);
   revalidatePath("/produtos");
+  revalidatePath("/produtos/[slug]", "page");
   revalidatePath("/");
 }
 

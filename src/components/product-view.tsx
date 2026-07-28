@@ -6,6 +6,7 @@ import { useCart } from "@/lib/cart-store";
 import { formatBRL } from "@/lib/format";
 import { SlideTrack } from "@/components/slide-track";
 import { CarouselArrows } from "@/components/carousel-arrows";
+import { AdminProductOverlay } from "@/components/admin-product-overlay";
 import type { ProductColor, ProductVariant } from "@/lib/products";
 
 function variantBuyable(v: ProductVariant, price: number | null): boolean {
@@ -28,6 +29,7 @@ function autoSize(color: ProductColor | undefined, price: number | null) {
 }
 
 export function ProductView({
+  productId,
   slug,
   name,
   category,
@@ -35,8 +37,11 @@ export function ProductView({
   price,
   basePrice,
   promoPrice,
+  featured,
+  isAdmin = false,
   colors,
 }: {
+  productId: string;
   slug: string;
   name: string;
   category: string | null;
@@ -44,6 +49,8 @@ export function ProductView({
   price: number | null;
   basePrice: number | null;
   promoPrice: number | null;
+  featured: boolean;
+  isAdmin?: boolean;
   colors: ProductColor[];
 }) {
   const addItem = useCart((s) => s.addItem);
@@ -131,6 +138,9 @@ export function ProductView({
               }
               onNext={() => setImageIndex((i) => (i + 1) % gallery.length)}
             />
+          )}
+          {isAdmin && (
+            <AdminProductOverlay productId={productId} featured={featured} />
           )}
         </div>
         {gallery.length > 1 && (
