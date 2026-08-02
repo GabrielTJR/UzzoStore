@@ -36,6 +36,12 @@ export default async function AdminPage() {
             Cores
           </Link>
           <Link
+            href="/admin/medidas"
+            className="text-sm text-muted underline-offset-4 hover:text-foreground hover:underline"
+          >
+            Medidas
+          </Link>
+          <Link
             href="/admin/logs"
             className="text-sm text-muted underline-offset-4 hover:text-foreground hover:underline"
           >

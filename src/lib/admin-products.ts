@@ -1,6 +1,11 @@
 import "server-only";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { compareSizes } from "@/lib/sizes";
+import {
+  toChart,
+  type MeasurementModel,
+  type MeasurementModelOption,
+} from "@/lib/measurements";
 
 export type AdminProductListItem = {
   id: string;
@@ -43,6 +48,7 @@ export type AdminProduct = {
   description: string | null;
   price: number | null; // products.price (cheio)
   promoPrice: number | null; // products.promo_price
+  measurementModelId: string | null;
   colors: AdminProductColor[];
 };
 
@@ -73,6 +79,7 @@ type DetailRow = {
   category_id: string | null;
   price: number | null;
   promo_price: number | null;
+  measurement_model_id: string | null;
   categories: { id: string; name: string } | null;
   product_content: {
     slug: string;
@@ -142,7 +149,7 @@ export async function getAdminProduct(id: string): Promise<AdminProduct | null> 
   const { data, error } = await admin
     .from("products")
     .select(
-      `id, name, reference, active_ecommerce, category_id, price, promo_price,
+      `id, name, reference, active_ecommerce, category_id, price, promo_price, measurement_model_id,
        categories ( id, name ),
        product_content ( slug, rich_description, featured ),
        product_colors ( id, sort_order, gallery,
@@ -190,6 +197,7 @@ export async function getAdminProduct(id: string): Promise<AdminProduct | null> 
     description: row.product_content?.rich_description ?? null,
     price: row.price != null ? Number(row.price) : null,
     promoPrice: row.promo_price != null ? Number(row.promo_price) : null,
+    measurementModelId: row.measurement_model_id,
     colors,
   };
 }
@@ -246,4 +254,69 @@ export async function getColorUsage(): Promise<Record<string, number>> {
     usage[row.color_id] = (usage[row.color_id] ?? 0) + 1;
   }
   return usage;
+}
+
+export type MeasurementModelListItem = {
+  id: string;
+  name: string;
+  columns: number;
+  rows: number;
+  products: number;
+};
+
+/** Lista de modelos de medidas + uso (tela /admin/medidas). */
+export async function getMeasurementModelsList(): Promise<
+  MeasurementModelListItem[]
+> {
+  const admin = createAdminClient();
+  const [models, prods] = await Promise.all([
+    admin
+      .from("measurement_models")
+      .select("id, name, columns, rows")
+      .order("name"),
+    admin.from("products").select("measurement_model_id"),
+  ]);
+  if (models.error || !models.data) return [];
+  const usage: Record<string, number> = {};
+  for (const p of (prods.data ?? []) as {
+    measurement_model_id: string | null;
+  }[]) {
+    if (p.measurement_model_id)
+      usage[p.measurement_model_id] =
+        (usage[p.measurement_model_id] ?? 0) + 1;
+  }
+  return models.data.map((m) => ({
+    id: m.id,
+    name: m.name,
+    columns: Array.isArray(m.columns) ? m.columns.length : 0,
+    rows: Array.isArray(m.rows) ? m.rows.length : 0,
+    products: usage[m.id] ?? 0,
+  }));
+}
+
+/** Opções (id+name) para o select de modelo no produto. */
+export async function getMeasurementModelOptions(): Promise<
+  MeasurementModelOption[]
+> {
+  const admin = createAdminClient();
+  const { data, error } = await admin
+    .from("measurement_models")
+    .select("id, name")
+    .order("name");
+  if (error || !data) return [];
+  return data.map((m) => ({ id: m.id, name: m.name }));
+}
+
+/** Um modelo completo, para o editor. */
+export async function getMeasurementModel(
+  id: string,
+): Promise<MeasurementModel | null> {
+  const admin = createAdminClient();
+  const { data, error } = await admin
+    .from("measurement_models")
+    .select("id, name, columns, rows, note_top, note_bottom")
+    .eq("id", id)
+    .maybeSingle();
+  if (error || !data) return null;
+  return { id: data.id, ...toChart(data) };
 }

@@ -58,6 +58,7 @@ export default async function ProdutoPage({
         featured={product.featured}
         isAdmin={isAdmin}
         colors={product.colors}
+        measurement={product.measurement}
       />
     </article>
   );

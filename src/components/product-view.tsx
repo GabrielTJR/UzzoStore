@@ -7,7 +7,9 @@ import { formatBRL } from "@/lib/format";
 import { SlideTrack } from "@/components/slide-track";
 import { CarouselArrows } from "@/components/carousel-arrows";
 import { AdminProductOverlay } from "@/components/admin-product-overlay";
+import { MeasurementTable } from "@/components/measurement-table";
 import type { ProductColor, ProductVariant } from "@/lib/products";
+import type { MeasurementChart } from "@/lib/measurements";
 
 function variantBuyable(v: ProductVariant, price: number | null): boolean {
   return v.qty > 0 && price != null && price > 0;
@@ -40,6 +42,7 @@ export function ProductView({
   featured,
   isAdmin = false,
   colors,
+  measurement,
 }: {
   productId: string;
   slug: string;
@@ -52,6 +55,7 @@ export function ProductView({
   featured: boolean;
   isAdmin?: boolean;
   colors: ProductColor[];
+  measurement: MeasurementChart | null;
 }) {
   const addItem = useCart((s) => s.addItem);
 
@@ -253,6 +257,12 @@ export function ProductView({
                 );
               })}
             </div>
+          </div>
+        )}
+
+        {measurement && (
+          <div className="mt-6">
+            <MeasurementTable chart={measurement} />
           </div>
         )}
 

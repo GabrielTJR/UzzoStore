@@ -1,8 +1,10 @@
 "use client";
 
+import Link from "next/link";
 import { useActionState, useEffect, useState } from "react";
 import { updateProductAction, type ActionResult } from "./actions";
 import type { StoreCategory } from "@/lib/categories";
+import type { MeasurementModelOption } from "@/lib/measurements";
 import { useToast } from "@/components/toast";
 import type { AdminProduct } from "@/lib/admin-products";
 
@@ -13,9 +15,11 @@ const label = "block text-sm font-medium";
 export function ProductInfoForm({
   product,
   categories,
+  models,
 }: {
   product: AdminProduct;
   categories: StoreCategory[];
+  models: MeasurementModelOption[];
 }) {
   const [state, action, pending] = useActionState<ActionResult | null, FormData>(
     updateProductAction,
@@ -133,6 +137,35 @@ export function ProductInfoForm({
           defaultValue={product.description ?? ""}
           className={field}
         />
+      </div>
+
+      <div className="space-y-1.5">
+        <label className={label} htmlFor="measurementModelId">
+          Tabela de medidas
+        </label>
+        <select
+          id="measurementModelId"
+          name="measurementModelId"
+          defaultValue={product.measurementModelId ?? ""}
+          className={field}
+        >
+          <option value="">Sem tabela</option>
+          {models.map((m) => (
+            <option key={m.id} value={m.id}>
+              {m.name}
+            </option>
+          ))}
+        </select>
+        <p className="text-xs text-muted">
+          Os modelos são criados em{" "}
+          <Link
+            href="/admin/medidas"
+            className="underline underline-offset-4 hover:text-foreground"
+          >
+            Medidas
+          </Link>
+          .
+        </p>
       </div>
 
       <div className="flex flex-wrap gap-6">

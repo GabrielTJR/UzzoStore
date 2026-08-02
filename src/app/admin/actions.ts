@@ -350,6 +350,8 @@ export async function updateProductAction(
   const promo = parseOptionalPrice(formData.get("promoPrice"));
   const active = formData.get("active") === "on";
   const featured = formData.get("featured") === "on";
+  const measurementModelId =
+    String(formData.get("measurementModelId") ?? "").trim() || null;
 
   if (!id) return { ok: false, error: "Produto inválido." };
   if (!name) return { ok: false, error: "Informe o nome do produto." };
@@ -370,6 +372,7 @@ export async function updateProductAction(
       active_ecommerce: active,
       price,
       promo_price: promo,
+      measurement_model_id: measurementModelId,
     })
     .eq("id", id);
   if (prodErr) return { ok: false, error: "Erro ao salvar o produto." };
@@ -896,6 +899,150 @@ export async function deleteCategoryAction(formData: FormData): Promise<void> {
     entityId: id,
   });
   revalidateCategories();
+}
+
+// --- Tabela de medidas (modelos) --------------------------------------------
+
+function revalidateMeasurements(id?: string) {
+  revalidatePath("/admin/medidas");
+  if (id) revalidatePath(`/admin/medidas/${id}`);
+  revalidatePath("/admin");
+  revalidatePath("/produtos/[slug]", "page");
+}
+
+export async function createMeasurementModelAction(
+  _prev: ActionResult | null,
+  formData: FormData,
+): Promise<ActionResult> {
+  const actor = await getAdminUser();
+  if (!actor) return { ok: false, error: "Não autorizado." };
+  if (serviceRoleMissing())
+    return { ok: false, error: "Falta SUPABASE_SERVICE_ROLE_KEY no servidor." };
+
+  const name = String(formData.get("name") ?? "").trim();
+  if (!name) return { ok: false, error: "Informe o nome do modelo." };
+
+  const admin = createAdminClient();
+  const { data: dup } = await admin
+    .from("measurement_models")
+    .select("id")
+    .ilike("name", name)
+    .maybeSingle();
+  if (dup) return { ok: false, error: "Já existe um modelo com esse nome." };
+
+  const { data: created, error } = await admin
+    .from("measurement_models")
+    .insert({ name })
+    .select("id")
+    .single();
+  if (error || !created) return { ok: false, error: "Erro ao criar o modelo." };
+
+  await logAudit(actor, {
+    action: "measurement_model.create",
+    entityType: "measurement_model",
+    entityId: created.id,
+    entityLabel: name,
+  });
+  revalidatePath("/admin/medidas");
+  redirect(`/admin/medidas/${created.id}`);
+}
+
+export async function saveMeasurementModelAction(
+  _prev: ActionResult | null,
+  formData: FormData,
+): Promise<ActionResult> {
+  const actor = await getAdminUser();
+  if (!actor) return { ok: false, error: "Não autorizado." };
+  if (serviceRoleMissing())
+    return { ok: false, error: "Falta SUPABASE_SERVICE_ROLE_KEY no servidor." };
+
+  const id = String(formData.get("modelId") ?? "");
+  const name = String(formData.get("name") ?? "").trim();
+  if (!id) return { ok: false, error: "Modelo inválido." };
+  if (!name) return { ok: false, error: "Informe o nome do modelo." };
+
+  // Colunas/linhas/avisos chegam serializados em JSON no campo `payload`.
+  let columns: string[] = [];
+  let rows: { size: string; values: string[] }[] = [];
+  let noteTop: string | null = null;
+  let noteBottom: string | null = null;
+  try {
+    const p = JSON.parse(String(formData.get("payload") ?? "{}"));
+    columns = (Array.isArray(p.columns) ? p.columns : [])
+      .map((c: unknown) => String(c ?? "").trim())
+      .filter((c: string) => c.length > 0);
+    const colCount = columns.length;
+    rows = (Array.isArray(p.rows) ? p.rows : [])
+      .map((r: { size?: unknown; values?: unknown }) => ({
+        size: String(r?.size ?? "").trim(),
+        values: Array.from({ length: colCount }, (_, i) =>
+          String((Array.isArray(r?.values) ? r.values : [])[i] ?? "").trim(),
+        ),
+      }))
+      .filter((r: { size: string }) => r.size.length > 0);
+    noteTop =
+      typeof p.noteTop === "string" && p.noteTop.trim() ? p.noteTop.trim() : null;
+    noteBottom =
+      typeof p.noteBottom === "string" && p.noteBottom.trim()
+        ? p.noteBottom.trim()
+        : null;
+  } catch {
+    return { ok: false, error: "Dados da tabela inválidos." };
+  }
+
+  const admin = createAdminClient();
+  const { data: dup } = await admin
+    .from("measurement_models")
+    .select("id")
+    .ilike("name", name)
+    .neq("id", id)
+    .maybeSingle();
+  if (dup) return { ok: false, error: "Já existe um modelo com esse nome." };
+
+  const { error } = await admin
+    .from("measurement_models")
+    .update({
+      name,
+      columns,
+      rows,
+      note_top: noteTop,
+      note_bottom: noteBottom,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", id);
+  if (error) return { ok: false, error: "Erro ao salvar o modelo." };
+
+  await logAudit(actor, {
+    action: "measurement_model.update",
+    entityType: "measurement_model",
+    entityId: id,
+    entityLabel: name,
+  });
+  revalidateMeasurements(id);
+  return { ok: true };
+}
+
+export async function deleteMeasurementModelAction(
+  formData: FormData,
+): Promise<void> {
+  const actor = await getAdminUser();
+  if (!actor) return;
+  if (serviceRoleMissing()) return;
+
+  const id = String(formData.get("modelId") ?? "");
+  if (!id) return;
+
+  const admin = createAdminClient();
+  // products.measurement_model_id tem ON DELETE SET NULL (produtos ficam sem tabela).
+  await admin.from("measurement_models").delete().eq("id", id);
+  await logAudit(actor, {
+    action: "measurement_model.delete",
+    entityType: "measurement_model",
+    entityId: id,
+  });
+  revalidatePath("/admin/medidas");
+  revalidatePath("/produtos/[slug]", "page");
+  redirect("/admin/medidas");
 }
 
 // --- Fotos (por cor) --------------------------------------------------------

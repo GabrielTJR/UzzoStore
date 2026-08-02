@@ -296,6 +296,39 @@ export type Database = {
         }
         Relationships: []
       }
+      measurement_models: {
+        Row: {
+          columns: Json
+          created_at: string
+          id: string
+          name: string
+          note_bottom: string | null
+          note_top: string | null
+          rows: Json
+          updated_at: string
+        }
+        Insert: {
+          columns?: Json
+          created_at?: string
+          id?: string
+          name: string
+          note_bottom?: string | null
+          note_top?: string | null
+          rows?: Json
+          updated_at?: string
+        }
+        Update: {
+          columns?: Json
+          created_at?: string
+          id?: string
+          name?: string
+          note_bottom?: string | null
+          note_top?: string | null
+          rows?: Json
+          updated_at?: string
+        }
+        Relationships: []
+      }
       order_items: {
         Row: {
           created_at: string
@@ -631,6 +664,7 @@ export type Database = {
           brand: string | null
           category_id: string | null
           id: string
+          measurement_model_id: string | null
           microvix_id: string
           name: string
           ncm: string | null
@@ -645,6 +679,7 @@ export type Database = {
           brand?: string | null
           category_id?: string | null
           id?: string
+          measurement_model_id?: string | null
           microvix_id: string
           name: string
           ncm?: string | null
@@ -659,6 +694,7 @@ export type Database = {
           brand?: string | null
           category_id?: string | null
           id?: string
+          measurement_model_id?: string | null
           microvix_id?: string
           name?: string
           ncm?: string | null
@@ -674,6 +710,13 @@ export type Database = {
             columns: ["category_id"]
             isOneToOne: false
             referencedRelation: "categories"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "products_measurement_model_id_fkey"
+            columns: ["measurement_model_id"]
+            isOneToOne: false
+            referencedRelation: "measurement_models"
             referencedColumns: ["id"]
           },
         ]

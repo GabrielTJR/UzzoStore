@@ -3,7 +3,11 @@ import Image from "next/image";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { requireAdmin } from "@/lib/admin";
-import { getAdminProduct, getAllColors } from "@/lib/admin-products";
+import {
+  getAdminProduct,
+  getAllColors,
+  getMeasurementModelOptions,
+} from "@/lib/admin-products";
 import { getCategories } from "@/lib/products";
 import { SubmitButton } from "@/components/submit-button";
 import { ProductInfoForm } from "../../product-info-form";
@@ -23,11 +27,14 @@ export default async function EditarProdutoPage({
 }) {
   await requireAdmin();
   const { id } = await params;
-  const [product, allColors, categories] = await Promise.all([
-    getAdminProduct(id),
-    getAllColors(),
-    getCategories(),
-  ]);
+  const [product, allColors, categories, measurementModels] = await Promise.all(
+    [
+      getAdminProduct(id),
+      getAllColors(),
+      getCategories(),
+      getMeasurementModelOptions(),
+    ],
+  );
   if (!product) notFound();
 
   const usedColorIds = new Set(product.colors.map((c) => c.colorId));
@@ -64,7 +71,11 @@ export default async function EditarProdutoPage({
         <h2 className="mb-4 text-sm font-medium uppercase tracking-[0.2em] text-muted">
           Informações
         </h2>
-        <ProductInfoForm product={product} categories={categories} />
+        <ProductInfoForm
+          product={product}
+          categories={categories}
+          models={measurementModels}
+        />
       </div>
 
       {/* Cores */}

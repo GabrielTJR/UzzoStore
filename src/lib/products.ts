@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { compareSizes } from "@/lib/sizes";
 import type { StoreCategory } from "@/lib/categories";
+import { toChart, type MeasurementChart } from "@/lib/measurements";
 
 /** Cor exibida no card da vitrine: swatch + galeria daquela cor (capa = images[0]). */
 export type ProductListColor = {
@@ -52,6 +53,7 @@ export type ProductDetail = {
   basePrice: number | null; // preço cheio
   promoPrice: number | null; // promo, se houver
   colors: ProductColor[];
+  measurement: MeasurementChart | null;
 };
 
 // Formatos das linhas retornadas pelo Supabase (embeds many-to-one = objeto,
@@ -88,6 +90,13 @@ type DetailRow = {
     price: number | null;
     promo_price: number | null;
     categories: { name: string } | null;
+    measurement_models: {
+      name: string;
+      columns: unknown;
+      rows: unknown;
+      note_top: string | null;
+      note_bottom: string | null;
+    } | null;
     product_colors: {
       id: string;
       sort_order: number;
@@ -184,6 +193,7 @@ export async function getProductBySlug(
       `slug, featured, rich_description, meta_title, meta_description,
        products!inner ( id, name, brand, reference, active_ecommerce, price, promo_price,
          categories ( name ),
+         measurement_models ( name, columns, rows, note_top, note_bottom ),
          product_colors ( id, sort_order, gallery,
            colors ( name, hex ),
            product_variants!product_variants_product_color_id_fkey (
@@ -238,5 +248,8 @@ export async function getProductBySlug(
         ? Number(row.products.promo_price)
         : null,
     colors,
+    measurement: row.products.measurement_models
+      ? toChart(row.products.measurement_models)
+      : null,
   };
 }
