@@ -18,6 +18,7 @@ export type ProductListItem = {
   price: number | null; // preço efetivo (promo ?? cheio)
   basePrice: number | null; // preço cheio (para riscar quando há promo)
   featured: boolean;
+  onPromo: boolean; // tem preço promocional cadastrado
   image: string | null; // capa padrão (1ª cor com foto)
   colors: ProductListColor[];
 };
@@ -165,6 +166,9 @@ export async function getProducts(
       price: effectivePrice(row.products.price, row.products.promo_price),
       basePrice: row.products.price != null ? Number(row.products.price) : null,
       featured: row.featured,
+      onPromo:
+        row.products.promo_price != null &&
+        Number(row.products.promo_price) > 0,
       image,
       colors,
     };
