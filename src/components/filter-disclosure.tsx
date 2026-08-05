@@ -3,9 +3,9 @@
 import { useState } from "react";
 
 /**
- * No mobile, recolhe os filtros atrás de um botão "Filtros (N)"; no desktop
- * (md+) o conteúdo fica sempre visível (o botão some via `md:hidden` e o
- * conteúdo é forçado com `md:block`).
+ * No mobile os filtros ficam no topo, recolhidos atrás de "Filtros (N)"; no
+ * desktop (md+) o conteúdo aparece sempre — lá cada grupo se recolhe
+ * individualmente (ver `FilterSection`).
  */
 export function FilterDisclosure({
   activeCount,
@@ -25,7 +25,7 @@ export function FilterDisclosure({
       >
         <span>Filtros{activeCount > 0 ? ` (${activeCount})` : ""}</span>
         <span aria-hidden className="text-muted">
-          {open ? "▲" : "▼"}
+          {open ? "▼" : "▶"}
         </span>
       </button>
       <div className={`${open ? "block" : "hidden"} md:block`}>{children}</div>

@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import { getProducts, getCategories } from "@/lib/products";
 import { ProductCard } from "@/components/product-card";
 import { FilterDisclosure } from "@/components/filter-disclosure";
+import { FilterSection } from "@/components/filter-section";
 import { categorySlug } from "@/lib/categories";
 import { getAdminUser } from "@/lib/admin";
 
@@ -38,6 +39,7 @@ function CheckItem({
   return (
     <Link
       href={href}
+      scroll={false}
       aria-label={`${checked ? "Remover filtro" : "Filtrar por"} ${String(children)}`}
       className="group flex items-center gap-2.5 py-1.5 text-sm transition-colors hover:text-foreground"
     >
@@ -107,7 +109,6 @@ export default async function ProdutosPage({
   const byCategory = selectedCatNames.size
     ? all.filter((p) => p.category && selectedCatNames.has(p.category))
     : all;
-  const hasPromoInBase = byCategory.some((p) => p.onPromo);
   const base = onlyPromo ? byCategory.filter((p) => p.onPromo) : byCategory;
 
   // Cores disponíveis SÓ nessa base — filtro facetado.
@@ -139,34 +140,30 @@ export default async function ProdutosPage({
 
   const filters = (
     <div className="space-y-7">
-      {(hasPromoInBase || onlyPromo) && (
-        <div>
-          <h2 className="mb-2 text-xs font-medium uppercase tracking-[0.2em] text-muted">
-            Ofertas
-          </h2>
-          <CheckItem
-            href={buildHref(selectedCatSlugs, effectiveColors, !onlyPromo)}
-            checked={onlyPromo}
-          >
-            Em promoção
-          </CheckItem>
-        </div>
-      )}
+      <FilterSection title="Ofertas" selectedCount={onlyPromo ? 1 : 0}>
+        <CheckItem
+          href={buildHref(selectedCatSlugs, effectiveColors, !onlyPromo)}
+          checked={onlyPromo}
+        >
+          Em promoção
+        </CheckItem>
+      </FilterSection>
 
-      <div>
-        <div className="mb-2 flex items-baseline justify-between gap-2">
-          <h2 className="text-xs font-medium uppercase tracking-[0.2em] text-muted">
-            Categoria
-          </h2>
-          {selectedCatSlugs.length > 0 && (
+      <FilterSection
+        title="Categoria"
+        selectedCount={selectedCatSlugs.length}
+        action={
+          selectedCatSlugs.length > 0 ? (
             <Link
               href={buildHref([], effectiveColors, onlyPromo)}
+              scroll={false}
               className="text-xs text-muted underline-offset-4 hover:text-foreground hover:underline"
             >
               limpar
             </Link>
-          )}
-        </div>
+          ) : null
+        }
+      >
         {categories.map((c) => {
           const slug = categorySlug(c.name);
           const checked = selectedCatSlugs.includes(slug);
@@ -183,23 +180,24 @@ export default async function ProdutosPage({
             </CheckItem>
           );
         })}
-      </div>
+      </FilterSection>
 
       {catalogColors.length >= 2 && (
-        <div>
-          <div className="mb-2 flex items-baseline justify-between gap-2">
-            <h2 className="text-xs font-medium uppercase tracking-[0.2em] text-muted">
-              Cor
-            </h2>
-            {effectiveColors.length > 0 && (
+        <FilterSection
+          title="Cor"
+          selectedCount={effectiveColors.length}
+          action={
+            effectiveColors.length > 0 ? (
               <Link
                 href={buildHref(selectedCatSlugs, [], onlyPromo)}
+                scroll={false}
                 className="text-xs text-muted underline-offset-4 hover:text-foreground hover:underline"
               >
                 limpar
               </Link>
-            )}
-          </div>
+            ) : null
+          }
+        >
           {catalogColors.map((name) => {
             const checked = effectiveColorSet.has(name.toLowerCase());
             const next = checked
@@ -217,12 +215,13 @@ export default async function ProdutosPage({
               </CheckItem>
             );
           })}
-        </div>
+        </FilterSection>
       )}
 
       {activeCount > 0 && (
         <Link
           href="/produtos"
+          scroll={false}
           className="inline-block text-sm text-muted underline underline-offset-4 hover:text-foreground"
         >
           Limpar todos os filtros
@@ -232,8 +231,8 @@ export default async function ProdutosPage({
   );
 
   return (
-    <section className="mx-auto max-w-6xl px-6 py-12">
-      <header className="mb-8">
+    <section className="mx-auto max-w-6xl px-6 pb-12 pt-6">
+      <header className="mb-6">
         <h1 className="font-serif text-4xl font-semibold tracking-tight">
           Produtos
         </h1>
