@@ -127,10 +127,53 @@ function effectivePrice(
   return p != null && Number.isFinite(p) ? p : null;
 }
 
+/** Quantas fotos por cor o CARD carrega (a página do produto mostra todas). */
+const CARD_IMAGES_PER_COLOR = 4;
+
+/** Padrão de produtos por página na vitrine. */
+export const PRODUCTS_PER_PAGE = 24;
+
+export type ProductQuery = {
+  featured?: boolean;
+  categoryIds?: string[];
+  /** Nomes canônicos de cor (como estão em `colors.name`). */
+  colorNames?: string[];
+  onlyPromo?: boolean;
+  /** 1-based. Sem página, devolve tudo (uso: destaques da home). */
+  page?: number;
+  perPage?: number;
+};
+
+export type ProductPage = {
+  items: ProductListItem[];
+  total: number; // total que casa com os filtros (para montar as páginas)
+};
+
+/**
+ * Produtos da vitrine, já FILTRADOS e PAGINADOS no banco — não traga o catálogo
+ * inteiro para filtrar em memória (o payload cresce com o nº de fotos).
+ */
 export async function getProducts(
-  opts: { featured?: boolean } = {},
-): Promise<ProductListItem[]> {
+  opts: ProductQuery = {},
+): Promise<ProductPage> {
   const supabase = await createClient();
+
+  // Filtro de cor em 2 passos: um embed `!inner` filtraria também as cores
+  // DEVOLVIDAS, e o card precisa de todas para mostrar as bolinhas.
+  let colorProductIds: string[] | null = null;
+  if (opts.colorNames?.length) {
+    const { data } = await supabase
+      .from("product_colors")
+      .select("product_id, colors!inner ( name )")
+      .in("colors.name", opts.colorNames);
+    const ids = new Set<string>();
+    for (const r of (data ?? []) as unknown as { product_id: string }[]) {
+      ids.add(r.product_id);
+    }
+    colorProductIds = [...ids];
+    if (colorProductIds.length === 0) return { items: [], total: 0 };
+  }
+
   let query = supabase
     .from("product_content")
     .select(
@@ -138,24 +181,37 @@ export async function getProducts(
        products!inner ( id, name, active_ecommerce, price, promo_price,
          categories ( name ),
          product_colors ( sort_order, gallery, colors ( name, hex ) ) )`,
+      { count: "exact" },
     )
-    .eq("products.active_ecommerce", true)
-    .order("sort_order");
+    .eq("products.active_ecommerce", true);
 
   if (opts.featured) query = query.eq("featured", true);
+  if (opts.categoryIds?.length)
+    query = query.in("products.category_id", opts.categoryIds);
+  if (opts.onlyPromo) query = query.gt("products.promo_price", 0);
+  if (colorProductIds) query = query.in("products.id", colorProductIds);
 
-  const { data, error } = await query;
-  if (error || !data) return [];
+  // `slug` como desempate: ordem instável duplicaria/sumiria itens entre páginas.
+  query = query.order("sort_order").order("slug");
+
+  const perPage = opts.perPage ?? PRODUCTS_PER_PAGE;
+  if (opts.page && opts.page > 0) {
+    const from = (opts.page - 1) * perPage;
+    query = query.range(from, from + perPage - 1);
+  }
+
+  const { data, error, count } = await query;
+  if (error || !data) return { items: [], total: 0 };
 
   const rows = data as unknown as ListRow[];
-  return rows.map((row) => {
+  const items = rows.map((row) => {
     const colors: ProductListColor[] = (row.products.product_colors ?? [])
       .slice()
       .sort((a, b) => a.sort_order - b.sort_order)
       .map((c) => ({
         name: c.colors?.name ?? "Cor",
         hex: c.colors?.hex ?? null,
-        images: toGallery(c.gallery),
+        images: toGallery(c.gallery).slice(0, CARD_IMAGES_PER_COLOR),
       }));
     const image = colors.find((c) => c.images.length > 0)?.images[0] ?? null;
     return {
@@ -173,6 +229,22 @@ export async function getProducts(
       colors,
     };
   });
+
+  return { items, total: count ?? items.length };
+}
+
+/** Cores do cadastro global — lista do filtro (não depende do catálogo). */
+export async function getStoreColors(): Promise<
+  { name: string; hex: string | null }[]
+> {
+  const supabase = await createClient();
+  const { data, error } = await supabase.from("colors").select("name, hex");
+  if (error || !data) return [];
+  return data
+    .map((c) => ({ name: c.name, hex: c.hex }))
+    .sort((a, b) =>
+      a.name.localeCompare(b.name, "pt-BR", { sensitivity: "base" }),
+    );
 }
 
 /** Categorias (setores) para o menu/filtro da vitrine — lidas do banco. */

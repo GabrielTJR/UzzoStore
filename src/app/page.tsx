@@ -4,10 +4,11 @@ import { ProductCard } from "@/components/product-card";
 import { getAdminUser } from "@/lib/admin";
 
 export default async function Home() {
-  const [featured, adminUser] = await Promise.all([
+  const [featuredPage, adminUser] = await Promise.all([
     getProducts({ featured: true }),
     getAdminUser(),
   ]);
+  const featured = featuredPage.items;
   const isAdmin = !!adminUser;
 
   return (

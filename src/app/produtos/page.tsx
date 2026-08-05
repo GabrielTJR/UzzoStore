@@ -1,6 +1,11 @@
 import Link from "next/link";
 import type { Metadata } from "next";
-import { getProducts, getCategories } from "@/lib/products";
+import {
+  getProducts,
+  getCategories,
+  getStoreColors,
+  PRODUCTS_PER_PAGE,
+} from "@/lib/products";
 import { ProductCard } from "@/components/product-card";
 import { FilterDisclosure } from "@/components/filter-disclosure";
 import { FilterSection } from "@/components/filter-section";
@@ -12,16 +17,18 @@ export const metadata: Metadata = {
   description: "Peças da Uzzo Store — moda masculina em Balneário Camboriú.",
 };
 
-/** Monta a URL de /produtos com os filtros ativos. */
+/** Monta a URL de /produtos com os filtros ativos (página só quando > 1). */
 function buildHref(
   categorias: string[],
   cores: string[],
   promo: boolean,
+  pagina = 1,
 ): string {
   const params = new URLSearchParams();
   if (categorias.length) params.set("categorias", categorias.join(","));
   if (cores.length) params.set("cores", cores.join(","));
   if (promo) params.set("promo", "1");
+  if (pagina > 1) params.set("pagina", String(pagina));
   const qs = params.toString();
   return qs ? `/produtos?${qs}` : "/produtos";
 }
@@ -73,6 +80,20 @@ function csv(value: string | string[] | undefined): string[] {
     .filter(Boolean);
 }
 
+/** Números de página com reticências: 1 … 4 [5] 6 … 12 */
+function pageWindow(current: number, total: number): (number | "…")[] {
+  if (total <= 7)
+    return Array.from({ length: total }, (_, i) => i + 1);
+  const out: (number | "…")[] = [1];
+  const start = Math.max(2, current - 1);
+  const end = Math.min(total - 1, current + 1);
+  if (start > 2) out.push("…");
+  for (let p = start; p <= end; p++) out.push(p);
+  if (end < total - 1) out.push("…");
+  out.push(total);
+  return out;
+}
+
 export default async function ProdutosPage({
   searchParams,
 }: {
@@ -81,19 +102,24 @@ export default async function ProdutosPage({
     categorias?: string | string[];
     cores?: string | string[];
     promo?: string | string[];
+    pagina?: string | string[];
   }>;
 }) {
   const sp = await searchParams;
   // `categoria` (singular) mantido por compatibilidade com links antigos.
   const catParams = [...csv(sp.categorias), ...csv(sp.categoria)];
-  const selectedColors = csv(sp.cores);
+  const colorParams = csv(sp.cores);
   const onlyPromo = Array.isArray(sp.promo)
     ? sp.promo.includes("1")
     : sp.promo === "1";
+  const pageParam = parseInt(
+    Array.isArray(sp.pagina) ? (sp.pagina[0] ?? "1") : (sp.pagina ?? "1"),
+    10,
+  );
 
-  const [all, categories, adminUser] = await Promise.all([
-    getProducts(),
+  const [categories, storeColors, adminUser] = await Promise.all([
     getCategories(),
+    getStoreColors(),
     getAdminUser(),
   ]);
   const isAdmin = !!adminUser;
@@ -101,49 +127,35 @@ export default async function ProdutosPage({
   // Slugs válidos (ignora categoria inexistente na URL).
   const bySlug = new Map(categories.map((c) => [categorySlug(c.name), c]));
   const selectedCatSlugs = catParams.filter((s) => bySlug.has(s));
-  const selectedCatNames = new Set(
-    selectedCatSlugs.map((s) => bySlug.get(s)!.name),
+  const selectedCatIds = selectedCatSlugs.map((s) => bySlug.get(s)!.id);
+
+  // Nome canônico da cor (a URL pode vir com outra caixa).
+  const colorByKey = new Map(
+    storeColors.map((c) => [c.name.toLowerCase(), c.name]),
   );
+  const selectedColors = colorParams
+    .map((n) => colorByKey.get(n.toLowerCase()))
+    .filter((n): n is string => !!n);
+  const selectedColorSet = new Set(selectedColors.map((c) => c.toLowerCase()));
 
-  // Base = categorias selecionadas (nenhuma = todas) + promoção.
-  const byCategory = selectedCatNames.size
-    ? all.filter((p) => p.category && selectedCatNames.has(p.category))
-    : all;
-  const base = onlyPromo ? byCategory.filter((p) => p.onPromo) : byCategory;
+  const page = Number.isFinite(pageParam) && pageParam > 0 ? pageParam : 1;
 
-  // Cores do catálogo INTEIRO: a lista não muda ao trocar de categoria, para a
-  // seleção não sumir/oscilar (com a lateral + multi-seleção, facetar atrapalha).
-  const colorMap = new Map<string, string>();
-  for (const p of all) {
-    for (const c of p.colors) {
-      const k = c.name.toLowerCase();
-      if (!colorMap.has(k)) colorMap.set(k, c.name);
-    }
-  }
-  const catalogColors = [...colorMap.values()].sort((a, b) =>
-    a.localeCompare(b, "pt-BR", { sensitivity: "base" }),
-  );
-  const catalogKeys = new Set(catalogColors.map((c) => c.toLowerCase()));
-  const effectiveColors = selectedColors.filter((n) =>
-    catalogKeys.has(n.toLowerCase()),
-  );
-  const effectiveColorSet = new Set(effectiveColors.map((c) => c.toLowerCase()));
+  const { items: products, total } = await getProducts({
+    categoryIds: selectedCatIds,
+    colorNames: selectedColors,
+    onlyPromo,
+    page,
+  });
 
-  const products =
-    effectiveColorSet.size > 0
-      ? base.filter((p) =>
-          p.colors.some((c) => effectiveColorSet.has(c.name.toLowerCase())),
-        )
-      : base;
-
+  const totalPages = Math.max(1, Math.ceil(total / PRODUCTS_PER_PAGE));
   const activeCount =
-    selectedCatSlugs.length + effectiveColors.length + (onlyPromo ? 1 : 0);
+    selectedCatSlugs.length + selectedColors.length + (onlyPromo ? 1 : 0);
 
   const filters = (
     <div className="space-y-7">
       <FilterSection title="Ofertas" selectedCount={onlyPromo ? 1 : 0}>
         <CheckItem
-          href={buildHref(selectedCatSlugs, effectiveColors, !onlyPromo)}
+          href={buildHref(selectedCatSlugs, selectedColors, !onlyPromo)}
           checked={onlyPromo}
         >
           Em promoção
@@ -156,7 +168,7 @@ export default async function ProdutosPage({
         action={
           selectedCatSlugs.length > 0 ? (
             <Link
-              href={buildHref([], effectiveColors, onlyPromo)}
+              href={buildHref([], selectedColors, onlyPromo)}
               scroll={false}
               className="text-xs text-muted underline-offset-4 hover:text-foreground hover:underline"
             >
@@ -174,7 +186,7 @@ export default async function ProdutosPage({
           return (
             <CheckItem
               key={c.id}
-              href={buildHref(next, effectiveColors, onlyPromo)}
+              href={buildHref(next, selectedColors, onlyPromo)}
               checked={checked}
             >
               {c.name}
@@ -183,12 +195,12 @@ export default async function ProdutosPage({
         })}
       </FilterSection>
 
-      {catalogColors.length >= 2 && (
+      {storeColors.length >= 2 && (
         <FilterSection
           title="Cor"
-          selectedCount={effectiveColors.length}
+          selectedCount={selectedColors.length}
           action={
-            effectiveColors.length > 0 ? (
+            selectedColors.length > 0 ? (
               <Link
                 href={buildHref(selectedCatSlugs, [], onlyPromo)}
                 scroll={false}
@@ -199,20 +211,20 @@ export default async function ProdutosPage({
             ) : null
           }
         >
-          {catalogColors.map((name) => {
-            const checked = effectiveColorSet.has(name.toLowerCase());
+          {storeColors.map((c) => {
+            const checked = selectedColorSet.has(c.name.toLowerCase());
             const next = checked
-              ? effectiveColors.filter(
-                  (n) => n.toLowerCase() !== name.toLowerCase(),
+              ? selectedColors.filter(
+                  (n) => n.toLowerCase() !== c.name.toLowerCase(),
                 )
-              : [...effectiveColors, name];
+              : [...selectedColors, c.name];
             return (
               <CheckItem
-                key={name}
+                key={c.name}
                 href={buildHref(selectedCatSlugs, next, onlyPromo)}
                 checked={checked}
               >
-                {displayColor(name)}
+                {displayColor(c.name)}
               </CheckItem>
             );
           })}
@@ -231,6 +243,9 @@ export default async function ProdutosPage({
     </div>
   );
 
+  const pageLink =
+    "flex h-9 min-w-9 items-center justify-center rounded-md border px-3 text-sm transition-colors";
+
   return (
     <section className="mx-auto max-w-6xl px-6 pb-12 pt-6">
       <header className="mb-6">
@@ -238,7 +253,8 @@ export default async function ProdutosPage({
           Produtos
         </h1>
         <p className="mt-2 text-sm text-muted">
-          {products.length} {products.length === 1 ? "peça" : "peças"}
+          {total} {total === 1 ? "peça" : "peças"}
+          {totalPages > 1 && ` · página ${Math.min(page, totalPages)} de ${totalPages}`}
         </p>
       </header>
 
@@ -252,11 +268,84 @@ export default async function ProdutosPage({
           {products.length === 0 ? (
             <p className="text-muted">Nenhuma peça com esses filtros.</p>
           ) : (
-            <div className="grid grid-cols-2 gap-x-6 gap-y-10 lg:grid-cols-3">
-              {products.map((p) => (
-                <ProductCard key={p.slug} product={p} isAdmin={isAdmin} />
-              ))}
-            </div>
+            <>
+              <div className="grid grid-cols-2 gap-x-6 gap-y-10 lg:grid-cols-3">
+                {products.map((p) => (
+                  <ProductCard key={p.slug} product={p} isAdmin={isAdmin} />
+                ))}
+              </div>
+
+              {totalPages > 1 && (
+                <nav
+                  aria-label="Paginação"
+                  className="mt-12 flex flex-wrap items-center justify-center gap-2"
+                >
+                  {page > 1 && (
+                    <Link
+                      href={buildHref(
+                        selectedCatSlugs,
+                        selectedColors,
+                        onlyPromo,
+                        page - 1,
+                      )}
+                      scroll={false}
+                      aria-label="Página anterior"
+                      className={`${pageLink} border-border text-muted hover:border-foreground hover:text-foreground`}
+                    >
+                      ‹
+                    </Link>
+                  )}
+
+                  {pageWindow(page, totalPages).map((p, i) =>
+                    p === "…" ? (
+                      <span
+                        key={`gap-${i}`}
+                        aria-hidden
+                        className="px-1 text-sm text-muted"
+                      >
+                        …
+                      </span>
+                    ) : (
+                      <Link
+                        key={p}
+                        href={buildHref(
+                          selectedCatSlugs,
+                          selectedColors,
+                          onlyPromo,
+                          p,
+                        )}
+                        scroll={false}
+                        aria-label={`Página ${p}`}
+                        aria-current={p === page ? "page" : undefined}
+                        className={`${pageLink} ${
+                          p === page
+                            ? "border-foreground bg-foreground font-medium text-background"
+                            : "border-border text-muted hover:border-foreground hover:text-foreground"
+                        }`}
+                      >
+                        {p}
+                      </Link>
+                    ),
+                  )}
+
+                  {page < totalPages && (
+                    <Link
+                      href={buildHref(
+                        selectedCatSlugs,
+                        selectedColors,
+                        onlyPromo,
+                        page + 1,
+                      )}
+                      scroll={false}
+                      aria-label="Próxima página"
+                      className={`${pageLink} border-border text-muted hover:border-foreground hover:text-foreground`}
+                    >
+                      ›
+                    </Link>
+                  )}
+                </nav>
+              )}
+            </>
           )}
         </div>
       </div>
