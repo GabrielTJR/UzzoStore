@@ -111,9 +111,10 @@ export default async function ProdutosPage({
     : all;
   const base = onlyPromo ? byCategory.filter((p) => p.onPromo) : byCategory;
 
-  // Cores disponíveis SÓ nessa base — filtro facetado.
+  // Cores do catálogo INTEIRO: a lista não muda ao trocar de categoria, para a
+  // seleção não sumir/oscilar (com a lateral + multi-seleção, facetar atrapalha).
   const colorMap = new Map<string, string>();
-  for (const p of base) {
+  for (const p of all) {
     for (const c of p.colors) {
       const k = c.name.toLowerCase();
       if (!colorMap.has(k)) colorMap.set(k, c.name);
