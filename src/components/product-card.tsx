@@ -23,7 +23,16 @@ export function ProductCard({
         )}
         <h3 className="text-sm font-medium leading-snug">{product.name}</h3>
         {product.price != null && (
-          <p className="text-sm text-muted">{formatBRL(product.price)}</p>
+          <p className="flex flex-wrap items-baseline gap-x-2 text-sm">
+            <span className={product.onPromo ? "font-medium" : "text-muted"}>
+              {formatBRL(product.price)}
+            </span>
+            {product.onPromo && product.basePrice != null && (
+              <span className="text-xs text-muted line-through">
+                {formatBRL(product.basePrice)}
+              </span>
+            )}
+          </p>
         )}
       </Link>
 
