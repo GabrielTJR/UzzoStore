@@ -113,9 +113,17 @@ export default async function Home() {
     fallbackFeatured = items;
   }
 
-  function renderSection(s: HomeSection) {
-    if (s.kind === "banner")
-      return <HomeBanner key={s.id} slides={s.data.slides ?? []} />;
+  function renderSection(s: HomeSection, index: number) {
+    if (s.kind === "banner") {
+      // Banners seguidos ficavam colados. Os outros blocos já têm py-16, então
+      // o respiro só é necessário entre banner e banner.
+      const afterBanner = sections[index - 1]?.kind === "banner";
+      return (
+        <div key={s.id} className={afterBanner ? "mt-8 sm:mt-10" : undefined}>
+          <HomeBanner slides={s.data.slides ?? []} />
+        </div>
+      );
+    }
 
     if (s.kind === "mosaico") {
       const cards = (s.data.cards ?? []).filter((c) => c.image || c.label);
