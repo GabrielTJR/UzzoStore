@@ -5,6 +5,7 @@ import { Geist, Geist_Mono, Playfair_Display } from "next/font/google";
 import { CartButton } from "@/components/cart-button";
 import { ToastProvider } from "@/components/toast";
 import { getAdminUser } from "@/lib/admin";
+import { getSessionUser } from "@/lib/session";
 import { getHomeSections } from "@/lib/products";
 import "./globals.css";
 
@@ -59,11 +60,13 @@ function Logo({
 export default async function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
-  const [adminUser, sections] = await Promise.all([
+  const [adminUser, sessionUser, sections] = await Promise.all([
     getAdminUser(),
+    getSessionUser(),
     getHomeSections(),
   ]);
   const isAdmin = !!adminUser;
+  const isLogged = !!sessionUser; // cliente OU admin
   const notice = sections.find((s) => s.kind === "aviso")?.data;
   return (
     <html
@@ -109,6 +112,12 @@ export default async function RootLayout({
                 className="text-muted hover:text-foreground"
               >
                 Produtos
+              </Link>
+              <Link
+                href={isLogged ? "/conta" : "/entrar"}
+                className={`text-muted hover:text-foreground ${isAdmin ? "" : "ml-auto"}`}
+              >
+                {isLogged ? "Minha conta" : "Entrar"}
               </Link>
               {isAdmin && (
                 <Link

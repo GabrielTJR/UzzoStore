@@ -1,6 +1,7 @@
 import { cache } from "react";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { getSessionUser } from "@/lib/session";
 import type { User } from "@supabase/supabase-js";
 
 export type AdminRecord = {
@@ -26,11 +27,9 @@ export function adminEmails(): string[] {
  * cada clique de filtro visivelmente lento para quem está logado no admin.
  */
 export const getAdminUser = cache(async (): Promise<User | null> => {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getSessionUser();
   if (!user) return null;
+  const supabase = await createClient();
   // Fonte da verdade: tabela public.admins via is_admin(). O allowlist por env
   // (ADMIN_EMAILS) fica só como rede de segurança de bootstrap.
   const { data: isAdmin } = await supabase.rpc("is_admin");
@@ -49,11 +48,9 @@ export const getAdminRecord = cache(async (): Promise<{
   user: User;
   record: AdminRecord;
 } | null> => {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getSessionUser();
   if (!user) return null;
+  const supabase = await createClient();
 
   const { data } = await supabase
     .from("admins")
