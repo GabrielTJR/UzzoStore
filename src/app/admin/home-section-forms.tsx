@@ -1,6 +1,7 @@
 "use client";
 
-import { useActionState, useEffect } from "react";
+import { useActionState, useEffect, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import {
   createHomeSectionAction,
   toggleHomeSectionAction,
@@ -20,8 +21,15 @@ export function AddHomeSectionForm() {
     null,
   );
   const { showToast } = useToast();
+  const router = useRouter();
   useEffect(() => {
     if (state?.error) showToast(state.error, "error");
+    // A lista é a mesma rota do formulário: sem o refresh o bloco novo só
+    // apareceria depois de um F5.
+    else if (state?.ok) {
+      showToast("Bloco criado");
+      router.refresh();
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state]);
 
@@ -62,28 +70,62 @@ export function SectionRowActions({
   isFirst: boolean;
   isLast: boolean;
 }) {
+  const router = useRouter();
+  const [pending, startTransition] = useTransition();
+
+  /**
+   * Roda a ação e recarrega a lista. Estas ações são disparadas DA PRÓPRIA
+   * página da lista: só `revalidatePath` no servidor (ou um `redirect` para a
+   * mesma URL) não troca o que está na tela — o router reaproveita o cache.
+   */
+  function run(
+    fn: (formData: FormData) => Promise<void>,
+    formData: FormData,
+  ) {
+    startTransition(async () => {
+      await fn(formData);
+      router.refresh();
+    });
+  }
+
   const btn =
     "flex h-8 w-8 items-center justify-center rounded-md border border-border text-sm transition-colors hover:border-foreground disabled:opacity-30";
+
   return (
-    <div className="flex items-center gap-2">
-      <form action={moveHomeSectionAction}>
+    <div
+      className={`flex items-center gap-2 transition-opacity ${
+        pending ? "pointer-events-none opacity-50" : ""
+      }`}
+    >
+      <form action={(fd) => run(moveHomeSectionAction, fd)}>
         <input type="hidden" name="sectionId" value={id} />
         <input type="hidden" name="dir" value="up" />
-        <button type="submit" disabled={isFirst} aria-label="Mover para cima" className={btn}>
+        <button
+          type="submit"
+          disabled={isFirst || pending}
+          aria-label="Mover para cima"
+          className={btn}
+        >
           ↑
         </button>
       </form>
-      <form action={moveHomeSectionAction}>
+      <form action={(fd) => run(moveHomeSectionAction, fd)}>
         <input type="hidden" name="sectionId" value={id} />
         <input type="hidden" name="dir" value="down" />
-        <button type="submit" disabled={isLast} aria-label="Mover para baixo" className={btn}>
+        <button
+          type="submit"
+          disabled={isLast || pending}
+          aria-label="Mover para baixo"
+          className={btn}
+        >
           ↓
         </button>
       </form>
-      <form action={toggleHomeSectionAction}>
+      <form action={(fd) => run(toggleHomeSectionAction, fd)}>
         <input type="hidden" name="sectionId" value={id} />
         <SubmitButton
           pendingText="…"
+          disabled={pending}
           className={`h-8 rounded-full border px-3 text-xs font-medium transition-colors ${
             active
               ? "border-green-600 text-green-700 dark:text-green-400"

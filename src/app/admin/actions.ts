@@ -1108,7 +1108,9 @@ export async function createHomeSectionAction(
     entityLabel: kind,
   });
   revalidateHome();
-  redirect("/admin/decoracao");
+  // Sem `redirect`: o formulário fica na própria lista (redirecionar para a
+  // mesma URL não recarrega). O cliente dá `router.refresh()` ao receber ok.
+  return { ok: true };
 }
 
 /** Salva o conteúdo do bloco. `payload` é o JSON do editor; imagens vêm como CAMINHOS do Storage. */
@@ -1258,9 +1260,9 @@ export async function toggleHomeSectionAction(
     metadata: { active: !data.active },
   });
   revalidateHome(id);
-  // `redirect` força a lista a recarregar do servidor: só `revalidatePath` a
-  // tela continuava mostrando o estado anterior até um F5.
-  redirect("/admin/decoracao");
+  // Nada de `redirect` aqui: a ação é disparada DA PRÓPRIA lista, e redirecionar
+  // para a mesma URL é no-op (o router reusa o cache). Quem atualiza a tela é o
+  // `router.refresh()` no cliente — ver SectionRowActions.
 }
 
 /** Move o bloco uma posição para cima (-1) ou para baixo (+1), trocando com o vizinho. */
@@ -1303,8 +1305,7 @@ export async function moveHomeSectionAction(formData: FormData): Promise<void> {
     metadata: { dir },
   });
   revalidateHome();
-  // Idem: sem o redirect a nova ordem só aparecia depois de recarregar.
-  redirect("/admin/decoracao");
+  // Idem ao toggle: quem recarrega a lista é o `router.refresh()` no cliente.
 }
 
 export async function deleteHomeSectionAction(
