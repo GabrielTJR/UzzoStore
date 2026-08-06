@@ -1,3 +1,4 @@
+import { cache } from "react";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import type { User } from "@supabase/supabase-js";
@@ -16,8 +17,15 @@ export function adminEmails(): string[] {
     .filter(Boolean);
 }
 
-/** Retorna o usuário logado se ele for admin; caso contrário, null. */
-export async function getAdminUser(): Promise<User | null> {
+/**
+ * Retorna o usuário logado se ele for admin; caso contrário, null.
+ *
+ * Embrulhado em `cache()` (memoização por REQUISIÇÃO do React): o layout e a
+ * página chamam isso na mesma renderização, e sem o cache seriam 2 idas ao
+ * Supabase Auth + 2 chamadas de `is_admin()` a cada navegação — o que deixava
+ * cada clique de filtro visivelmente lento para quem está logado no admin.
+ */
+export const getAdminUser = cache(async (): Promise<User | null> => {
   const supabase = await createClient();
   const {
     data: { user },
@@ -31,13 +39,16 @@ export async function getAdminUser(): Promise<User | null> {
     return user;
   }
   return null;
-}
+});
 
-/** Usuário logado + registro em public.admins (papel, nome, flag de 1º acesso). */
-export async function getAdminRecord(): Promise<{
+/**
+ * Usuário logado + registro em public.admins (papel, nome, flag de 1º acesso).
+ * Também memoizado por requisição (o guard de página e a UI podem chamar juntos).
+ */
+export const getAdminRecord = cache(async (): Promise<{
   user: User;
   record: AdminRecord;
-} | null> {
+} | null> => {
   const supabase = await createClient();
   const {
     data: { user },
@@ -60,7 +71,7 @@ export async function getAdminRecord(): Promise<{
     };
   }
   return null;
-}
+});
 
 /**
  * Guard de página: exige admin. Redireciona para /admin/login se não for admin,

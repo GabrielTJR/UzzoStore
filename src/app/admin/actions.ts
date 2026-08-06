@@ -1108,7 +1108,7 @@ export async function createHomeSectionAction(
     entityLabel: kind,
   });
   revalidateHome();
-  redirect(`/admin/decoracao/${created.id}`);
+  redirect("/admin/decoracao");
 }
 
 /** Salva o conteúdo do bloco. `payload` é o JSON do editor; imagens vêm como CAMINHOS do Storage. */
@@ -1222,7 +1222,7 @@ export async function saveHomeSectionAction(
     entityLabel: current.kind,
   });
   revalidateHome(id);
-  return { ok: true };
+  redirect("/admin/decoracao"); // volta para a lista após salvar
 }
 
 export async function toggleHomeSectionAction(
@@ -1258,6 +1258,9 @@ export async function toggleHomeSectionAction(
     metadata: { active: !data.active },
   });
   revalidateHome(id);
+  // `redirect` força a lista a recarregar do servidor: só `revalidatePath` a
+  // tela continuava mostrando o estado anterior até um F5.
+  redirect("/admin/decoracao");
 }
 
 /** Move o bloco uma posição para cima (-1) ou para baixo (+1), trocando com o vizinho. */
@@ -1300,6 +1303,8 @@ export async function moveHomeSectionAction(formData: FormData): Promise<void> {
     metadata: { dir },
   });
   revalidateHome();
+  // Idem: sem o redirect a nova ordem só aparecia depois de recarregar.
+  redirect("/admin/decoracao");
 }
 
 export async function deleteHomeSectionAction(

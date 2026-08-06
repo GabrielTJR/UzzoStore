@@ -9,6 +9,7 @@ import {
 import { ProductCard } from "@/components/product-card";
 import { FilterDisclosure } from "@/components/filter-disclosure";
 import { FilterSection } from "@/components/filter-section";
+import { FilterCheckItem as CheckItem } from "@/components/filter-check-item";
 import { categorySlug } from "@/lib/categories";
 import { getAdminUser } from "@/lib/admin";
 
@@ -31,38 +32,6 @@ function buildHref(
   if (pagina > 1) params.set("pagina", String(pagina));
   const qs = params.toString();
   return qs ? `/produtos?${qs}` : "/produtos";
-}
-
-/** Item de filtro em formato checkbox (navega por URL, sem JS). */
-function CheckItem({
-  href,
-  checked,
-  children,
-}: {
-  href: string;
-  checked: boolean;
-  children: React.ReactNode;
-}) {
-  return (
-    <Link
-      href={href}
-      scroll={false}
-      aria-label={`${checked ? "Remover filtro" : "Filtrar por"} ${String(children)}`}
-      className="group flex items-center gap-2.5 py-1.5 text-sm transition-colors hover:text-foreground"
-    >
-      <span
-        aria-hidden
-        className={`flex h-4 w-4 shrink-0 items-center justify-center rounded border text-[10px] leading-none transition-colors ${
-          checked
-            ? "border-foreground bg-foreground text-background"
-            : "border-border group-hover:border-foreground"
-        }`}
-      >
-        {checked ? "✓" : ""}
-      </span>
-      <span className={checked ? "font-medium" : "text-muted"}>{children}</span>
-    </Link>
-  );
 }
 
 /** Exibição do nome da cor (o cadastro tem caixa inconsistente: "BEGE", "Cinza"). */

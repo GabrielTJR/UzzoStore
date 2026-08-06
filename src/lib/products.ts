@@ -1,3 +1,4 @@
+import { cache } from "react";
 import { createClient } from "@/lib/supabase/server";
 import { compareSizes } from "@/lib/sizes";
 import type { StoreCategory } from "@/lib/categories";
@@ -238,8 +239,11 @@ export async function getProducts(
   return { items, total: count ?? items.length };
 }
 
-/** Blocos ATIVOS da decoração da home, na ordem — leitura pública. */
-export async function getHomeSections(): Promise<HomeSection[]> {
+/**
+ * Blocos ATIVOS da decoração da home, na ordem — leitura pública.
+ * Memoizado por requisição: o layout (faixa de aviso) e a home chamam os dois.
+ */
+export const getHomeSections = cache(async (): Promise<HomeSection[]> => {
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("home_sections")
@@ -253,12 +257,12 @@ export async function getHomeSections(): Promise<HomeSection[]> {
   return data
     .map((r) => toHomeSection(r))
     .filter((s): s is HomeSection => !!s && sectionHasContent(s));
-}
+});
 
 /** Cores do cadastro global — lista do filtro (não depende do catálogo). */
-export async function getStoreColors(): Promise<
+export const getStoreColors = cache(async (): Promise<
   { name: string; hex: string | null }[]
-> {
+> => {
   const supabase = await createClient();
   const { data, error } = await supabase.from("colors").select("name, hex");
   if (error || !data) return [];
@@ -267,10 +271,10 @@ export async function getStoreColors(): Promise<
     .sort((a, b) =>
       a.name.localeCompare(b.name, "pt-BR", { sensitivity: "base" }),
     );
-}
+});
 
 /** Categorias (setores) para o menu/filtro da vitrine — lidas do banco. */
-export async function getCategories(): Promise<StoreCategory[]> {
+export const getCategories = cache(async (): Promise<StoreCategory[]> => {
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("categories")
@@ -279,7 +283,7 @@ export async function getCategories(): Promise<StoreCategory[]> {
     .order("name");
   if (error || !data) return [];
   return data.map((c) => ({ id: c.id, name: c.name }));
-}
+});
 
 export async function getProductBySlug(
   slug: string,
