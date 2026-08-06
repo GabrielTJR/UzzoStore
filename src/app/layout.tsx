@@ -5,6 +5,7 @@ import { Geist, Geist_Mono, Playfair_Display } from "next/font/google";
 import { CartButton } from "@/components/cart-button";
 import { ToastProvider } from "@/components/toast";
 import { getAdminUser } from "@/lib/admin";
+import { getHomeSections } from "@/lib/products";
 import "./globals.css";
 
 const geistSans = Geist({ variable: "--font-geist-sans", subsets: ["latin"] });
@@ -58,13 +59,29 @@ function Logo({
 export default async function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
-  const isAdmin = !!(await getAdminUser());
+  const [adminUser, sections] = await Promise.all([
+    getAdminUser(),
+    getHomeSections(),
+  ]);
+  const isAdmin = !!adminUser;
+  const notice = sections.find((s) => s.kind === "aviso")?.data;
   return (
     <html
       lang="pt-BR"
       className={`${geistSans.variable} ${geistMono.variable} ${playfair.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">
+        {notice?.text && (
+          <div className="bg-foreground px-6 py-2 text-center text-xs font-medium uppercase tracking-[0.2em] text-background">
+            {notice.href ? (
+              <Link href={notice.href} className="hover:underline">
+                {notice.text}
+              </Link>
+            ) : (
+              notice.text
+            )}
+          </div>
+        )}
         <header className="sticky top-0 z-40 border-b border-border bg-background/80 backdrop-blur">
           <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-3">
             <Link href="/" aria-label="Uzzo Store — início">

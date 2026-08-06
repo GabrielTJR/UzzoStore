@@ -296,6 +296,36 @@ export type Database = {
         }
         Relationships: []
       }
+      home_sections: {
+        Row: {
+          active: boolean
+          created_at: string
+          data: Json
+          id: string
+          kind: string
+          sort_order: number
+          updated_at: string
+        }
+        Insert: {
+          active?: boolean
+          created_at?: string
+          data?: Json
+          id?: string
+          kind: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Update: {
+          active?: boolean
+          created_at?: string
+          data?: Json
+          id?: string
+          kind?: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
       measurement_models: {
         Row: {
           columns: Json

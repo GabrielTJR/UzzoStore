@@ -6,6 +6,7 @@ import {
   type MeasurementModel,
   type MeasurementModelOption,
 } from "@/lib/measurements";
+import { toHomeSection, type HomeSection } from "@/lib/home-sections";
 
 export type AdminProductListItem = {
   id: string;
@@ -254,6 +255,21 @@ export async function getColorUsage(): Promise<Record<string, number>> {
     usage[row.color_id] = (usage[row.color_id] ?? 0) + 1;
   }
   return usage;
+}
+
+/** TODOS os blocos da home (inclusive inativos) — tela /admin/decoracao. */
+export async function getAdminHomeSections(): Promise<HomeSection[]> {
+  const admin = createAdminClient();
+  const { data, error } = await admin
+    .from("home_sections")
+    .select("id, kind, active, sort_order, data")
+    // Mesmo desempate da vitrine, para as duas listas nunca discordarem.
+    .order("sort_order")
+    .order("created_at");
+  if (error || !data) return [];
+  return data
+    .map((r) => toHomeSection(r))
+    .filter((s): s is HomeSection => !!s);
 }
 
 export type MeasurementModelListItem = {

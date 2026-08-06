@@ -2,6 +2,11 @@ import { createClient } from "@/lib/supabase/server";
 import { compareSizes } from "@/lib/sizes";
 import type { StoreCategory } from "@/lib/categories";
 import { toChart, type MeasurementChart } from "@/lib/measurements";
+import {
+  toHomeSection,
+  sectionHasContent,
+  type HomeSection,
+} from "@/lib/home-sections";
 
 /** Cor exibida no card da vitrine: swatch + galeria daquela cor (capa = images[0]). */
 export type ProductListColor = {
@@ -131,7 +136,7 @@ function effectivePrice(
 const CARD_IMAGES_PER_COLOR = 4;
 
 /** Padrão de produtos por página na vitrine. */
-export const PRODUCTS_PER_PAGE = 24;
+export const PRODUCTS_PER_PAGE = 12;
 
 export type ProductQuery = {
   featured?: boolean;
@@ -231,6 +236,23 @@ export async function getProducts(
   });
 
   return { items, total: count ?? items.length };
+}
+
+/** Blocos ATIVOS da decoração da home, na ordem — leitura pública. */
+export async function getHomeSections(): Promise<HomeSection[]> {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("home_sections")
+    .select("id, kind, active, sort_order, data")
+    .eq("active", true)
+    // `created_at` desempata: sem ele, blocos com a mesma posição saem em
+    // ordem indefinida e a loja pode discordar da lista do admin.
+    .order("sort_order")
+    .order("created_at");
+  if (error || !data) return [];
+  return data
+    .map((r) => toHomeSection(r))
+    .filter((s): s is HomeSection => !!s && sectionHasContent(s));
 }
 
 /** Cores do cadastro global — lista do filtro (não depende do catálogo). */

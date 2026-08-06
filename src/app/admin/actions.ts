@@ -7,6 +7,8 @@ import { getAdminUser, slugify } from "@/lib/admin";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { logAudit } from "@/lib/audit";
+import { isHomeSectionKind } from "@/lib/home-sections";
+import type { Json } from "@/lib/supabase/database.types";
 
 const BUCKET = "product-images";
 
@@ -1043,6 +1045,283 @@ export async function deleteMeasurementModelAction(
   revalidatePath("/admin/medidas");
   revalidatePath("/produtos/[slug]", "page");
   redirect("/admin/medidas");
+}
+
+// --- Decoração da home ------------------------------------------------------
+
+function revalidateHome(id?: string) {
+  revalidatePath("/admin/decoracao");
+  if (id) revalidatePath(`/admin/decoracao/${id}`);
+  revalidatePath("/", "layout"); // a faixa de aviso vive no layout
+}
+
+export async function createHomeSectionAction(
+  _prev: ActionResult | null,
+  formData: FormData,
+): Promise<ActionResult> {
+  const actor = await getAdminUser();
+  if (!actor) return { ok: false, error: "Não autorizado." };
+  if (serviceRoleMissing())
+    return { ok: false, error: "Falta SUPABASE_SERVICE_ROLE_KEY no servidor." };
+
+  const kind = String(formData.get("kind") ?? "");
+  if (!isHomeSectionKind(kind))
+    return { ok: false, error: "Tipo de bloco inválido." };
+
+  const admin = createAdminClient();
+  // Posição = maior + 1. Usar o COUNT colidiria com um bloco existente depois
+  // de qualquer exclusão (0,1,2 → apaga o 0 → count 2 = posição do último).
+  const { data: last } = await admin
+    .from("home_sections")
+    .select("sort_order")
+    .order("sort_order", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  const nextOrder = (last?.sort_order ?? -1) + 1;
+
+  const defaults: Json =
+    kind === "banner"
+      ? { slides: [] }
+      : kind === "mosaico"
+        ? { cards: [] }
+        : kind === "vitrine"
+          ? { source: "destaques", title: "Destaques" }
+          : { text: "" };
+
+  const { data: created, error } = await admin
+    .from("home_sections")
+    .insert({
+      kind,
+      active: false, // nasce desligado: o admin monta e depois publica
+      sort_order: nextOrder,
+      data: defaults,
+    })
+    .select("id")
+    .single();
+  if (error || !created) return { ok: false, error: "Erro ao criar o bloco." };
+
+  await logAudit(actor, {
+    action: "home_section.create",
+    entityType: "home_section",
+    entityId: created.id,
+    entityLabel: kind,
+  });
+  revalidateHome();
+  redirect(`/admin/decoracao/${created.id}`);
+}
+
+/** Salva o conteúdo do bloco. `payload` é o JSON do editor; imagens vêm como CAMINHOS do Storage. */
+export async function saveHomeSectionAction(
+  _prev: ActionResult | null,
+  formData: FormData,
+): Promise<ActionResult> {
+  const actor = await getAdminUser();
+  if (!actor) return { ok: false, error: "Não autorizado." };
+  if (serviceRoleMissing())
+    return { ok: false, error: "Falta SUPABASE_SERVICE_ROLE_KEY no servidor." };
+
+  const id = String(formData.get("sectionId") ?? "");
+  if (!id) return { ok: false, error: "Bloco inválido." };
+
+  const admin = createAdminClient();
+  const { data: current } = await admin
+    .from("home_sections")
+    .select("kind")
+    .eq("id", id)
+    .maybeSingle();
+  if (!current || !isHomeSectionKind(current.kind))
+    return { ok: false, error: "Bloco não encontrado." };
+
+  // Converte caminho do Storage -> URL pública (nunca confia em URL do cliente;
+  // valores que já são URL pública do nosso bucket são mantidos).
+  const toUrl = (v: unknown): string | null => {
+    const s = typeof v === "string" ? v.trim() : "";
+    if (!s) return null;
+    if (isSafeStoragePath(s)) return publicUrlForPath(admin, s);
+    return storagePathFromUrl(s) ? s : null;
+  };
+  const text = (v: unknown): string | null => {
+    const s = typeof v === "string" ? v.trim() : "";
+    return s.length ? s.slice(0, 300) : null;
+  };
+  /** Link: só caminho interno ou http(s). Digitou "produtos" → vira "/produtos". */
+  const link = (v: unknown): string | null => {
+    const s = text(v);
+    if (!s) return null;
+    if (s.startsWith("/")) return s;
+    if (/^https?:\/\//i.test(s)) return s;
+    return `/${s.replace(/^\/+/, "")}`;
+  };
+
+  let data: Json;
+  try {
+    const p = JSON.parse(String(formData.get("payload") ?? "{}"));
+    if (current.kind === "aviso") {
+      data = { text: text(p.text), href: link(p.href) };
+    } else if (current.kind === "banner") {
+      const slides = (Array.isArray(p.slides) ? p.slides : [])
+        .map((s: Record<string, unknown>) => ({
+          imageDesktop: toUrl(s.imageDesktop),
+          imageMobile: toUrl(s.imageMobile),
+          title: text(s.title),
+          subtitle: text(s.subtitle),
+          buttonLabel: text(s.buttonLabel),
+          buttonHref: link(s.buttonHref),
+          align: s.align === "center" || s.align === "right" ? s.align : "left",
+          theme: s.theme === "dark" ? "dark" : "light",
+        }))
+        // Slide sem imagem nenhuma não vira banner (viraria um quadro vazio).
+        .filter(
+          (s: { imageDesktop: string | null; imageMobile: string | null }) =>
+            s.imageDesktop || s.imageMobile,
+        );
+      data = { slides };
+    } else if (current.kind === "mosaico") {
+      const cards = (Array.isArray(p.cards) ? p.cards : [])
+        .map((c: Record<string, unknown>) => ({
+          image: toUrl(c.image),
+          label: text(c.label) ?? "",
+          href: link(c.href) ?? "/produtos",
+        }))
+        .filter((c: { image: string | null; label: string }) => c.image || c.label);
+      data = { title: text(p.title), cards };
+    } else {
+      const n = Number(p.limit);
+      const src =
+        p.source === "promo" || p.source === "categoria"
+          ? p.source
+          : "destaques";
+      const categoryId = text(p.categoryId);
+      // Sem categoria escolhida a vitrine mostraria o catálogo inteiro.
+      if (src === "categoria" && !categoryId)
+        return { ok: false, error: "Escolha a categoria da vitrine." };
+      data = {
+        title: text(p.title),
+        source: src,
+        categoryId,
+        limit: Number.isFinite(n) && n > 0 ? Math.min(n, 12) : null,
+      };
+    }
+  } catch {
+    return { ok: false, error: "Dados do bloco inválidos." };
+  }
+
+  const { error } = await admin
+    .from("home_sections")
+    .update({ data, updated_at: new Date().toISOString() })
+    .eq("id", id);
+  if (error) return { ok: false, error: "Erro ao salvar o bloco." };
+
+  await logAudit(actor, {
+    action: "home_section.update",
+    entityType: "home_section",
+    entityId: id,
+    entityLabel: current.kind,
+  });
+  revalidateHome(id);
+  return { ok: true };
+}
+
+export async function toggleHomeSectionAction(
+  formData: FormData,
+): Promise<void> {
+  const actor = await getAdminUser();
+  if (!actor) return;
+  if (serviceRoleMissing()) return;
+
+  const id = String(formData.get("sectionId") ?? "");
+  if (!id) return;
+
+  const admin = createAdminClient();
+  const { data } = await admin
+    .from("home_sections")
+    .select("active")
+    .eq("id", id)
+    .maybeSingle();
+  if (!data) return;
+
+  const { error } = await admin
+    .from("home_sections")
+    .update({ active: !data.active, updated_at: new Date().toISOString() })
+    .eq("id", id);
+  if (error) {
+    revalidateHome(id);
+    return;
+  }
+  await logAudit(actor, {
+    action: "home_section.toggle",
+    entityType: "home_section",
+    entityId: id,
+    metadata: { active: !data.active },
+  });
+  revalidateHome(id);
+}
+
+/** Move o bloco uma posição para cima (-1) ou para baixo (+1), trocando com o vizinho. */
+export async function moveHomeSectionAction(formData: FormData): Promise<void> {
+  const actor = await getAdminUser();
+  if (!actor) return;
+  if (serviceRoleMissing()) return;
+
+  const id = String(formData.get("sectionId") ?? "");
+  const dir = String(formData.get("dir") ?? "");
+  if (!id || (dir !== "up" && dir !== "down")) return;
+
+  const admin = createAdminClient();
+  const { data: all } = await admin
+    .from("home_sections")
+    .select("id, sort_order")
+    .order("sort_order")
+    .order("created_at"); // mesma ordem que o admin está vendo
+  if (!all) return;
+
+  const i = all.findIndex((s) => s.id === id);
+  const j = dir === "up" ? i - 1 : i + 1;
+  if (i < 0 || j < 0 || j >= all.length) return;
+
+  // Reescreve a ordem inteira (0..n-1) com os dois vizinhos trocados — evita
+  // depender dos valores atuais, que podem ter empates.
+  const order = all.map((s) => s.id);
+  [order[i], order[j]] = [order[j], order[i]];
+  for (let k = 0; k < order.length; k++) {
+    await admin
+      .from("home_sections")
+      .update({ sort_order: k })
+      .eq("id", order[k]);
+  }
+
+  await logAudit(actor, {
+    action: "home_section.move",
+    entityType: "home_section",
+    entityId: id,
+    metadata: { dir },
+  });
+  revalidateHome();
+}
+
+export async function deleteHomeSectionAction(
+  formData: FormData,
+): Promise<void> {
+  const actor = await getAdminUser();
+  if (!actor) return;
+  if (serviceRoleMissing()) return;
+
+  const id = String(formData.get("sectionId") ?? "");
+  if (!id) return;
+
+  const admin = createAdminClient();
+  const { error } = await admin.from("home_sections").delete().eq("id", id);
+  if (error) {
+    revalidateHome(id);
+    return;
+  }
+  await logAudit(actor, {
+    action: "home_section.delete",
+    entityType: "home_section",
+    entityId: id,
+  });
+  revalidateHome();
+  redirect("/admin/decoracao");
 }
 
 // --- Fotos (por cor) --------------------------------------------------------
