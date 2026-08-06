@@ -42,6 +42,8 @@ export type HomeSectionData = {
 export type HomeSection = {
   id: string;
   kind: HomeSectionKind;
+  /** Nome dado pelo admin — só identifica o bloco no painel, não vai à loja. */
+  name: string;
   active: boolean;
   sortOrder: number;
   data: HomeSectionData;
@@ -118,6 +120,7 @@ function source(v: unknown): VitrineSource {
 export function toHomeSection(row: {
   id: string;
   kind: string;
+  name?: string | null;
   active: boolean;
   sort_order: number;
   data: unknown;
@@ -145,6 +148,7 @@ export function toHomeSection(row: {
   return {
     id: row.id,
     kind: row.kind,
+    name: str(row.name) ?? KIND_LABEL[row.kind],
     active: row.active,
     sortOrder: row.sort_order,
     data,

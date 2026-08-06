@@ -35,18 +35,16 @@ export default async function EditarBlocoPage({
             ← Decoração da home
           </Link>
           <h1 className="mt-3 font-serif text-3xl font-semibold tracking-tight">
-            {KIND_LABEL[section.kind]}
+            {section.name}
           </h1>
           <p className="mt-1 text-sm text-muted">
+            {KIND_LABEL[section.kind]} ·{" "}
             {section.active
-              ? "No ar na loja."
-              : "Oculto — publique na lista de blocos quando terminar."}
+              ? "no ar na loja"
+              : "oculto — publique na lista de blocos quando terminar"}
           </p>
         </div>
-        <DeleteHomeSectionButton
-          id={section.id}
-          label={KIND_LABEL[section.kind]}
-        />
+        <DeleteHomeSectionButton id={section.id} label={section.name} />
       </header>
 
       <HomeSectionEditor section={section} categories={categories} />

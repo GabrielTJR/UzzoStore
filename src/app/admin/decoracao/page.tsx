@@ -75,18 +75,27 @@ export default async function DecoracaoPage() {
                 href={`/admin/decoracao/${s.id}`}
                 className="font-medium underline-offset-4 hover:underline"
               >
-                {KIND_LABEL[s.kind]}
+                {s.name}
               </Link>
               <p className="truncate text-xs text-muted">
+                {KIND_LABEL[s.kind]} ·{" "}
                 {summary(s.kind, s.data as Record<string, unknown>)}
               </p>
             </div>
-            <SectionRowActions
-              id={s.id}
-              active={s.active}
-              isFirst={i === 0}
-              isLast={i === sections.length - 1}
-            />
+            <div className="flex items-center gap-3">
+              <SectionRowActions
+                id={s.id}
+                active={s.active}
+                isFirst={i === 0}
+                isLast={i === sections.length - 1}
+              />
+              <Link
+                href={`/admin/decoracao/${s.id}`}
+                className="text-sm underline underline-offset-4 hover:text-foreground"
+              >
+                Editar
+              </Link>
+            </div>
           </div>
         ))}
         {sections.length === 0 && (

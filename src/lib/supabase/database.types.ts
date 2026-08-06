@@ -303,6 +303,7 @@ export type Database = {
           data: Json
           id: string
           kind: string
+          name: string | null
           sort_order: number
           updated_at: string
         }
@@ -312,6 +313,7 @@ export type Database = {
           data?: Json
           id?: string
           kind: string
+          name?: string | null
           sort_order?: number
           updated_at?: string
         }
@@ -321,6 +323,7 @@ export type Database = {
           data?: Json
           id?: string
           kind?: string
+          name?: string | null
           sort_order?: number
           updated_at?: string
         }

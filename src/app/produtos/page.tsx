@@ -269,7 +269,11 @@ export default async function ProdutosPage({
             <p className="text-muted">Nenhuma peça com esses filtros.</p>
           ) : (
             <>
-              <div className="grid grid-cols-2 gap-x-6 gap-y-10 lg:grid-cols-3">
+              {/* Âncora da paginação: `scroll-mt` desconta o header fixo. */}
+              <div
+                id="lista"
+                className="grid scroll-mt-28 grid-cols-2 gap-x-6 gap-y-10 lg:grid-cols-3"
+              >
                 {products.map((p) => (
                   <ProductCard key={p.slug} product={p} isAdmin={isAdmin} />
                 ))}
@@ -282,13 +286,12 @@ export default async function ProdutosPage({
                 >
                   {page > 1 && (
                     <Link
-                      href={buildHref(
+                      href={`${buildHref(
                         selectedCatSlugs,
                         selectedColors,
                         onlyPromo,
                         page - 1,
-                      )}
-                      scroll={false}
+                      )}#lista`}
                       aria-label="Página anterior"
                       className={`${pageLink} border-border text-muted hover:border-foreground hover:text-foreground`}
                     >
@@ -308,13 +311,12 @@ export default async function ProdutosPage({
                     ) : (
                       <Link
                         key={p}
-                        href={buildHref(
+                        href={`${buildHref(
                           selectedCatSlugs,
                           selectedColors,
                           onlyPromo,
                           p,
-                        )}
-                        scroll={false}
+                        )}#lista`}
                         aria-label={`Página ${p}`}
                         aria-current={p === page ? "page" : undefined}
                         className={`${pageLink} ${
@@ -330,13 +332,12 @@ export default async function ProdutosPage({
 
                   {page < totalPages && (
                     <Link
-                      href={buildHref(
+                      href={`${buildHref(
                         selectedCatSlugs,
                         selectedColors,
                         onlyPromo,
                         page + 1,
-                      )}
-                      scroll={false}
+                      )}#lista`}
                       aria-label="Próxima página"
                       className={`${pageLink} border-border text-muted hover:border-foreground hover:text-foreground`}
                     >

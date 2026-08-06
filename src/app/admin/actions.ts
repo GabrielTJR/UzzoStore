@@ -7,7 +7,7 @@ import { getAdminUser, slugify } from "@/lib/admin";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { logAudit } from "@/lib/audit";
-import { isHomeSectionKind } from "@/lib/home-sections";
+import { isHomeSectionKind, KIND_LABEL } from "@/lib/home-sections";
 import type { Json } from "@/lib/supabase/database.types";
 
 const BUCKET = "product-images";
@@ -1092,6 +1092,7 @@ export async function createHomeSectionAction(
     .from("home_sections")
     .insert({
       kind,
+      name: KIND_LABEL[kind], // o admin renomeia depois (ex.: "Banner Dia dos Pais")
       active: false, // nasce desligado: o admin monta e depois publica
       sort_order: nextOrder,
       data: defaults,
@@ -1206,9 +1207,11 @@ export async function saveHomeSectionAction(
     return { ok: false, error: "Dados do bloco inválidos." };
   }
 
+  const name = text(formData.get("name")) ?? KIND_LABEL[current.kind];
+
   const { error } = await admin
     .from("home_sections")
-    .update({ data, updated_at: new Date().toISOString() })
+    .update({ name, data, updated_at: new Date().toISOString() })
     .eq("id", id);
   if (error) return { ok: false, error: "Erro ao salvar o bloco." };
 

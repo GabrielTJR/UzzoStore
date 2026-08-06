@@ -101,6 +101,22 @@ export function HomeSectionEditor({
       <input type="hidden" name="sectionId" value={section.id} />
       <input type="hidden" name="payload" value={payload} />
 
+      <div className="space-y-1.5">
+        <label className={label} htmlFor="section-name">
+          Nome do bloco
+        </label>
+        <input
+          id="section-name"
+          name="name"
+          defaultValue={section.name}
+          placeholder="Ex.: Banner Dia dos Pais"
+          className={`${field} max-w-sm`}
+        />
+        <p className="text-xs text-muted">
+          Só para você identificar aqui no painel — não aparece na loja.
+        </p>
+      </div>
+
       {section.kind === "aviso" && (
         <div className="space-y-4">
           <div className="space-y-1.5">

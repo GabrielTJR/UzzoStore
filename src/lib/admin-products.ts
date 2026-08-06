@@ -262,7 +262,7 @@ export async function getAdminHomeSections(): Promise<HomeSection[]> {
   const admin = createAdminClient();
   const { data, error } = await admin
     .from("home_sections")
-    .select("id, kind, active, sort_order, data")
+    .select("id, kind, name, active, sort_order, data")
     // Mesmo desempate da vitrine, para as duas listas nunca discordarem.
     .order("sort_order")
     .order("created_at");
