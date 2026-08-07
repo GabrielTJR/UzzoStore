@@ -4,10 +4,15 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useCart, cartSubtotal, type CartItem } from "@/lib/cart-store";
 import { formatBRL } from "@/lib/format";
+import { createOrderAction } from "./actions";
 
 const WHATSAPP_NUMBER = "5547991744865";
 
-function buildWhatsappMessage(items: CartItem[], subtotal: number): string {
+function buildWhatsappMessage(
+  items: CartItem[],
+  subtotal: number,
+  orderNumber?: number,
+): string {
   const lines = items.map((i) => {
     const attrs = [
       i.color ? `Cor ${i.color}` : null,
@@ -17,7 +22,9 @@ function buildWhatsappMessage(items: CartItem[], subtotal: number): string {
     return `• ${i.qty}x ${i.productName}${label} — ${formatBRL(i.price * i.qty)}`;
   });
   return [
-    "Olá! Gostaria de finalizar meu pedido na Uzzo Store:",
+    orderNumber
+      ? `Olá! Gostaria de finalizar meu pedido nº ${orderNumber} na Uzzo Store:`
+      : "Olá! Gostaria de finalizar meu pedido na Uzzo Store:",
     "",
     ...lines,
     "",
@@ -31,7 +38,42 @@ export default function SacolaPage() {
   const removeItem = useCart((s) => s.removeItem);
 
   const [mounted, setMounted] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   useEffect(() => setMounted(true), []);
+
+  /**
+   * Registra o pedido e só então abre o WhatsApp. A janela é aberta ANTES do
+   * await (e depois redirecionada): navegador bloqueia window.open disparado
+   * fora do clique. Se o registro falhar, seguimos para o WhatsApp mesmo assim
+   * — perder a venda por causa do histórico seria pior.
+   */
+  async function handleWhatsapp() {
+    if (busy) return;
+    setError(null);
+    setBusy(true);
+    const win = window.open("about:blank", "_blank");
+    try {
+      const res = await createOrderAction(
+        items.map((i) => ({ variantId: i.variantId, qty: i.qty })),
+        "whatsapp",
+      );
+      if (!res.ok && res.error) setError(res.error);
+      const url = `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(
+        buildWhatsappMessage(items, subtotal, res.orderNumber),
+      )}`;
+      if (win) win.location.href = url;
+      else window.location.href = url;
+    } catch {
+      const url = `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(
+        buildWhatsappMessage(items, subtotal),
+      )}`;
+      if (win) win.location.href = url;
+      else window.location.href = url;
+    } finally {
+      setBusy(false);
+    }
+  }
 
   if (!mounted) {
     return (
@@ -42,9 +84,6 @@ export default function SacolaPage() {
   }
 
   const subtotal = cartSubtotal(items);
-  const whatsappUrl = `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(
-    buildWhatsappMessage(items, subtotal),
-  )}`;
 
   if (items.length === 0) {
     return (
@@ -135,18 +174,32 @@ export default function SacolaPage() {
           <span className="text-sm text-muted">Subtotal</span>
           <span className="text-xl font-medium">{formatBRL(subtotal)}</span>
         </div>
-        <p className="text-xs text-muted">
-          Frete e formas de pagamento são combinados no WhatsApp. Em breve:
-          checkout com Pix e cartão.
+
+        {error && <p className="text-sm text-red-600">{error}</p>}
+
+        <div className="flex w-full flex-col gap-3 sm:w-auto sm:flex-row">
+          <button
+            type="button"
+            disabled
+            title="Em breve: pagamento com Pix e cartão pelo site"
+            className="inline-flex h-12 items-center justify-center rounded-full border border-border px-8 text-sm font-medium text-muted sm:w-auto"
+          >
+            Seguir para o pagamento (em breve)
+          </button>
+          <button
+            type="button"
+            onClick={handleWhatsapp}
+            disabled={busy}
+            className="inline-flex h-12 items-center justify-center rounded-full bg-foreground px-8 text-sm font-medium text-background transition-opacity hover:opacity-90 disabled:opacity-60"
+          >
+            {busy ? "Registrando pedido…" : "Finalizar no WhatsApp"}
+          </button>
+        </div>
+
+        <p className="max-w-md text-right text-xs text-muted">
+          Ao finalizar, registramos seu pedido e abrimos a conversa no WhatsApp
+          com o número dele. Frete e forma de pagamento são combinados por lá.
         </p>
-        <a
-          href={whatsappUrl}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="inline-flex h-12 w-full items-center justify-center rounded-full bg-foreground px-8 text-sm font-medium text-background transition-opacity hover:opacity-90 sm:w-auto"
-        >
-          Finalizar pedido no WhatsApp
-        </a>
       </div>
     </section>
   );

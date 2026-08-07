@@ -412,9 +412,11 @@ export type Database = {
       }
       orders: {
         Row: {
+          channel: string
           created_at: string
           customer_id: string | null
           id: string
+          number: number
           microvix_order_id: string | null
           microvix_synced_at: string | null
           payment_status: string
@@ -427,9 +429,11 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          channel?: string
           created_at?: string
           customer_id?: string | null
           id?: string
+          number?: number
           microvix_order_id?: string | null
           microvix_synced_at?: string | null
           payment_status?: string
@@ -442,9 +446,11 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          channel?: string
           created_at?: string
           customer_id?: string | null
           id?: string
+          number?: number
           microvix_order_id?: string | null
           microvix_synced_at?: string | null
           payment_status?: string
@@ -878,6 +884,39 @@ export type Database = {
           watermark?: number
         }
         Relationships: []
+      }
+      wishlist: {
+        Row: {
+          created_at: string
+          customer_id: string
+          product_id: string
+        }
+        Insert: {
+          created_at?: string
+          customer_id: string
+          product_id: string
+        }
+        Update: {
+          created_at?: string
+          customer_id?: string
+          product_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wishlist_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wishlist_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+        ]
       }
     }
     Views: {
