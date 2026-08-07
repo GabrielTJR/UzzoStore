@@ -131,8 +131,29 @@ export function SignupForm() {
       <div className="space-y-3 rounded-lg border border-border p-5 text-sm">
         <p className="font-medium">Confira seu e-mail 📬</p>
         <p className="text-muted">
-          Enviamos um link para confirmar sua conta. Depois de confirmar, você
-          já entra direto.
+          Se este e-mail ainda não tiver conta, enviamos um link para confirmar
+          — é só clicar nele para entrar.
+        </p>
+        {/* O Supabase responde "sucesso" mesmo quando o e-mail já tem conta
+            (assim ninguém descobre quais e-mails são cadastrados) e nesse caso
+            não envia nada. Sem este aviso, quem já tem conta fica esperando um
+            e-mail que nunca chega. */}
+        <p className="text-muted">
+          Já tem conta com esse e-mail? Nenhum e-mail é enviado — use{" "}
+          <Link
+            href="/entrar"
+            className="underline underline-offset-4 hover:text-foreground"
+          >
+            entrar
+          </Link>{" "}
+          ou{" "}
+          <Link
+            href="/esqueci-senha"
+            className="underline underline-offset-4 hover:text-foreground"
+          >
+            recuperar a senha
+          </Link>
+          .
         </p>
       </div>
     );
