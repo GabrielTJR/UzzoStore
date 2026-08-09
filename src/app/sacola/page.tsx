@@ -4,7 +4,8 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useCart, cartSubtotal, type CartItem } from "@/lib/cart-store";
 import { formatBRL } from "@/lib/format";
-import { createOrderAction } from "./actions";
+import { createOrderAction, startOnlinePaymentAction } from "./actions";
+import { useRouter } from "next/navigation";
 
 const WHATSAPP_NUMBER = "5547991744865";
 
@@ -37,6 +38,7 @@ export default function SacolaPage() {
   const setQty = useCart((s) => s.setQty);
   const removeItem = useCart((s) => s.removeItem);
 
+  const router = useRouter();
   const [mounted, setMounted] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -48,6 +50,31 @@ export default function SacolaPage() {
    * fora do clique. Se o registro falhar, seguimos para o WhatsApp mesmo assim
    * — perder a venda por causa do histórico seria pior.
    */
+  /** Pagamento online: exige login e leva ao checkout da InfinitePay. */
+  async function handlePayOnline() {
+    if (busy) return;
+    setError(null);
+    setBusy(true);
+    try {
+      const res = await startOnlinePaymentAction(
+        items.map((i) => ({ variantId: i.variantId, qty: i.qty })),
+      );
+      if (res.needsLogin) {
+        router.push(`/entrar?next=${encodeURIComponent("/sacola")}`);
+        return;
+      }
+      if (!res.ok || !res.url) {
+        setError(res.error ?? "Não foi possível abrir o pagamento.");
+        return;
+      }
+      window.location.href = res.url; // mesma aba: é um fluxo de pagamento
+    } catch {
+      setError("Não foi possível abrir o pagamento.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function handleWhatsapp() {
     if (busy) return;
     setError(null);
@@ -180,11 +207,11 @@ export default function SacolaPage() {
         <div className="flex w-full flex-col gap-3 sm:w-auto sm:flex-row">
           <button
             type="button"
-            disabled
-            title="Em breve: pagamento com Pix e cartão pelo site"
-            className="inline-flex h-12 items-center justify-center rounded-full border border-border px-8 text-sm font-medium text-muted sm:w-auto"
+            onClick={handlePayOnline}
+            disabled={busy}
+            className="inline-flex h-12 items-center justify-center rounded-full border border-border px-8 text-sm font-medium transition-colors hover:border-foreground disabled:opacity-60"
           >
-            Seguir para o pagamento (em breve)
+            {busy ? "Abrindo pagamento…" : "Pagar com Pix ou cartão"}
           </button>
           <button
             type="button"
