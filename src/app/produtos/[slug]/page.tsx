@@ -4,6 +4,8 @@ import { notFound } from "next/navigation";
 import { getProductBySlug } from "@/lib/products";
 import { ProductView } from "@/components/product-view";
 import { getAdminUser } from "@/lib/admin";
+import { getSessionUser } from "@/lib/session";
+import { getWishlistIds } from "@/lib/wishlist";
 
 export async function generateMetadata({
   params,
@@ -25,9 +27,11 @@ export default async function ProdutoPage({
   params: Promise<{ slug: string }>;
 }) {
   const { slug } = await params;
-  const [product, adminUser] = await Promise.all([
+  const [product, adminUser, sessionUser, favorites] = await Promise.all([
     getProductBySlug(slug),
     getAdminUser(),
+    getSessionUser(),
+    getWishlistIds(),
   ]);
   if (!product) notFound();
   const isAdmin = !!adminUser;
@@ -59,6 +63,8 @@ export default async function ProdutoPage({
         isAdmin={isAdmin}
         colors={product.colors}
         measurement={product.measurement}
+        isLogged={!!sessionUser}
+        isFavorite={favorites.has(product.id)}
       />
     </article>
   );

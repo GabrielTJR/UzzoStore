@@ -33,6 +33,9 @@ export default async function EnderecosPage() {
         <Link href="/conta/pedidos" className={tab}>
           Pedidos
         </Link>
+        <Link href="/conta/favoritos" className={tab}>
+          Favoritos
+        </Link>
       </nav>
 
       <div className="space-y-4">

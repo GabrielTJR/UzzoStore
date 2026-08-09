@@ -145,6 +145,8 @@ export type ProductQuery = {
   /** Nomes canônicos de cor (como estão em `colors.name`). */
   colorNames?: string[];
   onlyPromo?: boolean;
+  /** Restringe a estes produtos (uso: página de favoritos). */
+  productIds?: string[];
   /** 1-based. Sem página, devolve tudo (uso: destaques da home). */
   page?: number;
   perPage?: number;
@@ -196,6 +198,10 @@ export async function getProducts(
     query = query.in("products.category_id", opts.categoryIds);
   if (opts.onlyPromo) query = query.gt("products.promo_price", 0);
   if (colorProductIds) query = query.in("products.id", colorProductIds);
+  if (opts.productIds) {
+    if (opts.productIds.length === 0) return { items: [], total: 0 };
+    query = query.in("products.id", opts.productIds);
+  }
 
   // `slug` como desempate: ordem instável duplicaria/sumiria itens entre páginas.
   query = query.order("sort_order").order("slug");

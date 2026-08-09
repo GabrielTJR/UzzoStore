@@ -65,6 +65,9 @@ export default async function PedidosPage() {
         <span className="rounded-full border border-foreground bg-foreground px-4 py-1.5 text-sm font-medium text-background">
           Pedidos
         </span>
+        <Link href="/conta/favoritos" className={tab}>
+          Favoritos
+        </Link>
       </nav>
 
       <div className="space-y-4">

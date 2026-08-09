@@ -37,6 +37,9 @@ export default async function ContaPage() {
         <Link href="/conta/pedidos" className={tab}>
           Pedidos
         </Link>
+        <Link href="/conta/favoritos" className={tab}>
+          Favoritos
+        </Link>
       </nav>
 
       <div>

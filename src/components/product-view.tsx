@@ -8,6 +8,7 @@ import { SlideTrack } from "@/components/slide-track";
 import { CarouselArrows } from "@/components/carousel-arrows";
 import { AdminProductOverlay } from "@/components/admin-product-overlay";
 import { MeasurementTable } from "@/components/measurement-table";
+import { WishlistHeart } from "@/components/wishlist-heart";
 import type { ProductColor, ProductVariant } from "@/lib/products";
 import type { MeasurementChart } from "@/lib/measurements";
 
@@ -43,6 +44,8 @@ export function ProductView({
   isAdmin = false,
   colors,
   measurement,
+  isLogged = false,
+  isFavorite = false,
 }: {
   productId: string;
   slug: string;
@@ -56,6 +59,8 @@ export function ProductView({
   isAdmin?: boolean;
   colors: ProductColor[];
   measurement: MeasurementChart | null;
+  isLogged?: boolean;
+  isFavorite?: boolean;
 }) {
   const addItem = useCart((s) => s.addItem);
 
@@ -178,9 +183,18 @@ export function ProductView({
             {category}
           </p>
         )}
-        <h1 className="mt-2 font-serif text-4xl font-semibold tracking-tight">
-          {name}
-        </h1>
+        <div className="mt-2 flex items-start justify-between gap-4">
+          <h1 className="font-serif text-4xl font-semibold tracking-tight">
+            {name}
+          </h1>
+          <WishlistHeart
+            productId={productId}
+            initialFavorite={isFavorite}
+            isLogged={isLogged}
+            backTo={`/produtos/${slug}`}
+            className="mt-1 shrink-0"
+          />
+        </div>
 
         {price != null && (
           <div className="mt-4 flex items-baseline gap-3">

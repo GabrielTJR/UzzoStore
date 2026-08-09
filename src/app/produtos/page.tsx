@@ -12,6 +12,8 @@ import { FilterSection } from "@/components/filter-section";
 import { FilterCheckItem as CheckItem } from "@/components/filter-check-item";
 import { categorySlug } from "@/lib/categories";
 import { getAdminUser } from "@/lib/admin";
+import { getSessionUser } from "@/lib/session";
+import { getWishlistIds } from "@/lib/wishlist";
 
 export const metadata: Metadata = {
   title: "Produtos",
@@ -86,12 +88,16 @@ export default async function ProdutosPage({
     10,
   );
 
-  const [categories, storeColors, adminUser] = await Promise.all([
-    getCategories(),
-    getStoreColors(),
-    getAdminUser(),
-  ]);
+  const [categories, storeColors, adminUser, sessionUser, favorites] =
+    await Promise.all([
+      getCategories(),
+      getStoreColors(),
+      getAdminUser(),
+      getSessionUser(),
+      getWishlistIds(),
+    ]);
   const isAdmin = !!adminUser;
+  const isLogged = !!sessionUser;
 
   // Slugs válidos (ignora categoria inexistente na URL).
   const bySlug = new Map(categories.map((c) => [categorySlug(c.name), c]));
@@ -244,7 +250,19 @@ export default async function ProdutosPage({
                 className="grid scroll-mt-28 grid-cols-2 gap-x-6 gap-y-10 lg:grid-cols-3"
               >
                 {products.map((p) => (
-                  <ProductCard key={p.slug} product={p} isAdmin={isAdmin} />
+                  <ProductCard
+                    key={p.slug}
+                    product={p}
+                    isAdmin={isAdmin}
+                    isLogged={isLogged}
+                    isFavorite={favorites.has(p.id)}
+                    backTo={buildHref(
+                      selectedCatSlugs,
+                      selectedColors,
+                      onlyPromo,
+                      page,
+                    )}
+                  />
                 ))}
               </div>
 

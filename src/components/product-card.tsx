@@ -2,18 +2,35 @@ import Link from "next/link";
 import { formatBRL } from "@/lib/format";
 import { CardColorMedia } from "./card-color-media";
 import { AdminProductOverlay } from "./admin-product-overlay";
+import { WishlistHeart } from "./wishlist-heart";
 import type { ProductListItem } from "@/lib/products";
 
 export function ProductCard({
   product,
   isAdmin = false,
+  isLogged = false,
+  isFavorite = false,
+  backTo = "/produtos",
 }: {
   product: ProductListItem;
   isAdmin?: boolean;
+  isLogged?: boolean;
+  isFavorite?: boolean;
+  backTo?: string;
 }) {
   return (
     <div className="group relative">
       <CardColorMedia product={product} />
+
+      {/* Favorito à esquerda; os atalhos de admin ficam à direita. */}
+      <div className="absolute left-2 top-2 z-10">
+        <WishlistHeart
+          productId={product.id}
+          initialFavorite={isFavorite}
+          isLogged={isLogged}
+          backTo={backTo}
+        />
+      </div>
 
       <Link href={`/produtos/${product.slug}`} className="mt-3 block space-y-1">
         {product.category && (
