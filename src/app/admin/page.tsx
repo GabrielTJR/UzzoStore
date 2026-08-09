@@ -3,7 +3,7 @@ import type { Metadata } from "next";
 import { requireAdmin } from "@/lib/admin";
 import { getAdminProducts } from "@/lib/admin-products";
 import { formatBRL } from "@/lib/format";
-import { signOutAction } from "./actions";
+import { AdminNav } from "./admin-nav";
 
 export const metadata: Metadata = { title: "Admin" };
 
@@ -15,68 +15,14 @@ export default async function AdminPage() {
 
   return (
     <section className="mx-auto max-w-5xl px-6 py-12">
-      <header className="mb-8 flex items-center justify-between">
+      <header className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <h1 className="font-serif text-3xl font-semibold tracking-tight">
             Produtos
           </h1>
           <p className="mt-1 text-sm text-muted">{user.email}</p>
         </div>
-        <div className="flex items-center gap-4">
-          <Link
-            href="/admin/pedidos"
-            className="text-sm text-muted underline-offset-4 hover:text-foreground hover:underline"
-          >
-            Pedidos
-          </Link>
-          <Link
-            href="/admin/decoracao"
-            className="text-sm text-muted underline-offset-4 hover:text-foreground hover:underline"
-          >
-            Decoração
-          </Link>
-          <Link
-            href="/admin/categorias"
-            className="text-sm text-muted underline-offset-4 hover:text-foreground hover:underline"
-          >
-            Categorias
-          </Link>
-          <Link
-            href="/admin/cores"
-            className="text-sm text-muted underline-offset-4 hover:text-foreground hover:underline"
-          >
-            Cores
-          </Link>
-          <Link
-            href="/admin/medidas"
-            className="text-sm text-muted underline-offset-4 hover:text-foreground hover:underline"
-          >
-            Medidas
-          </Link>
-          <Link
-            href="/admin/logs"
-            className="text-sm text-muted underline-offset-4 hover:text-foreground hover:underline"
-          >
-            Logs
-          </Link>
-          <Link
-            href="/admin/equipe"
-            className="text-sm text-muted underline-offset-4 hover:text-foreground hover:underline"
-          >
-            Equipe
-          </Link>
-          <Link
-            href="/admin/conta"
-            className="text-sm text-muted underline-offset-4 hover:text-foreground hover:underline"
-          >
-            Conta
-          </Link>
-          <form action={signOutAction}>
-            <button className="text-sm text-muted underline-offset-4 hover:text-foreground hover:underline">
-              Sair
-            </button>
-          </form>
-        </div>
+        <AdminNav />
       </header>
 
       {serviceRoleMissing && (
