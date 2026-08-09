@@ -1,5 +1,6 @@
 import "server-only";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { sendOrderPaidEmail } from "@/lib/email";
 
 /**
  * Pagamento online via InfinitePay (Checkout Integrado).
@@ -204,7 +205,61 @@ export async function confirmPayment(params: {
     .eq("id", order.id);
 
   await decreaseStock(order.id);
+  await notifyPaid(order.id, order.number);
   return { paid: true, orderNumber: order.number };
+}
+
+/** Manda ao cliente a confirmação do pagamento (nunca bloqueia a compra). */
+async function notifyPaid(orderId: string, orderNumber: number): Promise<void> {
+  try {
+    const admin = createAdminClient();
+    const { data: order } = await admin
+      .from("orders")
+      .select(
+        "customer_id, total, shipping_method, order_items ( product_name, variant_label, unit_price, qty )",
+      )
+      .eq("id", orderId)
+      .maybeSingle();
+    if (!order?.customer_id) return;
+
+    const [{ data: profile }, { data: authUser }] = await Promise.all([
+      admin
+        .from("customers")
+        .select("full_name")
+        .eq("id", order.customer_id)
+        .maybeSingle(),
+      admin.auth.admin.getUserById(order.customer_id),
+    ]);
+    const to = authUser?.user?.email;
+    if (!to) return;
+
+    const items = (
+      (order as unknown as {
+        order_items: {
+          product_name: string;
+          variant_label: string | null;
+          unit_price: number;
+          qty: number;
+        }[];
+      }).order_items ?? []
+    ).map((i) => ({
+      productName: i.product_name,
+      variantLabel: i.variant_label,
+      unitPrice: Number(i.unit_price),
+      qty: i.qty,
+    }));
+
+    await sendOrderPaidEmail({
+      to,
+      customerName: profile?.full_name ?? null,
+      orderNumber,
+      total: Number(order.total),
+      items,
+      pickup: order.shipping_method === "pickup",
+    });
+  } catch (err) {
+    console.error("[infinitepay] falha ao avisar pagamento", err);
+  }
 }
 
 /** Baixa do estoque as quantidades do pedido (depósito 'loja'). */

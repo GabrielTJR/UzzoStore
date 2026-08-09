@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import { requireCustomer } from "@/lib/customer";
 import { createClient } from "@/lib/supabase/server";
 import { formatBRL } from "@/lib/format";
+import { ORDER_STATUS } from "@/lib/admin-orders";
 import { CancelOrderButton } from "./cancel-order-button";
 
 export const metadata: Metadata = { title: "Meus pedidos" };
@@ -10,13 +11,7 @@ export const metadata: Metadata = { title: "Meus pedidos" };
 const tab =
   "rounded-full border border-border px-4 py-1.5 text-sm text-muted transition-colors hover:border-foreground hover:text-foreground";
 
-const STATUS: Record<string, string> = {
-  pending: "Aguardando confirmação",
-  paid: "Pago",
-  shipped: "Enviado",
-  canceled: "Cancelado",
-  failed: "Não concluído",
-};
+const STATUS = ORDER_STATUS as Record<string, string>;
 
 type OrderRow = {
   id: string;

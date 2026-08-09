@@ -9,6 +9,7 @@ import { createClient } from "@/lib/supabase/server";
 import { logAudit } from "@/lib/audit";
 import { isHomeSectionKind, KIND_LABEL } from "@/lib/home-sections";
 import { isOrderStatus } from "@/lib/admin-orders";
+import { sendOrderStatusEmail } from "@/lib/email";
 import type { Json } from "@/lib/supabase/database.types";
 
 const BUCKET = "product-images";
@@ -1070,6 +1071,33 @@ export async function updateOrderStatusAction(
   if (error) {
     revalidatePath("/admin/pedidos");
     return;
+  }
+
+  // Avisa o cliente nas etapas que importam para ele (e-mail nunca bloqueia).
+  if (status === "ready" || status === "shipped" || status === "delivered") {
+    const { data: order } = await admin
+      .from("orders")
+      .select("number, customer_id")
+      .eq("id", id)
+      .maybeSingle();
+    if (order?.customer_id) {
+      const [{ data: profile }, { data: authUser }] = await Promise.all([
+        admin
+          .from("customers")
+          .select("full_name")
+          .eq("id", order.customer_id)
+          .maybeSingle(),
+        admin.auth.admin.getUserById(order.customer_id),
+      ]);
+      const to = authUser?.user?.email;
+      if (to)
+        await sendOrderStatusEmail({
+          to,
+          customerName: profile?.full_name ?? null,
+          orderNumber: order.number,
+          status,
+        });
+    }
   }
 
   await logAudit(actor, {

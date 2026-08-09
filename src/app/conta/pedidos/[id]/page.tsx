@@ -4,17 +4,12 @@ import { notFound } from "next/navigation";
 import { requireCustomer } from "@/lib/customer";
 import { createClient } from "@/lib/supabase/server";
 import { formatBRL } from "@/lib/format";
+import { ORDER_STATUS, orderSteps } from "@/lib/admin-orders";
 import { CancelOrderButton } from "../cancel-order-button";
 
 export const metadata: Metadata = { title: "Detalhes do pedido" };
 
-const STATUS: Record<string, string> = {
-  pending: "Aguardando confirmação",
-  paid: "Pago",
-  shipped: "Enviado",
-  canceled: "Cancelado",
-  failed: "Não concluído",
-};
+const STATUS = ORDER_STATUS as Record<string, string>;
 
 type Address = {
   label?: string | null;
@@ -90,6 +85,33 @@ export default async function PedidoDetalhePage({
           {STATUS[o.status] ?? o.status}
         </p>
       </div>
+
+      {/* Andamento do pedido — o caminho muda entre retirada e entrega. */}
+      {o.status !== "canceled" && (
+        <ol className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-lg border border-border p-5 text-sm">
+          {orderSteps(o.shipping_method).map((s, i, arr) => {
+            const reached = arr.indexOf(o.status as (typeof arr)[number]) >= i;
+            const current = o.status === s;
+            return (
+              <li key={s} className="flex items-center gap-3">
+                <span
+                  className={
+                    current
+                      ? "font-medium"
+                      : reached
+                        ? "text-green-700 dark:text-green-400"
+                        : "text-muted"
+                  }
+                >
+                  {reached && !current ? "✓ " : ""}
+                  {STATUS[s]}
+                </span>
+                {i < arr.length - 1 && <span className="text-muted">→</span>}
+              </li>
+            );
+          })}
+        </ol>
+      )}
 
       <div className="rounded-lg border border-border p-5">
         <h2 className="mb-3 text-sm font-medium uppercase tracking-[0.15em] text-muted">

@@ -1,11 +1,21 @@
 import "server-only";
 import { createAdminClient } from "@/lib/supabase/admin";
 
-/** Situações do pedido (o schema aceita estes valores em `orders.status`). */
+/**
+ * Situações do pedido. `orders.status` é texto livre no banco, então a
+ * verdade do fluxo está aqui.
+ *
+ * O caminho depende da forma de entrega:
+ *   retirada: aguardando → pago → pronto para retirada → concluído
+ *   entrega:  aguardando → pago → enviado            → concluído
+ * `cancelado` é possível enquanto não estiver concluído.
+ */
 export const ORDER_STATUS = {
-  pending: "Aguardando",
+  pending: "Aguardando pagamento",
   paid: "Pago",
+  ready: "Pronto para retirada",
   shipped: "Enviado",
+  delivered: "Concluído",
   canceled: "Cancelado",
 } as const;
 
@@ -13,6 +23,36 @@ export type OrderStatus = keyof typeof ORDER_STATUS;
 
 export function isOrderStatus(v: unknown): v is OrderStatus {
   return typeof v === "string" && v in ORDER_STATUS;
+}
+
+/** Etapas visíveis do pedido, na ordem, conforme retirada ou entrega. */
+export function orderSteps(shippingMethod: string | null): OrderStatus[] {
+  const middle: OrderStatus = shippingMethod === "pickup" ? "ready" : "shipped";
+  return ["pending", "paid", middle, "delivered"];
+}
+
+/** Próxima etapa natural (null quando terminou ou foi cancelado). */
+export function nextOrderStatus(
+  status: string,
+  shippingMethod: string | null,
+): OrderStatus | null {
+  if (status === "canceled" || status === "delivered") return null;
+  const steps = orderSteps(shippingMethod);
+  const i = steps.indexOf(status as OrderStatus);
+  if (i === -1) return "paid"; // situação antiga/desconhecida: segue para paga
+  return steps[i + 1] ?? null;
+}
+
+/** Rótulo do botão que avança o pedido. */
+export function nextStatusLabel(next: OrderStatus): string {
+  return {
+    pending: "Voltar para aguardando",
+    paid: "Marcar como pago",
+    ready: "Marcar como pronto p/ retirada",
+    shipped: "Marcar como enviado",
+    delivered: "Marcar como concluído",
+    canceled: "Cancelar",
+  }[next];
 }
 
 export type AdminOrderItem = {
