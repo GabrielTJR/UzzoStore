@@ -420,6 +420,7 @@ export type Database = {
           microvix_order_id: string | null
           microvix_synced_at: string | null
           payment_status: string
+          seen_at: string | null
           shipping_address: Json | null
           shipping_method: string | null
           shipping_total: number
@@ -437,6 +438,7 @@ export type Database = {
           microvix_order_id?: string | null
           microvix_synced_at?: string | null
           payment_status?: string
+          seen_at?: string | null
           shipping_address?: Json | null
           shipping_method?: string | null
           shipping_total?: number
@@ -454,6 +456,7 @@ export type Database = {
           microvix_order_id?: string | null
           microvix_synced_at?: string | null
           payment_status?: string
+          seen_at?: string | null
           shipping_address?: Json | null
           shipping_method?: string | null
           shipping_total?: number

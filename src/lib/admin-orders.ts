@@ -73,6 +73,7 @@ export type AdminOrder = {
   customerPhone: string | null;
   customerCpf: string | null;
   shippingMethod: string | null;
+  isNew: boolean;
   shippingAddress: {
     label?: string | null;
     cep?: string;
@@ -94,6 +95,7 @@ type Row = {
   total: number;
   created_at: string;
   shipping_method: string | null;
+  seen_at: string | null;
   shipping_address: AdminOrder["shippingAddress"];
   customers: { full_name: string | null; phone: string | null; cpf: string | null } | null;
   order_items: {
@@ -110,7 +112,7 @@ export async function getAdminOrders(limit = 100): Promise<AdminOrder[]> {
   const { data, error } = await admin
     .from("orders")
     .select(
-      `id, number, status, channel, total, created_at, shipping_method, shipping_address,
+      `id, number, status, channel, total, created_at, shipping_method, seen_at, shipping_address,
        customers ( full_name, phone, cpf ),
        order_items ( product_name, variant_label, unit_price, qty )`,
     )
@@ -129,6 +131,7 @@ export async function getAdminOrders(limit = 100): Promise<AdminOrder[]> {
     customerPhone: o.customers?.phone ?? null,
     customerCpf: o.customers?.cpf ?? null,
     shippingMethod: o.shipping_method,
+    isNew: o.seen_at === null,
     shippingAddress: o.shipping_address,
     items: (o.order_items ?? []).map((i) => ({
       productName: i.product_name,
@@ -137,4 +140,14 @@ export async function getAdminOrders(limit = 100): Promise<AdminOrder[]> {
       qty: i.qty,
     })),
   }));
+}
+
+/** Quantos pedidos a loja ainda não viu (badge no menu do admin). */
+export async function countNewOrders(): Promise<number> {
+  const admin = createAdminClient();
+  const { count } = await admin
+    .from("orders")
+    .select("id", { count: "exact", head: true })
+    .is("seen_at", null);
+  return count ?? 0;
 }

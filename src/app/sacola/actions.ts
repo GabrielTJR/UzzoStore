@@ -3,6 +3,7 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getSessionUser } from "@/lib/session";
 import { getAdminUser } from "@/lib/admin";
+import { sendNewOrderAdminEmail } from "@/lib/email";
 import {
   createPaymentLink,
   infinitepayHandle,
@@ -243,6 +244,36 @@ export async function createOrderAction(
     // Sem itens o pedido é lixo: desfaz para não sujar o histórico/admin.
     await admin.from("orders").delete().eq("id", order.id);
     return { ok: false, error: "Não foi possível registrar os itens." };
+  }
+
+  // Avisa a loja. Pedido pago no site é avisado no confirmPayment (só depois
+  // de o dinheiro entrar); aqui cobrimos o caminho do WhatsApp.
+  if (channel === "whatsapp") {
+    let name: string | null = null;
+    let phone: string | null = null;
+    if (user) {
+      const { data: p } = await admin
+        .from("customers")
+        .select("full_name, phone")
+        .eq("id", user.id)
+        .maybeSingle();
+      name = p?.full_name ?? null;
+      phone = p?.phone ?? null;
+    }
+    await sendNewOrderAdminEmail({
+      orderNumber: order.number,
+      total: subtotal,
+      items: rows.map((r) => ({
+        productName: r.product_name,
+        variantLabel: r.variant_label,
+        unitPrice: r.unit_price,
+        qty: r.qty,
+      })),
+      customerName: name,
+      customerPhone: phone,
+      channel: "whatsapp",
+      shipping: null,
+    });
   }
 
   return { ok: true, orderNumber: order.number };

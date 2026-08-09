@@ -1066,7 +1066,11 @@ export async function updateOrderStatusAction(
   const admin = createAdminClient();
   const { error } = await admin
     .from("orders")
-    .update({ status, updated_at: new Date().toISOString() })
+    .update({
+      status,
+      seen_at: new Date().toISOString(), // mexeu no pedido => já viu
+      updated_at: new Date().toISOString(),
+    })
     .eq("id", id);
   if (error) {
     revalidatePath("/admin/pedidos");
@@ -1108,6 +1112,20 @@ export async function updateOrderStatusAction(
   });
   revalidatePath("/admin/pedidos");
   revalidatePath("/conta/pedidos");
+}
+
+/** Marca todos os pedidos como vistos (tira o destaque de "novo"). */
+export async function markOrdersSeenAction(): Promise<void> {
+  const actor = await getAdminUser();
+  if (!actor) return;
+  if (serviceRoleMissing()) return;
+  const admin = createAdminClient();
+  await admin
+    .from("orders")
+    .update({ seen_at: new Date().toISOString() })
+    .is("seen_at", null);
+  revalidatePath("/admin/pedidos");
+  revalidatePath("/admin");
 }
 
 // --- Decoração da home ------------------------------------------------------

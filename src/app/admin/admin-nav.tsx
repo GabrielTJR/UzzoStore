@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { signOutAction } from "./actions";
+import { countNewOrders } from "@/lib/admin-orders";
 
 /**
  * Menu do painel. Em chips que QUEBRAM em várias linhas: a lista cresceu
@@ -20,12 +21,18 @@ const LINKS = [
   { href: "/admin/conta", label: "Conta" },
 ];
 
-export function AdminNav() {
+export async function AdminNav() {
+  const novos = await countNewOrders();
   return (
     <nav className="flex flex-wrap items-center gap-2 sm:justify-end">
       {LINKS.map((l) => (
         <Link key={l.href} href={l.href} className={item}>
           {l.label}
+          {l.href === "/admin/pedidos" && novos > 0 && (
+            <span className="ml-2 rounded-full bg-red-600 px-2 py-0.5 text-xs font-medium text-white">
+              {novos}
+            </span>
+          )}
         </Link>
       ))}
       <form action={signOutAction}>

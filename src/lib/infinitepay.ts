@@ -1,6 +1,6 @@
 import "server-only";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { sendOrderPaidEmail } from "@/lib/email";
+import { sendOrderPaidEmail, sendNewOrderAdminEmail } from "@/lib/email";
 
 /**
  * Pagamento online via InfinitePay (Checkout Integrado).
@@ -216,7 +216,7 @@ async function notifyPaid(orderId: string, orderNumber: number): Promise<void> {
     const { data: order } = await admin
       .from("orders")
       .select(
-        "customer_id, total, shipping_method, order_items ( product_name, variant_label, unit_price, qty )",
+        "customer_id, total, shipping_method, shipping_address, order_items ( product_name, variant_label, unit_price, qty )",
       )
       .eq("id", orderId)
       .maybeSingle();
@@ -225,7 +225,7 @@ async function notifyPaid(orderId: string, orderNumber: number): Promise<void> {
     const [{ data: profile }, { data: authUser }] = await Promise.all([
       admin
         .from("customers")
-        .select("full_name")
+        .select("full_name, phone")
         .eq("id", order.customer_id)
         .maybeSingle(),
       admin.auth.admin.getUserById(order.customer_id),
@@ -256,6 +256,26 @@ async function notifyPaid(orderId: string, orderNumber: number): Promise<void> {
       total: Number(order.total),
       items,
       pickup: order.shipping_method === "pickup",
+    });
+
+    // A loja também precisa saber que entrou venda.
+    const addr = order.shipping_address as {
+      street?: string;
+      number?: string | null;
+      city?: string;
+      state?: string;
+    } | null;
+    await sendNewOrderAdminEmail({
+      orderNumber,
+      total: Number(order.total),
+      items,
+      customerName: profile?.full_name ?? null,
+      customerPhone: profile?.phone ?? null,
+      channel: "online",
+      shipping: (order.shipping_method as "pickup" | "delivery" | null) ?? null,
+      addressLine: addr
+        ? `${addr.street ?? ""}${addr.number ? `, ${addr.number}` : ""} — ${addr.city ?? ""}/${addr.state ?? ""}`
+        : null,
     });
   } catch (err) {
     console.error("[infinitepay] falha ao avisar pagamento", err);

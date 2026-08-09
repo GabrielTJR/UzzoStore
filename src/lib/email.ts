@@ -160,6 +160,78 @@ export async function sendOrderPaidEmail(params: {
   });
 }
 
+/** Para quem avisar quando entra pedido (usa a mesma lista do acesso admin). */
+function adminRecipients(): string[] {
+  const raw =
+    process.env.ADMIN_ORDER_EMAIL?.trim() || process.env.ADMIN_EMAILS || "";
+  return raw
+    .split(",")
+    .map((e) => e.trim())
+    .filter(Boolean);
+}
+
+/** Avisa a LOJA que entrou pedido novo. */
+export async function sendNewOrderAdminEmail(params: {
+  orderNumber: number;
+  total: number;
+  items: OrderEmailItem[];
+  customerName: string | null;
+  customerPhone: string | null;
+  channel: "online" | "whatsapp";
+  shipping: "pickup" | "delivery" | null;
+  addressLine?: string | null;
+}): Promise<boolean> {
+  const to = adminRecipients();
+  if (to.length === 0) return false;
+
+  const lines = params.items
+    .map(
+      (i) =>
+        `<li style="margin-bottom:4px">${i.qty}× ${i.productName}${
+          i.variantLabel ? ` — ${i.variantLabel}` : ""
+        } · ${brl(i.unitPrice * i.qty)}</li>`,
+    )
+    .join("");
+
+  const entrega =
+    params.shipping === "pickup"
+      ? "🏬 Retirada na loja"
+      : params.shipping === "delivery"
+        ? `🚚 Entrega — ${params.addressLine ?? "endereço no painel"}`
+        : "combinar pelo WhatsApp";
+
+  const html = layout(
+    params.channel === "online" ? "Pedido pago no site 💰" : "Pedido pelo WhatsApp",
+    `<p style="font-size:15px;line-height:1.6;margin:0 0 12px">
+      <strong>Pedido nº ${params.orderNumber}</strong> —
+      ${params.channel === "online" ? "pagamento já confirmado." : "aguardando confirmação no WhatsApp."}
+    </p>
+    <p style="font-size:14px;line-height:1.6;color:#444;margin:0 0 12px">
+      Cliente: ${params.customerName ?? "visitante sem conta"}${
+        params.customerPhone ? ` · ${params.customerPhone}` : ""
+      }<br>${entrega}
+    </p>
+    <ul style="font-size:14px;line-height:1.6;color:#444;padding-left:18px;margin:0 0 12px">${lines}</ul>
+    <p style="font-size:15px;margin:0 0 16px"><strong>Total: ${brl(params.total)}</strong></p>
+    <p style="font-size:14px;margin:0">
+      <a href="https://uzzostore.com.br/admin/pedidos" style="color:#111">Abrir os pedidos no painel →</a>
+    </p>`,
+  );
+
+  // Um envio por destinatário: assim um endereço inválido não derruba os outros.
+  const results = await Promise.all(
+    to.map((dest) =>
+      send({
+        to: dest,
+        kind: "loja_pedido_novo",
+        subject: `Novo pedido nº ${params.orderNumber} — ${brl(params.total)}`,
+        html,
+      }),
+    ),
+  );
+  return results.some(Boolean);
+}
+
 /** Aviso de mudança de situação (pronto para retirada, enviado, concluído). */
 export async function sendOrderStatusEmail(params: {
   to: string;

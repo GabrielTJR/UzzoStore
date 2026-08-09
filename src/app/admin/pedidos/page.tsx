@@ -9,7 +9,7 @@ import {
   nextStatusLabel,
 } from "@/lib/admin-orders";
 import { formatBRL } from "@/lib/format";
-import { updateOrderStatusAction } from "../actions";
+import { updateOrderStatusAction, markOrdersSeenAction } from "../actions";
 import { SubmitButton } from "@/components/submit-button";
 
 export const metadata: Metadata = { title: "Pedidos" };
@@ -26,6 +26,7 @@ const STATUS_STYLE: Record<string, string> = {
 export default async function PedidosAdminPage() {
   await requireAdmin();
   const orders = await getAdminOrders();
+  const novos = orders.filter((o) => o.isNew).length;
 
   return (
     <section className="mx-auto max-w-4xl px-6 py-12">
@@ -43,14 +44,35 @@ export default async function PedidosAdminPage() {
         com o número que o cliente citou na conversa.
       </p>
 
+      {novos > 0 && (
+        <form action={markOrdersSeenAction} className="mt-6">
+          <SubmitButton
+            pendingText="Marcando…"
+            className="h-9 rounded-full border border-border px-5 text-sm font-medium hover:border-foreground"
+          >
+            Marcar {novos} {novos === 1 ? "pedido novo" : "pedidos novos"} como visto{novos === 1 ? "" : "s"}
+          </SubmitButton>
+        </form>
+      )}
+
       <div className="mt-8 space-y-4">
         {orders.map((o) => {
           const next = nextOrderStatus(o.status, o.shippingMethod);
           return (
-          <div key={o.id} className="rounded-lg border border-border p-5">
+          <div
+            key={o.id}
+            className={`rounded-lg border p-5 ${
+              o.isNew ? "border-red-500/60 bg-red-500/5" : "border-border"
+            }`}
+          >
             <div className="flex flex-wrap items-baseline justify-between gap-3">
               <div>
                 <p className="font-medium">
+                  {o.isNew && (
+                    <span className="mr-2 rounded-full bg-red-600 px-2 py-0.5 text-xs font-medium text-white">
+                      NOVO
+                    </span>
+                  )}
                   Pedido nº {o.number}
                   <span
                     className={`ml-3 rounded-full border px-2 py-0.5 text-xs font-normal ${
