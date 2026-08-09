@@ -8,6 +8,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { logAudit } from "@/lib/audit";
 import { isHomeSectionKind, KIND_LABEL } from "@/lib/home-sections";
+import { isOrderStatus } from "@/lib/admin-orders";
 import type { Json } from "@/lib/supabase/database.types";
 
 const BUCKET = "product-images";
@@ -1045,6 +1046,40 @@ export async function deleteMeasurementModelAction(
   revalidatePath("/admin/medidas");
   revalidatePath("/produtos/[slug]", "page");
   redirect("/admin/medidas");
+}
+
+// --- Pedidos ----------------------------------------------------------------
+
+/** Muda a situação do pedido (Aguardando / Pago / Enviado / Cancelado). */
+export async function updateOrderStatusAction(
+  formData: FormData,
+): Promise<void> {
+  const actor = await getAdminUser();
+  if (!actor) return;
+  if (serviceRoleMissing()) return;
+
+  const id = String(formData.get("orderId") ?? "");
+  const status = String(formData.get("status") ?? "");
+  if (!id || !isOrderStatus(status)) return;
+
+  const admin = createAdminClient();
+  const { error } = await admin
+    .from("orders")
+    .update({ status, updated_at: new Date().toISOString() })
+    .eq("id", id);
+  if (error) {
+    revalidatePath("/admin/pedidos");
+    return;
+  }
+
+  await logAudit(actor, {
+    action: "order.status",
+    entityType: "order",
+    entityId: id,
+    metadata: { status },
+  });
+  revalidatePath("/admin/pedidos");
+  revalidatePath("/conta/pedidos");
 }
 
 // --- Decoração da home ------------------------------------------------------

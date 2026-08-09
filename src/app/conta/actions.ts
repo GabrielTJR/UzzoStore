@@ -3,6 +3,7 @@
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { getCurrentUser } from "@/lib/customer";
 
 export type ActionResult = { ok: boolean; error?: string };
@@ -132,6 +133,42 @@ export async function deleteAddressAction(formData: FormData): Promise<void> {
   const supabase = await createClient();
   await supabase.from("addresses").delete().eq("id", id);
   revalidatePath("/conta/enderecos");
+}
+
+/**
+ * O cliente cancela o próprio pedido — só enquanto está "aguardando".
+ *
+ * Escreve com service_role porque `orders` não tem policy de UPDATE (a
+ * migração 0001 deixa a escrita só do servidor). Por isso a checagem de dono
+ * e de situação é feita AQUI, explicitamente: sem RLS para nos proteger, quem
+ * garante que ninguém cancela o pedido de outro é este código.
+ */
+export async function cancelOrderAction(formData: FormData): Promise<void> {
+  const user = await getCurrentUser();
+  if (!user) return;
+  if (!process.env.SUPABASE_SERVICE_ROLE_KEY) return;
+
+  const id = String(formData.get("orderId") ?? "");
+  if (!id) return;
+
+  const admin = createAdminClient();
+  const { data: order } = await admin
+    .from("orders")
+    .select("id, customer_id, status")
+    .eq("id", id)
+    .maybeSingle();
+
+  if (!order) return;
+  if (order.customer_id !== user.id) return; // pedido de outra pessoa
+  if (order.status !== "pending") return; // já pago/enviado: não cancela
+
+  await admin
+    .from("orders")
+    .update({ status: "canceled", updated_at: new Date().toISOString() })
+    .eq("id", id);
+
+  revalidatePath("/conta/pedidos");
+  revalidatePath("/admin/pedidos");
 }
 
 export async function signOutCustomerAction(): Promise<void> {

@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import { requireCustomer } from "@/lib/customer";
 import { createClient } from "@/lib/supabase/server";
 import { formatBRL } from "@/lib/format";
+import { CancelOrderButton } from "./cancel-order-button";
 
 export const metadata: Metadata = { title: "Meus pedidos" };
 
@@ -19,6 +20,7 @@ const STATUS: Record<string, string> = {
 
 type OrderRow = {
   id: string;
+  number: number;
   status: string;
   total: number;
   created_at: string;
@@ -37,7 +39,7 @@ export default async function PedidosPage() {
   const { data } = await supabase
     .from("orders")
     .select(
-      "id, status, total, created_at, order_items ( product_name, variant_label, unit_price, qty )",
+      "id, number, status, total, created_at, order_items ( product_name, variant_label, unit_price, qty )",
     )
     .eq("customer_id", user.id)
     .order("created_at", { ascending: false });
@@ -75,7 +77,7 @@ export default async function PedidosPage() {
           <div key={o.id} className="rounded-lg border border-border p-5">
             <div className="flex flex-wrap items-baseline justify-between gap-2">
               <p className="font-medium">
-                Pedido de{" "}
+                Pedido nº {o.number} ·{" "}
                 {new Date(o.created_at).toLocaleDateString("pt-BR", {
                   day: "2-digit",
                   month: "long",
@@ -95,9 +97,14 @@ export default async function PedidosPage() {
                 </li>
               ))}
             </ul>
-            <p className="mt-3 text-sm font-medium">
-              Total: {formatBRL(Number(o.total))}
-            </p>
+            <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
+              <p className="text-sm font-medium">
+                Total: {formatBRL(Number(o.total))}
+              </p>
+              {o.status === "pending" && (
+                <CancelOrderButton orderId={o.id} number={o.number} />
+              )}
+            </div>
           </div>
         ))}
 
