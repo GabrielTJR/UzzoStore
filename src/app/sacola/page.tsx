@@ -50,31 +50,6 @@ export default function SacolaPage() {
    * fora do clique. Se o registro falhar, seguimos para o WhatsApp mesmo assim
    * — perder a venda por causa do histórico seria pior.
    */
-  /** Pagamento online: exige login e leva ao checkout da InfinitePay. */
-  async function handlePayOnline() {
-    if (busy) return;
-    setError(null);
-    setBusy(true);
-    try {
-      const res = await startOnlinePaymentAction(
-        items.map((i) => ({ variantId: i.variantId, qty: i.qty })),
-      );
-      if (res.needsLogin) {
-        router.push(`/entrar?next=${encodeURIComponent("/sacola")}`);
-        return;
-      }
-      if (!res.ok || !res.url) {
-        setError(res.error ?? "Não foi possível abrir o pagamento.");
-        return;
-      }
-      window.location.href = res.url; // mesma aba: é um fluxo de pagamento
-    } catch {
-      setError("Não foi possível abrir o pagamento.");
-    } finally {
-      setBusy(false);
-    }
-  }
-
   async function handleWhatsapp() {
     if (busy) return;
     setError(null);
@@ -205,14 +180,13 @@ export default function SacolaPage() {
         {error && <p className="text-sm text-red-600">{error}</p>}
 
         <div className="flex w-full flex-col gap-3 sm:w-auto sm:flex-row">
-          <button
-            type="button"
-            onClick={handlePayOnline}
-            disabled={busy}
-            className="inline-flex h-12 items-center justify-center rounded-full border border-border px-8 text-sm font-medium transition-colors hover:border-foreground disabled:opacity-60"
+          {/* O checkout coleta dados e forma de entrega antes de cobrar. */}
+          <Link
+            href="/checkout"
+            className="inline-flex h-12 items-center justify-center rounded-full border border-border px-8 text-sm font-medium transition-colors hover:border-foreground"
           >
-            {busy ? "Abrindo pagamento…" : "Pagar com Pix ou cartão"}
-          </button>
+            Pagar com Pix ou cartão
+          </Link>
           <button
             type="button"
             onClick={handleWhatsapp}

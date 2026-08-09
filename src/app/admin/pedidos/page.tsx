@@ -71,6 +71,35 @@ export default async function PedidosAdminPage() {
               ))}
             </ul>
 
+            {/* Entrega: sem isso não dá para saber se retira ou para onde enviar */}
+            {o.shippingMethod === "pickup" && (
+              <p className="mt-3 rounded-md border border-border px-3 py-2 text-sm">
+                🏬 <span className="font-medium">Retirada na loja</span>
+              </p>
+            )}
+            {o.shippingMethod === "delivery" && o.shippingAddress && (
+              <p className="mt-3 rounded-md border border-border px-3 py-2 text-sm">
+                🚚 <span className="font-medium">Entrega</span>
+                <span className="block text-muted">
+                  {o.shippingAddress.street}
+                  {o.shippingAddress.number ? `, ${o.shippingAddress.number}` : ""}
+                  {o.shippingAddress.complement
+                    ? ` — ${o.shippingAddress.complement}`
+                    : ""}
+                  {o.shippingAddress.district
+                    ? `, ${o.shippingAddress.district}`
+                    : ""}{" "}
+                  · {o.shippingAddress.city}/{o.shippingAddress.state} · CEP{" "}
+                  {o.shippingAddress.cep}
+                </span>
+                {o.customerCpf && (
+                  <span className="block text-muted">
+                    CPF do cliente: {o.customerCpf}
+                  </span>
+                )}
+              </p>
+            )}
+
             <div className="mt-4 flex flex-wrap gap-2 border-t border-border pt-4">
               {(
                 Object.keys(ORDER_STATUS) as (keyof typeof ORDER_STATUS)[]

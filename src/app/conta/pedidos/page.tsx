@@ -101,9 +101,17 @@ export default async function PedidosPage() {
               <p className="text-sm font-medium">
                 Total: {formatBRL(Number(o.total))}
               </p>
-              {o.status === "pending" && (
-                <CancelOrderButton orderId={o.id} number={o.number} />
-              )}
+              <div className="flex items-center gap-4">
+                <Link
+                  href={`/conta/pedidos/${o.id}`}
+                  className="text-sm underline underline-offset-4 hover:text-foreground"
+                >
+                  Ver detalhes
+                </Link>
+                {o.status === "pending" && (
+                  <CancelOrderButton orderId={o.id} number={o.number} />
+                )}
+              </div>
             </div>
           </div>
         ))}

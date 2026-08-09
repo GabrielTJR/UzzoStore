@@ -44,15 +44,57 @@ type VariantRow = {
  * registra o pedido e devolve a URL do checkout da InfinitePay.
  * Só os produtos são cobrados — frete é combinado depois no WhatsApp.
  */
+export type ShippingChoice =
+  | { method: "pickup" }
+  | { method: "delivery"; addressId: string };
+
 export async function startOnlinePaymentAction(
   items: CheckoutItem[],
+  shipping: ShippingChoice,
 ): Promise<{ ok: boolean; url?: string; error?: string; needsLogin?: boolean }> {
   const user = await getSessionUser();
   if (!user) return { ok: false, needsLogin: true, error: "Entre para pagar." };
   if (!infinitepayHandle())
     return { ok: false, error: "Pagamento online ainda não está configurado." };
 
-  const order = await createOrderAction(items, "online");
+  const admin0 = createAdminClient();
+
+  // Dados obrigatórios para faturar/entregar.
+  const { data: profile0 } = await admin0
+    .from("customers")
+    .select("full_name, cpf, phone")
+    .eq("id", user.id)
+    .maybeSingle();
+  if (!profile0?.full_name || !profile0.cpf || !profile0.phone)
+    return { ok: false, error: "Complete seus dados (nome, CPF e telefone)." };
+
+  // Endereço: precisa ser do próprio cliente (o id vem do navegador).
+  let shippingAddress: Record<string, unknown> | null = null;
+  if (shipping.method === "delivery") {
+    const { data: addr } = await admin0
+      .from("addresses")
+      .select("*")
+      .eq("id", shipping.addressId)
+      .eq("customer_id", user.id)
+      .maybeSingle();
+    if (!addr)
+      return { ok: false, error: "Escolha um endereço de entrega válido." };
+    shippingAddress = {
+      label: addr.label,
+      cep: addr.cep,
+      street: addr.street,
+      number: addr.number,
+      complement: addr.complement,
+      district: addr.district,
+      city: addr.city,
+      state: addr.state,
+    };
+  }
+
+  const order = await createOrderAction(items, "online", {
+    shippingMethod: shipping.method,
+    shippingAddress,
+  });
   if (!order.ok || !order.orderNumber)
     return { ok: false, error: order.error ?? "Erro ao criar o pedido." };
 
@@ -114,6 +156,10 @@ function siteUrl(): string {
 export async function createOrderAction(
   items: CheckoutItem[],
   channel: "whatsapp" | "online" = "whatsapp",
+  shipping?: {
+    shippingMethod: "pickup" | "delivery";
+    shippingAddress: Record<string, unknown> | null;
+  },
 ): Promise<CheckoutResult> {
   const clean = (Array.isArray(items) ? items : [])
     .map((i) => ({
@@ -182,6 +228,8 @@ export async function createOrderAction(
       subtotal,
       total: subtotal, // frete é combinado no WhatsApp por enquanto
       channel,
+      shipping_method: shipping?.shippingMethod ?? null,
+      shipping_address: (shipping?.shippingAddress ?? null) as never,
     })
     .select("id, number")
     .single();
