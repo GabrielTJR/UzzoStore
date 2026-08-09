@@ -1,4 +1,5 @@
 import "server-only";
+import { logAudit } from "@/lib/audit";
 
 /**
  * E-mails transacionais (pedido pago, pedido enviado) pela API do Resend.
@@ -18,13 +19,30 @@ function from(): string {
   );
 }
 
+/**
+ * Envia e SEMPRE registra a tentativa no audit_log (/admin/logs).
+ *
+ * Sem isso, uma falha de envio só aparecia no log da Vercel — e a loja ficava
+ * sem saber por que o cliente não recebeu (ex.: o Resend recusa destinatário
+ * quando o domínio não está verificado, ou a chave está errada).
+ */
 async function send(params: {
   to: string;
   subject: string;
   html: string;
+  kind: string;
 }): Promise<boolean> {
   const key = process.env.RESEND_API_KEY?.trim();
-  if (!key) return false;
+  if (!key) {
+    await logAudit(null, {
+      action: "email.skipped",
+      entityType: "email",
+      entityLabel: params.to,
+      metadata: { kind: params.kind, motivo: "RESEND_API_KEY ausente" },
+    });
+    return false;
+  }
+
   try {
     const res = await fetch(API, {
       method: "POST",
@@ -40,13 +58,42 @@ async function send(params: {
       }),
       cache: "no-store",
     });
+    const text = await res.text();
+
     if (!res.ok) {
-      console.error("[email] falhou", res.status, await res.text());
+      console.error("[email] falhou", res.status, text);
+      await logAudit(null, {
+        action: "email.failed",
+        entityType: "email",
+        entityLabel: params.to,
+        metadata: {
+          kind: params.kind,
+          status: res.status,
+          from: from(),
+          resposta: text.slice(0, 500),
+        },
+      });
       return false;
     }
+
+    await logAudit(null, {
+      action: "email.sent",
+      entityType: "email",
+      entityLabel: params.to,
+      metadata: { kind: params.kind, from: from() },
+    });
     return true;
   } catch (err) {
     console.error("[email] erro", err);
+    await logAudit(null, {
+      action: "email.failed",
+      entityType: "email",
+      entityLabel: params.to,
+      metadata: {
+        kind: params.kind,
+        erro: err instanceof Error ? err.message : String(err),
+      },
+    });
     return false;
   }
 }
@@ -92,6 +139,7 @@ export async function sendOrderPaidEmail(params: {
 
   return send({
     to: params.to,
+    kind: "pedido_pago",
     subject: `Pedido nº ${params.orderNumber} confirmado — Uzzo Store`,
     html: layout(
       "Pagamento confirmado 🎉",
@@ -139,6 +187,7 @@ export async function sendOrderStatusEmail(params: {
 
   return send({
     to: params.to,
+    kind: `pedido_${params.status}`,
     subject: copy.subject,
     html: layout(
       copy.title,
