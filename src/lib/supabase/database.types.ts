@@ -923,6 +923,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      email_exists: {
+        Args: { p_email: string }
+        Returns: boolean
+      }
       is_admin: {
         Args: never
         Returns: boolean

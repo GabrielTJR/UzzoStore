@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import { emailAlreadyRegistered } from "./actions";
 
 const field =
   "w-full rounded-md border border-border bg-transparent px-4 py-2.5 text-sm outline-none focus:border-foreground";
@@ -92,20 +93,31 @@ export function SignupForm() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [sent, setSent] = useState(false);
+  const [existing, setExisting] = useState(false);
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setError(null);
     const form = new FormData(e.currentTarget);
     const password = String(form.get("password") ?? "");
+    const email = String(form.get("email") ?? "").trim();
     if (password.length < 8) {
       setError("A senha deve ter ao menos 8 caracteres.");
       return;
     }
     setBusy(true);
+
+    // Checa ANTES: o Supabase responde "sucesso" para e-mail já cadastrado e
+    // não envia nada — sem isso, a pessoa espera um e-mail que nunca chega.
+    if (await emailAlreadyRegistered(email)) {
+      setBusy(false);
+      setExisting(true);
+      return;
+    }
+
     const supabase = createClient();
     const { data, error } = await supabase.auth.signUp({
-      email: String(form.get("email") ?? "").trim(),
+      email,
       password,
       options: {
         data: { full_name: String(form.get("fullName") ?? "").trim() },
@@ -126,34 +138,48 @@ export function SignupForm() {
     else setSent(true);
   }
 
+  if (existing) {
+    return (
+      <div className="space-y-3 rounded-lg border border-border p-5 text-sm">
+        <p className="font-medium">Este e-mail já tem conta</p>
+        <p className="text-muted">
+          Entre com sua senha ou, se não lembrar, crie uma nova.
+        </p>
+        <div className="flex flex-wrap gap-3 pt-1">
+          <Link
+            href={`/entrar?next=${encodeURIComponent(next)}`}
+            className="inline-flex h-10 items-center justify-center rounded-full bg-foreground px-6 text-sm font-medium text-background hover:opacity-90"
+          >
+            Entrar
+          </Link>
+          <Link
+            href="/esqueci-senha"
+            className="inline-flex h-10 items-center justify-center rounded-full border border-border px-6 text-sm font-medium hover:border-foreground"
+          >
+            Esqueci minha senha
+          </Link>
+        </div>
+        <button
+          type="button"
+          onClick={() => setExisting(false)}
+          className="text-sm text-muted underline underline-offset-4 hover:text-foreground"
+        >
+          Usar outro e-mail
+        </button>
+      </div>
+    );
+  }
+
   if (sent) {
     return (
       <div className="space-y-3 rounded-lg border border-border p-5 text-sm">
         <p className="font-medium">Confira seu e-mail 📬</p>
         <p className="text-muted">
-          Se este e-mail ainda não tiver conta, enviamos um link para confirmar
-          — é só clicar nele para entrar.
+          Enviamos um link para confirmar sua conta. Depois de confirmar, você
+          já entra direto.
         </p>
-        {/* O Supabase responde "sucesso" mesmo quando o e-mail já tem conta
-            (assim ninguém descobre quais e-mails são cadastrados) e nesse caso
-            não envia nada. Sem este aviso, quem já tem conta fica esperando um
-            e-mail que nunca chega. */}
-        <p className="text-muted">
-          Já tem conta com esse e-mail? Nenhum e-mail é enviado — use{" "}
-          <Link
-            href="/entrar"
-            className="underline underline-offset-4 hover:text-foreground"
-          >
-            entrar
-          </Link>{" "}
-          ou{" "}
-          <Link
-            href="/esqueci-senha"
-            className="underline underline-offset-4 hover:text-foreground"
-          >
-            recuperar a senha
-          </Link>
-          .
+        <p className="text-xs text-muted">
+          Não achou? Veja também no lixo eletrônico.
         </p>
       </div>
     );
