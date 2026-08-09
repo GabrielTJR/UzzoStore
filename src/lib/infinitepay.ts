@@ -32,7 +32,7 @@ export async function createPaymentLink(params: {
   redirectUrl: string;
   webhookUrl: string;
   customer?: { name?: string | null; email?: string | null; phone?: string | null };
-}): Promise<{ ok: boolean; url?: string; error?: string }> {
+}): Promise<{ ok: boolean; url?: string; error?: string; detail?: string }> {
   const handle = infinitepayHandle();
   if (!handle) return { ok: false, error: "Pagamento online indisponível." };
 
@@ -58,13 +58,50 @@ export async function createPaymentLink(params: {
       body: JSON.stringify(body),
       cache: "no-store",
     });
-    if (!res.ok) return { ok: false, error: "Erro ao gerar o pagamento." };
-    const data = (await res.json()) as { url?: string; link?: string };
-    const url = data.url ?? data.link;
-    if (!url) return { ok: false, error: "Erro ao gerar o pagamento." };
+    const text = await res.text();
+
+    if (!res.ok) {
+      // A InfinitePay devolve só {"success":false,"message":"Unable to create
+      // checkout link"} — sem o motivo. Guardamos a resposta crua para o admin
+      // enxergar (o cliente vê apenas a mensagem amigável).
+      console.error("[infinitepay] links falhou", res.status, text);
+      return {
+        ok: false,
+        error: "Erro ao gerar o pagamento.",
+        detail: `HTTP ${res.status} — ${text.slice(0, 300)}`,
+      };
+    }
+
+    let data: Record<string, unknown> = {};
+    try {
+      data = JSON.parse(text) as Record<string, unknown>;
+    } catch {
+      /* resposta não-JSON cai na checagem abaixo */
+    }
+    // O nome do campo da URL não está claro na documentação: aceitamos as
+    // variações conhecidas antes de desistir.
+    const url =
+      (data.url as string) ??
+      (data.link as string) ??
+      (data.payment_url as string) ??
+      (data.checkout_url as string) ??
+      ((data.data as Record<string, unknown> | undefined)?.url as string);
+
+    if (!url) {
+      console.error("[infinitepay] resposta sem URL", text);
+      return {
+        ok: false,
+        error: "Erro ao gerar o pagamento.",
+        detail: `Resposta sem link — ${text.slice(0, 300)}`,
+      };
+    }
     return { ok: true, url };
-  } catch {
-    return { ok: false, error: "Não foi possível falar com o pagamento." };
+  } catch (err) {
+    return {
+      ok: false,
+      error: "Não foi possível falar com o pagamento.",
+      detail: err instanceof Error ? err.message : String(err),
+    };
   }
 }
 

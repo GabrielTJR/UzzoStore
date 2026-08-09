@@ -2,6 +2,7 @@
 
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getSessionUser } from "@/lib/session";
+import { getAdminUser } from "@/lib/admin";
 import {
   createPaymentLink,
   infinitepayHandle,
@@ -86,8 +87,18 @@ export async function startOnlinePaymentAction(
       phone: profile?.phone,
     },
   });
-  if (!link.ok || !link.url)
-    return { ok: false, error: link.error ?? "Erro ao gerar o pagamento." };
+  if (!link.ok || !link.url) {
+    // Para o admin, mostra a resposta crua da InfinitePay — sem isso a tela só
+    // diz "erro" e não dá para descobrir o que o provedor recusou.
+    const admin = await getAdminUser();
+    return {
+      ok: false,
+      error:
+        admin && link.detail
+          ? `${link.error ?? "Erro ao gerar o pagamento."} [${link.detail}]`
+          : (link.error ?? "Erro ao gerar o pagamento."),
+    };
+  }
 
   return { ok: true, url: link.url };
 }
