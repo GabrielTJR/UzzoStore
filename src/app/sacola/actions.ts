@@ -154,6 +154,39 @@ function siteUrl(): string {
   return vercel ? `https://${vercel}` : "https://uzzostore.com.br";
 }
 
+/**
+ * Confere o saldo de cada item e devolve o que faltou. É uma verificação
+ * "de aviso": a garantia de verdade vem do decremento atômico no pagamento
+ * (função decrement_stock, migração 0012).
+ */
+async function stockShortages(
+  admin: ReturnType<typeof createAdminClient>,
+  rows: { variant_id: string; product_name: string; variant_label: string | null; qty: number }[],
+): Promise<{ name: string; available: number }[]> {
+  const { data } = await admin
+    .from("stock_cache")
+    .select("variant_id, qty_available")
+    .in(
+      "variant_id",
+      rows.map((r) => r.variant_id),
+    )
+    .eq("deposito_id", "loja");
+
+  const saldo = new Map(
+    (data ?? []).map((s) => [s.variant_id, s.qty_available] as const),
+  );
+  const falta: { name: string; available: number }[] = [];
+  for (const r of rows) {
+    const disponivel = saldo.get(r.variant_id) ?? 0;
+    if (disponivel < r.qty)
+      falta.push({
+        name: [r.product_name, r.variant_label].filter(Boolean).join(" — "),
+        available: disponivel,
+      });
+  }
+  return falta;
+}
+
 export async function createOrderAction(
   items: CheckoutItem[],
   channel: "whatsapp" | "online" = "whatsapp",
@@ -216,6 +249,21 @@ export async function createOrderAction(
 
   if (rows.length === 0)
     return { ok: false, error: "Os itens da sacola não estão mais à venda." };
+
+  // Estoque: a sacola vive no navegador do cliente e pode ficar dias parada —
+  // a peça pode ter esgotado (inclusive vendida na loja física) nesse meio
+  // tempo. Sem esta checagem a loja recebe dinheiro por algo que não tem.
+  const falta = await stockShortages(admin, rows);
+  if (falta.length > 0) {
+    const detalhe = falta
+      .map((f) =>
+        f.available === 0
+          ? `${f.name} esgotou`
+          : `${f.name}: só restam ${f.available}`,
+      )
+      .join("; ");
+    return { ok: false, error: `Estoque insuficiente — ${detalhe}.` };
+  }
 
   const subtotal = rows.reduce((s, r) => s + r.unit_price * r.qty, 0);
   const user = await getSessionUser(); // pedido de visitante fica sem cliente

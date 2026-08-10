@@ -15,9 +15,33 @@ export async function generateMetadata({
   const { slug } = await params;
   const product = await getProductBySlug(slug);
   if (!product) return { title: "Produto não encontrado" };
+
+  const title = product.metaTitle ?? product.name;
+  const description =
+    product.metaDescription ??
+    product.description ??
+    `${product.name} na Uzzo Store.`;
+  // Sem isso, o link colado no WhatsApp/Instagram aparece sem foto — e a loja
+  // vende justamente por esses canais.
+  const image = product.colors.find((c) => c.gallery.length > 0)?.gallery[0];
+
   return {
-    title: product.metaTitle ?? product.name,
-    description: product.metaDescription ?? undefined,
+    title,
+    description,
+    alternates: { canonical: `/produtos/${product.slug}` },
+    openGraph: {
+      title,
+      description,
+      type: "website",
+      url: `/produtos/${product.slug}`,
+      images: image ? [{ url: image, alt: product.name }] : undefined,
+    },
+    twitter: {
+      card: image ? "summary_large_image" : "summary",
+      title,
+      description,
+      images: image ? [image] : undefined,
+    },
   };
 }
 

@@ -145,6 +145,8 @@ export type ProductQuery = {
   /** Nomes canônicos de cor (como estão em `colors.name`). */
   colorNames?: string[];
   onlyPromo?: boolean;
+  /** Busca por nome do produto. */
+  search?: string;
   /** Restringe a estes produtos (uso: página de favoritos). */
   productIds?: string[];
   /** 1-based. Sem página, devolve tudo (uso: destaques da home). */
@@ -197,6 +199,11 @@ export async function getProducts(
   if (opts.categoryIds?.length)
     query = query.in("products.category_id", opts.categoryIds);
   if (opts.onlyPromo) query = query.gt("products.promo_price", 0);
+  if (opts.search) {
+    // `%` e `,` quebrariam o filtro do PostgREST; escapamos antes.
+    const termo = opts.search.replace(/[%,()]/g, " ").trim();
+    if (termo) query = query.ilike("products.name", `%${termo}%`);
+  }
   if (colorProductIds) query = query.in("products.id", colorProductIds);
   if (opts.productIds) {
     if (opts.productIds.length === 0) return { items: [], total: 0 };

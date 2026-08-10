@@ -926,6 +926,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      decrement_stock: {
+        Args: { p_variant_id: string; p_qty: number }
+        Returns: number
+      }
       email_exists: {
         Args: { p_email: string }
         Returns: boolean

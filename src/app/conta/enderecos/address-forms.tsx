@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useEffect, useState } from "react";
+import { useActionState, useEffect, useRef, useState } from "react";
 import {
   saveAddressAction,
   deleteAddressAction,
@@ -26,6 +26,48 @@ export function AddressForm({
     null,
   );
   const { showToast } = useToast();
+
+  // Preenchimento por CEP (ViaCEP — gratuito, sem cadastro). Controlado só o
+  // que o CEP preenche; o resto segue não-controlado com defaultValue.
+  const [cep, setCep] = useState(address?.cep ?? "");
+  const [street, setStreet] = useState(address?.street ?? "");
+  const [district, setDistrict] = useState(address?.district ?? "");
+  const [city, setCity] = useState(address?.city ?? "");
+  const [uf, setUf] = useState(address?.state ?? "");
+  const [lookingUp, setLookingUp] = useState(false);
+  const [cepError, setCepError] = useState<string | null>(null);
+  const numberRef = useRef<HTMLInputElement>(null);
+
+  async function lookupCep(raw: string) {
+    const digits = raw.replace(/\D/g, "");
+    if (digits.length !== 8) return;
+    setCepError(null);
+    setLookingUp(true);
+    try {
+      const res = await fetch(`https://viacep.com.br/ws/${digits}/json/`);
+      const data = (await res.json()) as {
+        erro?: boolean | string;
+        logradouro?: string;
+        bairro?: string;
+        localidade?: string;
+        uf?: string;
+      };
+      if (data.erro) {
+        setCepError("CEP não encontrado.");
+        return;
+      }
+      // CEP de rua única às vezes não traz logradouro — preenche o que veio.
+      if (data.logradouro) setStreet(data.logradouro);
+      if (data.bairro) setDistrict(data.bairro);
+      if (data.localidade) setCity(data.localidade);
+      if (data.uf) setUf(data.uf);
+      numberRef.current?.focus(); // o número é o que sempre falta
+    } catch {
+      setCepError("Não foi possível consultar o CEP.");
+    } finally {
+      setLookingUp(false);
+    }
+  }
   useEffect(() => {
     if (state?.ok) {
       showToast("Endereço salvo");
@@ -51,19 +93,42 @@ export function AddressForm({
             required
             inputMode="numeric"
             placeholder="88330-000"
-            defaultValue={address?.cep ?? ""}
+            value={cep}
+            onChange={(e) => {
+              const v = e.target.value.replace(/\D/g, "").slice(0, 8);
+              setCep(v.length > 5 ? `${v.slice(0, 5)}-${v.slice(5)}` : v);
+              if (v.length === 8) void lookupCep(v); // 8 dígitos: já busca
+            }}
+            onBlur={(e) => void lookupCep(e.target.value)}
             className={`${field} mt-1`}
           />
+          {lookingUp && (
+            <span className="mt-1 block text-xs text-muted">buscando…</span>
+          )}
+          {cepError && (
+            <span className="mt-1 block text-xs text-red-600">{cepError}</span>
+          )}
         </label>
         <label className={label}>
           Número
-          <input name="number" defaultValue={address?.number ?? ""} className={`${field} mt-1`} />
+          <input
+            ref={numberRef}
+            name="number"
+            defaultValue={address?.number ?? ""}
+            className={`${field} mt-1`}
+          />
         </label>
       </div>
 
       <label className={label}>
         Rua *
-        <input name="street" required defaultValue={address?.street ?? ""} className={`${field} mt-1`} />
+        <input
+          name="street"
+          required
+          value={street}
+          onChange={(e) => setStreet(e.target.value)}
+          className={`${field} mt-1`}
+        />
       </label>
 
       <div className="grid gap-4 sm:grid-cols-3">
@@ -77,11 +142,22 @@ export function AddressForm({
         </label>
         <label className={label}>
           Bairro
-          <input name="district" defaultValue={address?.district ?? ""} className={`${field} mt-1`} />
+          <input
+            name="district"
+            value={district}
+            onChange={(e) => setDistrict(e.target.value)}
+            className={`${field} mt-1`}
+          />
         </label>
         <label className={label}>
           Cidade *
-          <input name="city" required defaultValue={address?.city ?? ""} className={`${field} mt-1`} />
+          <input
+            name="city"
+            required
+            value={city}
+            onChange={(e) => setCity(e.target.value)}
+            className={`${field} mt-1`}
+          />
         </label>
       </div>
 
@@ -93,7 +169,8 @@ export function AddressForm({
             required
             maxLength={2}
             placeholder="SC"
-            defaultValue={address?.state ?? ""}
+            value={uf}
+            onChange={(e) => setUf(e.target.value.toUpperCase())}
             className={`${field} mt-1 w-20 uppercase`}
           />
         </label>

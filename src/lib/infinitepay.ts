@@ -1,6 +1,7 @@
 import "server-only";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { sendOrderPaidEmail, sendNewOrderAdminEmail } from "@/lib/email";
+import { logAudit } from "@/lib/audit";
 
 /**
  * Pagamento online via InfinitePay (Checkout Integrado).
@@ -204,7 +205,7 @@ export async function confirmPayment(params: {
     })
     .eq("id", order.id);
 
-  await decreaseStock(order.id);
+  await decreaseStock(order.id, order.number);
   await notifyPaid(order.id, order.number);
   return { paid: true, orderNumber: order.number };
 }
@@ -282,25 +283,45 @@ async function notifyPaid(orderId: string, orderNumber: number): Promise<void> {
   }
 }
 
-/** Baixa do estoque as quantidades do pedido (depósito 'loja'). */
-async function decreaseStock(orderId: string): Promise<void> {
+/**
+ * Baixa do estoque as quantidades do pedido (depósito 'loja').
+ *
+ * Usa a função `decrement_stock` (migração 0012), que faz a conta dentro do
+ * UPDATE: dois pagamentos simultâneos não conseguem levar a mesma peça.
+ * Se faltar saldo, o pagamento JÁ ACONTECEU — não dá para recusar. Então
+ * registramos em /admin/logs para a loja resolver com o cliente.
+ */
+async function decreaseStock(orderId: string, orderNumber: number): Promise<void> {
   const admin = createAdminClient();
   const { data: items } = await admin
     .from("order_items")
-    .select("variant_id, qty")
+    .select("variant_id, qty, product_name, variant_label")
     .eq("order_id", orderId);
 
+  const semSaldo: string[] = [];
   for (const it of items ?? []) {
-    const { data: stock } = await admin
-      .from("stock_cache")
-      .select("id, qty_available")
-      .eq("variant_id", it.variant_id)
-      .eq("deposito_id", "loja")
-      .maybeSingle();
-    if (!stock) continue;
-    await admin
-      .from("stock_cache")
-      .update({ qty_available: Math.max(0, stock.qty_available - it.qty) })
-      .eq("id", stock.id);
+    const { data: restante, error } = await admin.rpc("decrement_stock", {
+      p_variant_id: it.variant_id,
+      p_qty: it.qty,
+    });
+    if (error || restante === -1 || restante === null) {
+      semSaldo.push(
+        [it.product_name, it.variant_label].filter(Boolean).join(" — "),
+      );
+    }
+  }
+
+  if (semSaldo.length > 0) {
+    await logAudit(null, {
+      action: "stock.shortage",
+      entityType: "order",
+      entityId: orderId,
+      entityLabel: `Pedido nº ${orderNumber}`,
+      metadata: {
+        itens: semSaldo,
+        aviso:
+          "Pagamento confirmado sem saldo em estoque — conferir com o cliente.",
+      },
+    });
   }
 }

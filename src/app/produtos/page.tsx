@@ -1,4 +1,6 @@
 import Link from "next/link";
+import { Suspense } from "react";
+import { SearchBox } from "@/components/search-box";
 import type { Metadata } from "next";
 import {
   getProducts,
@@ -26,11 +28,13 @@ function buildHref(
   cores: string[],
   promo: boolean,
   pagina = 1,
+  busca = "",
 ): string {
   const params = new URLSearchParams();
   if (categorias.length) params.set("categorias", categorias.join(","));
   if (cores.length) params.set("cores", cores.join(","));
   if (promo) params.set("promo", "1");
+  if (busca) params.set("busca", busca);
   if (pagina > 1) params.set("pagina", String(pagina));
   const qs = params.toString();
   return qs ? `/produtos?${qs}` : "/produtos";
@@ -73,6 +77,7 @@ export default async function ProdutosPage({
     categorias?: string | string[];
     cores?: string | string[];
     promo?: string | string[];
+    busca?: string | string[];
     pagina?: string | string[];
   }>;
 }) {
@@ -80,6 +85,7 @@ export default async function ProdutosPage({
   // `categoria` (singular) mantido por compatibilidade com links antigos.
   const catParams = [...csv(sp.categorias), ...csv(sp.categoria)];
   const colorParams = csv(sp.cores);
+  const busca = (Array.isArray(sp.busca) ? sp.busca[0] : sp.busca)?.trim() ?? "";
   const onlyPromo = Array.isArray(sp.promo)
     ? sp.promo.includes("1")
     : sp.promo === "1";
@@ -119,6 +125,7 @@ export default async function ProdutosPage({
     categoryIds: selectedCatIds,
     colorNames: selectedColors,
     onlyPromo,
+    search: busca,
     page,
   });
 
@@ -130,7 +137,7 @@ export default async function ProdutosPage({
     <div className="space-y-7">
       <FilterSection title="Ofertas" selectedCount={onlyPromo ? 1 : 0}>
         <CheckItem
-          href={buildHref(selectedCatSlugs, selectedColors, !onlyPromo)}
+          href={buildHref(selectedCatSlugs, selectedColors, !onlyPromo, 1, busca)}
           checked={onlyPromo}
         >
           Em promoção
@@ -143,7 +150,7 @@ export default async function ProdutosPage({
         action={
           selectedCatSlugs.length > 0 ? (
             <Link
-              href={buildHref([], selectedColors, onlyPromo)}
+              href={buildHref([], selectedColors, onlyPromo, 1, busca)}
               scroll={false}
               className="text-xs text-muted underline-offset-4 hover:text-foreground hover:underline"
             >
@@ -161,7 +168,7 @@ export default async function ProdutosPage({
           return (
             <CheckItem
               key={c.id}
-              href={buildHref(next, selectedColors, onlyPromo)}
+              href={buildHref(next, selectedColors, onlyPromo, 1, busca)}
               checked={checked}
             >
               {c.name}
@@ -177,7 +184,7 @@ export default async function ProdutosPage({
           action={
             selectedColors.length > 0 ? (
               <Link
-                href={buildHref(selectedCatSlugs, [], onlyPromo)}
+                href={buildHref(selectedCatSlugs, [], onlyPromo, 1, busca)}
                 scroll={false}
                 className="text-xs text-muted underline-offset-4 hover:text-foreground hover:underline"
               >
@@ -196,7 +203,7 @@ export default async function ProdutosPage({
             return (
               <CheckItem
                 key={c.name}
-                href={buildHref(selectedCatSlugs, next, onlyPromo)}
+                href={buildHref(selectedCatSlugs, next, onlyPromo, 1, busca)}
                 checked={checked}
               >
                 {displayColor(c.name)}
@@ -229,9 +236,16 @@ export default async function ProdutosPage({
         </h1>
         <p className="mt-2 text-sm text-muted">
           {total} {total === 1 ? "peça" : "peças"}
+          {busca && ` para “${busca}”`}
           {totalPages > 1 && ` · página ${Math.min(page, totalPages)} de ${totalPages}`}
         </p>
       </header>
+
+      <div className="mb-6 max-w-sm">
+        <Suspense fallback={null}>
+          <SearchBox />
+        </Suspense>
+      </div>
 
       <div className="md:grid md:grid-cols-[13rem_1fr] md:gap-10">
         {/* Filtros: lateral no desktop, recolhíveis no topo no mobile */}
@@ -261,6 +275,7 @@ export default async function ProdutosPage({
                       selectedColors,
                       onlyPromo,
                       page,
+                      busca,
                     )}
                   />
                 ))}
@@ -278,6 +293,7 @@ export default async function ProdutosPage({
                         selectedColors,
                         onlyPromo,
                         page - 1,
+                        busca,
                       )}#lista`}
                       aria-label="Página anterior"
                       className={`${pageLink} border-border text-muted hover:border-foreground hover:text-foreground`}
@@ -303,6 +319,7 @@ export default async function ProdutosPage({
                           selectedColors,
                           onlyPromo,
                           p,
+                          busca,
                         )}#lista`}
                         aria-label={`Página ${p}`}
                         aria-current={p === page ? "page" : undefined}
@@ -324,6 +341,7 @@ export default async function ProdutosPage({
                         selectedColors,
                         onlyPromo,
                         page + 1,
+                        busca,
                       )}#lista`}
                       aria-label="Próxima página"
                       className={`${pageLink} border-border text-muted hover:border-foreground hover:text-foreground`}
