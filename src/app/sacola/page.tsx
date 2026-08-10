@@ -4,204 +4,241 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useCart, cartSubtotal, type CartItem } from "@/lib/cart-store";
 import { formatBRL } from "@/lib/format";
-import { createOrderAction, startOnlinePaymentAction } from "./actions";
-import { useRouter } from "next/navigation";
+import { createOrderAction } from "./actions";
 
 const WHATSAPP_NUMBER = "5547991744865";
 
 function buildWhatsappMessage(
-  items: CartItem[],
-  subtotal: number,
-  orderNumber?: number,
+items: CartItem[],
+subtotal: number,
+orderNumber?: number,
 ): string {
-  const lines = items.map((i) => {
-    const attrs = [
-      i.color ? `Cor ${i.color}` : null,
-      i.size ? `Tam. ${i.size}` : null,
-    ].filter(Boolean);
-    const label = attrs.length ? ` — ${attrs.join(" / ")}` : "";
-    return `• ${i.qty}x ${i.productName}${label} — ${formatBRL(i.price * i.qty)}`;
-  });
-  return [
-    orderNumber
-      ? `Olá! Gostaria de finalizar meu pedido nº ${orderNumber} na Uzzo Store:`
-      : "Olá! Gostaria de finalizar meu pedido na Uzzo Store:",
-    "",
-    ...lines,
-    "",
-    `Subtotal: ${formatBRL(subtotal)}`,
-  ].join("\n");
+const lines = items.map((i) => {
+const attrs = [
+i.color ? `Cor ${i.color}` : null,
+i.size ? `Tam. ${i.size}` : null,
+].filter(Boolean);
+
+```
+const label = attrs.length ? ` — ${attrs.join(" / ")}` : "";
+
+return `• ${i.qty}x ${i.productName}${label} — ${formatBRL(
+  i.price * i.qty,
+)}`;
+```
+
+});
+
+return [
+orderNumber
+? `Olá! Gostaria de finalizar meu pedido nº ${orderNumber} na Uzzo Store:`
+: "Olá! Gostaria de finalizar meu pedido na Uzzo Store:",
+"",
+...lines,
+"",
+`Subtotal: ${formatBRL(subtotal)}`,
+].join("\n");
+}
+
+/* ---------------- TOAST SIMPLES ---------------- */
+function Toast({ message }: { message: string }) {
+return ( <div className="fixed bottom-6 right-6 z-50 rounded-md bg-black px-4 py-3 text-sm text-white shadow-lg animate-fade-in">
+{message} </div>
+);
+}
+
+/* ---------------- SKELETON ---------------- */
+function SkeletonItem() {
+return ( <li className="flex items-center gap-4 py-5 animate-pulse"> <div className="flex-1 space-y-2"> <div className="h-4 w-40 bg-gray-200 rounded" /> <div className="h-3 w-24 bg-gray-200 rounded" /> </div> <div className="h-9 w-20 bg-gray-200 rounded" /> <div className="h-4 w-16 bg-gray-200 rounded" /> </li>
+);
 }
 
 export default function SacolaPage() {
-  const items = useCart((s) => s.items);
-  const setQty = useCart((s) => s.setQty);
-  const removeItem = useCart((s) => s.removeItem);
+const items = useCart((s) => s.items);
+const setQty = useCart((s) => s.setQty);
+const removeItem = useCart((s) => s.removeItem);
+const clearCart = useCart((s) => s.clearCart);
 
-  const router = useRouter();
-  const [mounted, setMounted] = useState(false);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  useEffect(() => setMounted(true), []);
+const [mounted, setMounted] = useState(false);
+const [busy, setBusy] = useState(false);
+const [error, setError] = useState<string | null>(null);
+const [toast, setToast] = useState<string | null>(null);
 
-  /**
-   * Registra o pedido e só então abre o WhatsApp. A janela é aberta ANTES do
-   * await (e depois redirecionada): navegador bloqueia window.open disparado
-   * fora do clique. Se o registro falhar, seguimos para o WhatsApp mesmo assim
-   * — perder a venda por causa do histórico seria pior.
-   */
-  async function handleWhatsapp() {
-    if (busy) return;
-    setError(null);
-    setBusy(true);
-    const win = window.open("about:blank", "_blank");
-    try {
-      const res = await createOrderAction(
-        items.map((i) => ({ variantId: i.variantId, qty: i.qty })),
-        "whatsapp",
-      );
-      if (!res.ok && res.error) setError(res.error);
-      const url = `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(
-        buildWhatsappMessage(items, subtotal, res.orderNumber),
-      )}`;
-      if (win) win.location.href = url;
-      else window.location.href = url;
-    } catch {
-      const url = `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(
-        buildWhatsappMessage(items, subtotal),
-      )}`;
-      if (win) win.location.href = url;
-      else window.location.href = url;
-    } finally {
-      setBusy(false);
-    }
+useEffect(() => setMounted(true), []);
+
+const subtotal = cartSubtotal(items);
+
+function showToast(msg: string) {
+setToast(msg);
+setTimeout(() => setToast(null), 3000);
+}
+
+async function handleWhatsapp() {
+if (busy || !items.length) return;
+
+```
+setBusy(true);
+setError(null);
+
+try {
+  const res = await createOrderAction(
+    items.map((i) => ({
+      variantId: i.variantId,
+      qty: i.qty,
+    })),
+    "whatsapp",
+  );
+
+  if (!res.ok) {
+    setError(res.error || "Erro ao registrar pedido.");
+    showToast("Erro ao finalizar pedido ❌");
+    return;
   }
 
-  if (!mounted) {
-    return (
-      <section className="mx-auto max-w-3xl px-6 py-16 text-sm text-muted">
-        Carregando…
-      </section>
-    );
-  }
+  showToast("Pedido criado com sucesso! Redirecionando... ✅");
 
-  const subtotal = cartSubtotal(items);
+  const url = `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(
+    buildWhatsappMessage(items, subtotal, res.orderNumber),
+  )}`;
 
-  if (items.length === 0) {
-    return (
-      <section className="mx-auto max-w-3xl px-6 py-24 text-center">
-        <h1 className="font-serif text-3xl font-semibold tracking-tight">
-          Sua sacola está vazia
-        </h1>
-        <p className="mt-3 text-sm text-muted">
-          Explore as peças e adicione seus favoritos.
-        </p>
-        <Link
-          href="/produtos"
-          className="mt-8 inline-flex h-12 items-center justify-center rounded-full bg-foreground px-8 text-sm font-medium text-background transition-opacity hover:opacity-90"
-        >
-          Ver produtos
-        </Link>
-      </section>
-    );
-  }
+  clearCart(); // 🛒 limpa carrinho
 
-  return (
-    <section className="mx-auto max-w-3xl px-6 py-12">
-      <h1 className="mb-8 font-serif text-3xl font-semibold tracking-tight">
-        Sua sacola
-      </h1>
+  setTimeout(() => {
+    window.location.href = url;
+  }, 1200);
+} catch {
+  setError("Erro inesperado. Tente novamente.");
+  showToast("Erro inesperado ❌");
+} finally {
+  setBusy(false);
+}
+```
 
-      <ul className="divide-y divide-border border-y border-border">
-        {items.map((item) => (
-          <li key={item.variantId} className="flex items-center gap-4 py-5">
-            <div className="flex-1">
-              <Link
-                href={`/produtos/${item.productSlug}`}
-                className="text-sm font-medium hover:underline"
-              >
-                {item.productName}
-              </Link>
-              {(item.color || item.size) && (
-                <p className="text-xs text-muted">
-                  {[
-                    item.color ? `Cor: ${item.color}` : null,
-                    item.size ? `Tam.: ${item.size}` : null,
-                  ]
-                    .filter(Boolean)
-                    .join(" · ")}
-                </p>
-              )}
-              <p className="mt-1 text-sm text-muted">{formatBRL(item.price)}</p>
-            </div>
+}
 
-            <div className="flex items-center rounded-md border border-border">
-              <button
-                type="button"
-                aria-label="Diminuir"
-                onClick={() => setQty(item.variantId, item.qty - 1)}
-                className="flex h-9 w-9 items-center justify-center text-muted hover:text-foreground"
-              >
-                −
-              </button>
-              <span className="w-8 text-center text-sm">{item.qty}</span>
-              <button
-                type="button"
-                aria-label="Aumentar"
-                onClick={() => setQty(item.variantId, item.qty + 1)}
-                className="flex h-9 w-9 items-center justify-center text-muted hover:text-foreground"
-              >
-                +
-              </button>
-            </div>
+if (!mounted) {
+return ( <section className="mx-auto max-w-4xl px-6 py-10"> <ul className="divide-y divide-border border-y border-border">
+{[...Array(3)].map((_, i) => ( <SkeletonItem key={i} />
+))} </ul> </section>
+);
+}
 
-            <div className="w-24 text-right text-sm font-medium">
-              {formatBRL(item.price * item.qty)}
-            </div>
+if (items.length === 0) {
+return ( <section className="mx-auto max-w-4xl px-6 py-10"> <h1 className="text-xl font-medium">Sua sacola está vazia</h1> <p className="mt-2 text-sm text-muted">
+Explore as peças e adicione seus favoritos. </p> <Link
+       href="/produtos"
+       className="mt-6 inline-block text-sm font-medium underline"
+     >
+Ver produtos </Link> </section>
+);
+}
 
-            <button
-              type="button"
-              aria-label="Remover"
-              onClick={() => removeItem(item.variantId)}
-              className="text-muted transition-colors hover:text-foreground"
-            >
-              ✕
-            </button>
-          </li>
-        ))}
-      </ul>
+return ( <section className="mx-auto max-w-4xl px-6 py-10">
+{toast && <Toast message={toast} />}
 
-      <div className="mt-8 flex flex-col items-end gap-4">
-        <div className="flex w-full items-center justify-between sm:w-auto sm:gap-12">
-          <span className="text-sm text-muted">Subtotal</span>
-          <span className="text-xl font-medium">{formatBRL(subtotal)}</span>
+```
+  <h1 className="mb-6 text-xl font-medium">Sua sacola</h1>
+
+  <ul className="divide-y divide-border border-y border-border">
+    {items.map((item) => (
+      <li key={item.variantId} className="flex items-center gap-4 py-5">
+        <div className="flex-1">
+          <Link
+            href={`/produtos/${item.productSlug}`}
+            className="text-sm font-medium hover:underline"
+          >
+            {item.productName}
+          </Link>
+
+          {(item.color || item.size) && (
+            <p className="text-xs text-muted">
+              {[
+                item.color ? `Cor: ${item.color}` : null,
+                item.size ? `Tam.: ${item.size}` : null,
+              ]
+                .filter(Boolean)
+                .join(" · ")}
+            </p>
+          )}
+
+          <p className="mt-1 text-sm text-muted">
+            {formatBRL(item.price)}
+          </p>
         </div>
 
-        {error && <p className="text-sm text-red-600">{error}</p>}
-
-        <div className="flex w-full flex-col gap-3 sm:w-auto sm:flex-row">
-          {/* O checkout coleta dados e forma de entrega antes de cobrar. */}
-          <Link
-            href="/checkout"
-            className="inline-flex h-12 items-center justify-center rounded-full border border-border px-8 text-sm font-medium transition-colors hover:border-foreground"
-          >
-            Pagar com Pix ou cartão
-          </Link>
+        <div className="flex items-center rounded-md border border-border">
           <button
             type="button"
-            onClick={handleWhatsapp}
-            disabled={busy}
-            className="inline-flex h-12 items-center justify-center rounded-full bg-foreground px-8 text-sm font-medium text-background transition-opacity hover:opacity-90 disabled:opacity-60"
+            onClick={() => setQty(item.variantId, item.qty - 1)}
+            className="flex h-9 w-9 items-center justify-center"
           >
-            {busy ? "Registrando pedido…" : "Finalizar no WhatsApp"}
+            −
+          </button>
+
+          <span className="w-8 text-center text-sm">{item.qty}</span>
+
+          <button
+            type="button"
+            onClick={() => setQty(item.variantId, item.qty + 1)}
+            className="flex h-9 w-9 items-center justify-center"
+          >
+            +
           </button>
         </div>
 
-        <p className="max-w-md text-right text-xs text-muted">
-          Ao finalizar, registramos seu pedido e abrimos a conversa no WhatsApp
-          com o número dele. Frete e forma de pagamento são combinados por lá.
-        </p>
-      </div>
-    </section>
-  );
+        <div className="w-24 text-right text-sm font-medium">
+          {formatBRL(item.price * item.qty)}
+        </div>
+
+        <button
+          type="button"
+          onClick={() => removeItem(item.variantId)}
+          className="text-muted hover:text-foreground"
+        >
+          ✕
+        </button>
+      </li>
+    ))}
+  </ul>
+
+  <div className="mt-8 flex flex-col items-end gap-4">
+    <div className="flex w-full items-center justify-between sm:w-auto sm:gap-12">
+      <span className="text-sm text-muted">Subtotal</span>
+      <span className="text-xl font-medium">
+        {formatBRL(subtotal)}
+      </span>
+    </div>
+
+    {error && (
+      <p className="text-sm text-red-600">{error}</p>
+    )}
+
+    <div className="flex w-full flex-col gap-3 sm:w-auto sm:flex-row">
+      {!error && !busy ? (
+        <Link
+          href="/checkout"
+          className="inline-flex h-12 items-center justify-center rounded-full border border-border px-8 text-sm font-medium hover:border-foreground"
+        >
+          Pagar com Pix ou cartão
+        </Link>
+      ) : (
+        <span className="inline-flex h-12 items-center justify-center rounded-full border border-border px-8 text-sm font-medium opacity-60 cursor-not-allowed">
+          Pagar com Pix ou cartão
+        </span>
+      )}
+
+      <button
+        type="button"
+        onClick={handleWhatsapp}
+        disabled={busy || !!error}
+        className="inline-flex h-12 items-center justify-center rounded-full bg-foreground px-8 text-sm font-medium text-background hover:opacity-90 disabled:opacity-60"
+      >
+        {busy ? "Registrando pedido…" : "Finalizar no WhatsApp"}
+      </button>
+    </div>
+  </div>
+</section>
+```
+
+);
 }
