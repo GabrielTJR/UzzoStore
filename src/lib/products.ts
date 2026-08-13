@@ -1,6 +1,9 @@
 import { cache } from "react";
-import { createClient } from "@/lib/supabase/server";
+import { unstable_cache } from "next/cache";
+import { createPublicClient } from "@/lib/supabase/public";
 import { compareSizes } from "@/lib/sizes";
+import type { SortKey } from "@/lib/product-sort";
+export { SORT_OPTIONS, isSortKey, type SortKey } from "@/lib/product-sort";
 import type { StoreCategory } from "@/lib/categories";
 import { toChart, type MeasurementChart } from "@/lib/measurements";
 import {
@@ -74,7 +77,7 @@ type ListRow = {
     name: string;
     price: number | null;
     promo_price: number | null;
-    categories: { name: string } | null;
+    category_name: string | null;
     product_colors: {
       sort_order: number;
       gallery: unknown;
@@ -96,7 +99,7 @@ type DetailRow = {
     reference: string | null;
     price: number | null;
     promo_price: number | null;
-    categories: { name: string } | null;
+    category_name: string | null;
     measurement_models: {
       name: string;
       columns: unknown;
@@ -133,6 +136,28 @@ function effectivePrice(
   return p != null && Number.isFinite(p) ? p : null;
 }
 
+/**
+ * Etiquetas do cache persistente. As leituras da vitrine são iguais para todo
+ * visitante, então ficam no cache do Next (não só por requisição) e só são
+ * refeitas quando o admin salva algo — `revalidateTag` em `admin/actions.ts`.
+ */
+export const CACHE_TAGS = {
+  catalogo: "catalogo",
+  cores: "cores",
+  categorias: "categorias",
+  decoracao: "decoracao",
+} as const;
+
+/**
+ * Fôlego máximo do cache quando nada é salvo no admin. Toda edição derruba a
+ * etiqueta na hora (`updateTag`), então isto só limita mudanças que não passam
+ * pelo admin — o estoque baixando por uma venda, por exemplo. Daí a janela
+ * curta no produto: é lá que aparece "esgotado".
+ */
+const CACHE_LISTA = 600; // 10 min
+const CACHE_PRODUTO = 300; // 5 min
+const CACHE_CADASTROS = 3600; // cores/categorias/decoração: só mudam pelo admin
+
 /** Quantas fotos por cor o CARD carrega (a página do produto mostra todas). */
 const CARD_IMAGES_PER_COLOR = 4;
 
@@ -147,6 +172,8 @@ export type ProductQuery = {
   onlyPromo?: boolean;
   /** Busca por nome do produto. */
   search?: string;
+  /** Ordenação (padrão: categoria). */
+  sort?: SortKey;
   /** Restringe a estes produtos (uso: página de favoritos). */
   productIds?: string[];
   /** 1-based. Sem página, devolve tudo (uso: destaques da home). */
@@ -163,10 +190,8 @@ export type ProductPage = {
  * Produtos da vitrine, já FILTRADOS e PAGINADOS no banco — não traga o catálogo
  * inteiro para filtrar em memória (o payload cresce com o nº de fotos).
  */
-export async function getProducts(
-  opts: ProductQuery = {},
-): Promise<ProductPage> {
-  const supabase = await createClient();
+async function queryProducts(opts: ProductQuery): Promise<ProductPage> {
+  const supabase = createPublicClient();
 
   // Filtro de cor em 2 passos: um embed `!inner` filtraria também as cores
   // DEVOLVIDAS, e o card precisa de todas para mostrar as bolinhas.
@@ -187,9 +212,11 @@ export async function getProducts(
   let query = supabase
     .from("product_content")
     .select(
-      `slug, featured, sort_order,
-       products!inner ( id, name, active_ecommerce, price, promo_price,
-         categories ( name ),
+      // `category_name`/`effective_price` são colunas do produto (migração
+      // 0013): dispensam o join com `categories` e são o que o PostgREST
+      // consegue ordenar através do embed.
+      `slug, featured,
+       products!inner ( id, name, price, promo_price, category_name, effective_price,
          product_colors ( sort_order, gallery, colors ( name, hex ) ) )`,
       { count: "exact" },
     )
@@ -210,8 +237,31 @@ export async function getProducts(
     query = query.in("products.id", opts.productIds);
   }
 
-  // `slug` como desempate: ordem instável duplicaria/sumiria itens entre páginas.
-  query = query.order("sort_order").order("slug");
+  // Ordenação por coluna do embed `products` (o PostgREST aceita 1 nível; por
+  // isso `category_name` e `effective_price` são colunas do produto — migração
+  // 0013). `slug` fecha como desempate: ordem instável duplicaria/sumiria
+  // itens entre páginas.
+  // Ordenação: `products(coluna)` no order de topo reordena o resultado.
+  // (`referencedTable` NÃO serve aqui — ele ordena as linhas dentro do embed.)
+  // Só funciona com 1 nível, por isso `category_name`/`effective_price` são
+  // colunas materializadas em `products` (migração 0013).
+  const sort: SortKey = opts.sort ?? "categoria";
+  if (sort === "menor-preco") {
+    query = query.order("products(effective_price)", { ascending: true });
+  } else if (sort === "maior-preco") {
+    query = query.order("products(effective_price)", { ascending: false });
+  } else if (sort === "nome") {
+    query = query.order("products(name)", { ascending: true });
+  } else if (sort === "promocao") {
+    query = query
+      .order("products(promo_price)", { ascending: false, nullsFirst: false })
+      .order("products(effective_price)", { ascending: true });
+  } else {
+    query = query
+      .order("products(category_name)", { ascending: true, nullsFirst: false })
+      .order("products(name)", { ascending: true });
+  }
+  query = query.order("slug");
 
   const perPage = opts.perPage ?? PRODUCTS_PER_PAGE;
   if (opts.page && opts.page > 0) {
@@ -237,7 +287,7 @@ export async function getProducts(
       id: row.products.id,
       slug: row.slug,
       name: row.products.name,
-      category: row.products.categories?.name ?? null,
+      category: row.products.category_name,
       price: effectivePrice(row.products.price, row.products.promo_price),
       basePrice: row.products.price != null ? Number(row.products.price) : null,
       featured: row.featured,
@@ -253,61 +303,88 @@ export async function getProducts(
 }
 
 /**
+ * Cacheado no servidor: o mesmo filtro/página devolve o mesmo resultado para
+ * todos, então uma consulta serve todas as visitas até o admin editar algo.
+ * (`unstable_cache` inclui os argumentos na chave.)
+ */
+const cachedProducts = unstable_cache(queryProducts, ["produtos"], {
+  revalidate: CACHE_LISTA,
+  tags: [CACHE_TAGS.catalogo],
+});
+
+export function getProducts(opts: ProductQuery = {}): Promise<ProductPage> {
+  return cachedProducts(opts);
+}
+
+/**
  * Blocos ATIVOS da decoração da home, na ordem — leitura pública.
  * Memoizado por requisição: o layout (faixa de aviso) e a home chamam os dois.
  */
-export const getHomeSections = cache(async (): Promise<HomeSection[]> => {
-  const supabase = await createClient();
-  const { data, error } = await supabase
-    .from("home_sections")
-    .select("id, kind, active, sort_order, data")
-    .eq("active", true)
-    // `created_at` desempata: sem ele, blocos com a mesma posição saem em
-    // ordem indefinida e a loja pode discordar da lista do admin.
-    .order("sort_order")
-    .order("created_at");
-  if (error || !data) return [];
-  return data
-    .map((r) => toHomeSection(r))
-    .filter((s): s is HomeSection => !!s && sectionHasContent(s));
-});
+export const getHomeSections = cache(
+  unstable_cache(
+    async (): Promise<HomeSection[]> => {
+      const supabase = createPublicClient();
+      const { data, error } = await supabase
+        .from("home_sections")
+        .select("id, kind, active, sort_order, data")
+        .eq("active", true)
+        // `created_at` desempata: sem ele, blocos com a mesma posição saem em
+        // ordem indefinida e a loja pode discordar da lista do admin.
+        .order("sort_order")
+        .order("created_at");
+      if (error || !data) return [];
+      return data
+        .map((r) => toHomeSection(r))
+        .filter((s): s is HomeSection => !!s && sectionHasContent(s));
+    },
+    ["home-sections"],
+    { revalidate: CACHE_CADASTROS, tags: [CACHE_TAGS.decoracao] },
+  ),
+);
 
 /** Cores do cadastro global — lista do filtro (não depende do catálogo). */
-export const getStoreColors = cache(async (): Promise<
-  { name: string; hex: string | null }[]
-> => {
-  const supabase = await createClient();
-  const { data, error } = await supabase.from("colors").select("name, hex");
-  if (error || !data) return [];
-  return data
-    .map((c) => ({ name: c.name, hex: c.hex }))
-    .sort((a, b) =>
-      a.name.localeCompare(b.name, "pt-BR", { sensitivity: "base" }),
-    );
-});
+export const getStoreColors = cache(
+  unstable_cache(
+    async (): Promise<{ name: string; hex: string | null }[]> => {
+      const supabase = createPublicClient();
+      const { data, error } = await supabase.from("colors").select("name, hex");
+      if (error || !data) return [];
+      return data
+        .map((c) => ({ name: c.name, hex: c.hex }))
+        .sort((a, b) =>
+          a.name.localeCompare(b.name, "pt-BR", { sensitivity: "base" }),
+        );
+    },
+    ["store-colors"],
+    { revalidate: CACHE_CADASTROS, tags: [CACHE_TAGS.cores] },
+  ),
+);
 
 /** Categorias (setores) para o menu/filtro da vitrine — lidas do banco. */
-export const getCategories = cache(async (): Promise<StoreCategory[]> => {
-  const supabase = await createClient();
-  const { data, error } = await supabase
-    .from("categories")
-    .select("id, name")
-    .eq("kind", "setor")
-    .order("name");
-  if (error || !data) return [];
-  return data.map((c) => ({ id: c.id, name: c.name }));
-});
+export const getCategories = cache(
+  unstable_cache(
+    async (): Promise<StoreCategory[]> => {
+      const supabase = createPublicClient();
+      const { data, error } = await supabase
+        .from("categories")
+        .select("id, name")
+        .eq("kind", "setor")
+        .order("name");
+      if (error || !data) return [];
+      return data.map((c) => ({ id: c.id, name: c.name }));
+    },
+    ["categories"],
+    { revalidate: CACHE_CADASTROS, tags: [CACHE_TAGS.categorias] },
+  ),
+);
 
-export async function getProductBySlug(
-  slug: string,
-): Promise<ProductDetail | null> {
-  const supabase = await createClient();
+async function queryProductBySlug(slug: string): Promise<ProductDetail | null> {
+  const supabase = createPublicClient();
   const { data, error } = await supabase
     .from("product_content")
     .select(
       `slug, featured, rich_description, meta_title, meta_description,
-       products!inner ( id, name, brand, reference, active_ecommerce, price, promo_price,
-         categories ( name ),
+       products!inner ( id, name, brand, reference, price, promo_price, category_name,
          measurement_models ( name, columns, rows, note_top, note_bottom ),
          product_colors ( id, sort_order, gallery,
            colors ( name, hex ),
@@ -351,7 +428,7 @@ export async function getProductBySlug(
     featured: row.featured,
     brand: row.products.brand,
     reference: row.products.reference,
-    category: row.products.categories?.name ?? null,
+    category: row.products.category_name,
     description: row.rich_description,
     metaTitle: row.meta_title,
     metaDescription: row.meta_description,
@@ -367,4 +444,19 @@ export async function getProductBySlug(
       ? toChart(row.products.measurement_models)
       : null,
   };
+}
+
+/**
+ * Página do produto: também cacheada por slug. A etiqueta `catalogo` derruba
+ * tudo de uma vez quando o admin edita qualquer produto — mais simples e mais
+ * seguro do que tentar acertar só o produto alterado (preço/estoque errado na
+ * tela é pior do que uma consulta extra).
+ */
+const cachedProductBySlug = unstable_cache(queryProductBySlug, ["produto"], {
+  revalidate: CACHE_PRODUTO,
+  tags: [CACHE_TAGS.catalogo],
+});
+
+export function getProductBySlug(slug: string): Promise<ProductDetail | null> {
+  return cachedProductBySlug(slug);
 }

@@ -2,7 +2,8 @@
 
 import { randomUUID } from "node:crypto";
 import { redirect } from "next/navigation";
-import { revalidatePath } from "next/cache";
+import { revalidatePath, updateTag } from "next/cache";
+import { CACHE_TAGS } from "@/lib/products";
 import { getAdminUser, slugify } from "@/lib/admin";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
@@ -163,7 +164,11 @@ async function ensureProductContent(
   });
 }
 
+// As leituras públicas do catálogo ficam em cache no servidor (ver
+// `lib/products.ts`): sem derrubar a etiqueta, a loja continuaria mostrando o
+// dado antigo por até uma hora depois de salvar.
 function revalidateProduct(id?: string) {
+  updateTag(CACHE_TAGS.catalogo);
   revalidatePath("/admin");
   if (id) revalidatePath(`/admin/produtos/${id}`);
   revalidatePath("/produtos");
@@ -615,7 +620,10 @@ export async function saveVariantAction(
   const productId = String(formData.get("productId") ?? "");
   const productColorId = String(formData.get("productColorId") ?? "").trim();
   const variantId = String(formData.get("variantId") ?? "").trim();
-  const size = String(formData.get("size") ?? "").trim().toUpperCase() || null;
+  const size =
+    String(formData.get("size") ?? "")
+      .trim()
+      .toUpperCase() || null;
   const qty = parseQty(formData.get("qty"));
   if (!productId) return { ok: false, error: "Produto inválido." };
   if (!productColorId && !variantId)
@@ -729,6 +737,7 @@ export async function createColorAction(
     entityType: "color",
     entityLabel: name,
   });
+  updateTag(CACHE_TAGS.cores);
   revalidatePath("/admin/cores");
   return { ok: true };
 }
@@ -769,6 +778,8 @@ export async function updateColorAction(
     entityId: id,
     entityLabel: name,
   });
+  updateTag(CACHE_TAGS.cores);
+  updateTag(CACHE_TAGS.catalogo); // nome/hex da cor aparecem nas bolinhas
   revalidatePath("/admin/cores");
   revalidatePath("/produtos");
   return { ok: true };
@@ -795,12 +806,15 @@ export async function deleteColorAction(formData: FormData): Promise<void> {
     entityType: "color",
     entityId: id,
   });
+  updateTag(CACHE_TAGS.cores);
   revalidatePath("/admin/cores");
 }
 
 // --- Categorias (setores) ---------------------------------------------------
 
 function revalidateCategories() {
+  updateTag(CACHE_TAGS.categorias);
+  updateTag(CACHE_TAGS.catalogo); // o nome da categoria vai no card
   revalidatePath("/admin/categorias");
   revalidatePath("/admin");
   revalidatePath("/produtos");
@@ -825,7 +839,8 @@ export async function createCategoryAction(
     .select("id")
     .ilike("name", name)
     .maybeSingle();
-  if (dup) return { ok: false, error: "Já existe uma categoria com esse nome." };
+  if (dup)
+    return { ok: false, error: "Já existe uma categoria com esse nome." };
 
   const { error } = await admin.from("categories").insert({
     microvix_id: `manual-cat-${randomUUID()}`,
@@ -864,7 +879,8 @@ export async function updateCategoryAction(
     .ilike("name", name)
     .neq("id", id)
     .maybeSingle();
-  if (dup) return { ok: false, error: "Já existe uma categoria com esse nome." };
+  if (dup)
+    return { ok: false, error: "Já existe uma categoria com esse nome." };
 
   const { error } = await admin
     .from("categories")
@@ -908,6 +924,7 @@ export async function deleteCategoryAction(formData: FormData): Promise<void> {
 // --- Tabela de medidas (modelos) --------------------------------------------
 
 function revalidateMeasurements(id?: string) {
+  updateTag(CACHE_TAGS.catalogo); // a tabela aparece na página do produto
   revalidatePath("/admin/medidas");
   if (id) revalidatePath(`/admin/medidas/${id}`);
   revalidatePath("/admin");
@@ -985,7 +1002,9 @@ export async function saveMeasurementModelAction(
       }))
       .filter((r: { size: string }) => r.size.length > 0);
     noteTop =
-      typeof p.noteTop === "string" && p.noteTop.trim() ? p.noteTop.trim() : null;
+      typeof p.noteTop === "string" && p.noteTop.trim()
+        ? p.noteTop.trim()
+        : null;
     noteBottom =
       typeof p.noteBottom === "string" && p.noteBottom.trim()
         ? p.noteBottom.trim()
@@ -1131,6 +1150,7 @@ export async function markOrdersSeenAction(): Promise<void> {
 // --- Decoração da home ------------------------------------------------------
 
 function revalidateHome(id?: string) {
+  updateTag(CACHE_TAGS.decoracao);
   revalidatePath("/admin/decoracao");
   if (id) revalidatePath(`/admin/decoracao/${id}`);
   revalidatePath("/", "layout"); // a faixa de aviso vive no layout
@@ -1267,7 +1287,9 @@ export async function saveHomeSectionAction(
           label: text(c.label) ?? "",
           href: link(c.href) ?? "/produtos",
         }))
-        .filter((c: { image: string | null; label: string }) => c.image || c.label);
+        .filter(
+          (c: { image: string | null; label: string }) => c.image || c.label,
+        );
       data = { title: text(p.title), cards };
     } else {
       const n = Number(p.limit);
@@ -1468,7 +1490,9 @@ export async function commitPhotosAction(
     return { ok: false, error: "Falta SUPABASE_SERVICE_ROLE_KEY no servidor." };
   if (!productColorId) return { ok: false, error: "Cor inválida." };
 
-  const safePaths = (Array.isArray(paths) ? paths : []).filter(isSafeStoragePath);
+  const safePaths = (Array.isArray(paths) ? paths : []).filter(
+    isSafeStoragePath,
+  );
   if (safePaths.length === 0)
     return { ok: false, error: "Nenhuma imagem para salvar." };
 

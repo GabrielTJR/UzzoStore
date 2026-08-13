@@ -705,6 +705,8 @@ export type Database = {
           active_ecommerce: boolean
           brand: string | null
           category_id: string | null
+          category_name: string | null
+          effective_price: number | null
           id: string
           measurement_model_id: string | null
           microvix_id: string

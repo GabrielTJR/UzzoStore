@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Suspense } from "react";
 import { SearchBox } from "@/components/search-box";
+import { SortSelect } from "@/components/sort-select";
 import type { Metadata } from "next";
 import {
   getProducts,
@@ -8,6 +9,7 @@ import {
   getStoreColors,
   PRODUCTS_PER_PAGE,
 } from "@/lib/products";
+import { isSortKey, type SortKey } from "@/lib/product-sort";
 import { ProductCard } from "@/components/product-card";
 import { FilterDisclosure } from "@/components/filter-disclosure";
 import { FilterSection } from "@/components/filter-section";
@@ -29,12 +31,14 @@ function buildHref(
   promo: boolean,
   pagina = 1,
   busca = "",
+  ordem: SortKey = "categoria",
 ): string {
   const params = new URLSearchParams();
   if (categorias.length) params.set("categorias", categorias.join(","));
   if (cores.length) params.set("cores", cores.join(","));
   if (promo) params.set("promo", "1");
   if (busca) params.set("busca", busca);
+  if (ordem !== "categoria") params.set("ordem", ordem);
   if (pagina > 1) params.set("pagina", String(pagina));
   const qs = params.toString();
   return qs ? `/produtos?${qs}` : "/produtos";
@@ -44,7 +48,10 @@ function buildHref(
 function displayColor(name: string): string {
   return name
     .toLocaleLowerCase("pt-BR")
-    .replace(/(^|\s|-)([\p{L}])/gu, (_, sep, ch) => sep + ch.toLocaleUpperCase("pt-BR"));
+    .replace(
+      /(^|\s|-)([\p{L}])/gu,
+      (_, sep, ch) => sep + ch.toLocaleUpperCase("pt-BR"),
+    );
 }
 
 function csv(value: string | string[] | undefined): string[] {
@@ -57,8 +64,7 @@ function csv(value: string | string[] | undefined): string[] {
 
 /** Números de página com reticências: 1 … 4 [5] 6 … 12 */
 function pageWindow(current: number, total: number): (number | "…")[] {
-  if (total <= 7)
-    return Array.from({ length: total }, (_, i) => i + 1);
+  if (total <= 7) return Array.from({ length: total }, (_, i) => i + 1);
   const out: (number | "…")[] = [1];
   const start = Math.max(2, current - 1);
   const end = Math.min(total - 1, current + 1);
@@ -78,6 +84,7 @@ export default async function ProdutosPage({
     cores?: string | string[];
     promo?: string | string[];
     busca?: string | string[];
+    ordem?: string | string[];
     pagina?: string | string[];
   }>;
 }) {
@@ -85,7 +92,10 @@ export default async function ProdutosPage({
   // `categoria` (singular) mantido por compatibilidade com links antigos.
   const catParams = [...csv(sp.categorias), ...csv(sp.categoria)];
   const colorParams = csv(sp.cores);
-  const busca = (Array.isArray(sp.busca) ? sp.busca[0] : sp.busca)?.trim() ?? "";
+  const busca =
+    (Array.isArray(sp.busca) ? sp.busca[0] : sp.busca)?.trim() ?? "";
+  const ordemParam = Array.isArray(sp.ordem) ? sp.ordem[0] : sp.ordem;
+  const ordem: SortKey = isSortKey(ordemParam) ? ordemParam : "categoria";
   const onlyPromo = Array.isArray(sp.promo)
     ? sp.promo.includes("1")
     : sp.promo === "1";
@@ -126,6 +136,7 @@ export default async function ProdutosPage({
     colorNames: selectedColors,
     onlyPromo,
     search: busca,
+    sort: ordem,
     page,
   });
 
@@ -137,7 +148,14 @@ export default async function ProdutosPage({
     <div className="space-y-7">
       <FilterSection title="Ofertas" selectedCount={onlyPromo ? 1 : 0}>
         <CheckItem
-          href={buildHref(selectedCatSlugs, selectedColors, !onlyPromo, 1, busca)}
+          href={buildHref(
+            selectedCatSlugs,
+            selectedColors,
+            !onlyPromo,
+            1,
+            busca,
+            ordem,
+          )}
           checked={onlyPromo}
         >
           Em promoção
@@ -150,7 +168,7 @@ export default async function ProdutosPage({
         action={
           selectedCatSlugs.length > 0 ? (
             <Link
-              href={buildHref([], selectedColors, onlyPromo, 1, busca)}
+              href={buildHref([], selectedColors, onlyPromo, 1, busca, ordem)}
               scroll={false}
               className="text-xs text-muted underline-offset-4 hover:text-foreground hover:underline"
             >
@@ -168,7 +186,7 @@ export default async function ProdutosPage({
           return (
             <CheckItem
               key={c.id}
-              href={buildHref(next, selectedColors, onlyPromo, 1, busca)}
+              href={buildHref(next, selectedColors, onlyPromo, 1, busca, ordem)}
               checked={checked}
             >
               {c.name}
@@ -184,7 +202,14 @@ export default async function ProdutosPage({
           action={
             selectedColors.length > 0 ? (
               <Link
-                href={buildHref(selectedCatSlugs, [], onlyPromo, 1, busca)}
+                href={buildHref(
+                  selectedCatSlugs,
+                  [],
+                  onlyPromo,
+                  1,
+                  busca,
+                  ordem,
+                )}
                 scroll={false}
                 className="text-xs text-muted underline-offset-4 hover:text-foreground hover:underline"
               >
@@ -203,7 +228,14 @@ export default async function ProdutosPage({
             return (
               <CheckItem
                 key={c.name}
-                href={buildHref(selectedCatSlugs, next, onlyPromo, 1, busca)}
+                href={buildHref(
+                  selectedCatSlugs,
+                  next,
+                  onlyPromo,
+                  1,
+                  busca,
+                  ordem,
+                )}
                 checked={checked}
               >
                 {displayColor(c.name)}
@@ -237,23 +269,32 @@ export default async function ProdutosPage({
         <p className="mt-2 text-sm text-muted">
           {total} {total === 1 ? "peça" : "peças"}
           {busca && ` para “${busca}”`}
-          {totalPages > 1 && ` · página ${Math.min(page, totalPages)} de ${totalPages}`}
+          {totalPages > 1 &&
+            ` · página ${Math.min(page, totalPages)} de ${totalPages}`}
         </p>
       </header>
-
-      <div className="mb-6 max-w-sm">
-        <Suspense fallback={null}>
-          <SearchBox />
-        </Suspense>
-      </div>
 
       <div className="md:grid md:grid-cols-[13rem_1fr] md:gap-10">
         {/* Filtros: lateral no desktop, recolhíveis no topo no mobile */}
         <aside className="mb-8 md:mb-0">
-          <FilterDisclosure activeCount={activeCount}>{filters}</FilterDisclosure>
+          <FilterDisclosure activeCount={activeCount}>
+            {filters}
+          </FilterDisclosure>
         </aside>
 
         <div>
+          {/* Busca à esquerda, ordenação à direita — junto dos produtos. */}
+          <div className="mb-6 flex flex-wrap items-center gap-3">
+            <div className="min-w-[12rem] flex-1">
+              <Suspense fallback={null}>
+                <SearchBox />
+              </Suspense>
+            </div>
+            <Suspense fallback={null}>
+              <SortSelect value={ordem} />
+            </Suspense>
+          </div>
+
           {products.length === 0 ? (
             <p className="text-muted">Nenhuma peça com esses filtros.</p>
           ) : (
@@ -276,6 +317,7 @@ export default async function ProdutosPage({
                       onlyPromo,
                       page,
                       busca,
+                      ordem,
                     )}
                   />
                 ))}
@@ -294,6 +336,7 @@ export default async function ProdutosPage({
                         onlyPromo,
                         page - 1,
                         busca,
+                        ordem,
                       )}#lista`}
                       aria-label="Página anterior"
                       className={`${pageLink} border-border text-muted hover:border-foreground hover:text-foreground`}
@@ -320,6 +363,7 @@ export default async function ProdutosPage({
                           onlyPromo,
                           p,
                           busca,
+                          ordem,
                         )}#lista`}
                         aria-label={`Página ${p}`}
                         aria-current={p === page ? "page" : undefined}
@@ -342,6 +386,7 @@ export default async function ProdutosPage({
                         onlyPromo,
                         page + 1,
                         busca,
+                        ordem,
                       )}#lista`}
                       aria-label="Próxima página"
                       className={`${pageLink} border-border text-muted hover:border-foreground hover:text-foreground`}

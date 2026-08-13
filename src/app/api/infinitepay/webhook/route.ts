@@ -1,5 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
+import { revalidateTag } from "next/cache";
 import { confirmPayment } from "@/lib/infinitepay";
+import { CACHE_TAGS } from "@/lib/products";
 
 /**
  * Webhook da InfinitePay (pagamento aprovado).
@@ -36,6 +38,10 @@ export async function POST(request: NextRequest) {
   // processamento do pagamento do lado deles).
   if (!result.paid && result.reason !== "valor")
     return NextResponse.json({ ok: false }, { status: 400 });
+
+  // Pagamento confirmado baixou estoque: derruba o cache do catálogo para a
+  // loja não continuar oferecendo um tamanho que acabou de esgotar.
+  if (result.paid) revalidateTag(CACHE_TAGS.catalogo, "max");
 
   return NextResponse.json({ ok: true });
 }

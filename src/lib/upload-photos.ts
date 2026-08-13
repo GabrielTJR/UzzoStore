@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/client";
+import { compressImage } from "@/lib/compress-image";
 import { createUploadUrlsAction } from "@/app/admin/actions";
 
 const BUCKET = "product-images";
@@ -35,11 +36,16 @@ export async function uploadPhotos(
 
   for (let i = 0; i < files.length; i++) {
     const target = res.targets[i];
-    const file = files[i];
+    // Comprime antes de subir: original de celular tem ~1,7 MB e cada busca do
+    // otimizador de imagem baixa esse arquivo inteiro do Supabase (egress).
+    const file = await compressImage(files[i]);
     const { error } = await supabase.storage
       .from(BUCKET)
       .uploadToSignedUrl(target.path, target.token, file, {
         contentType: file.type || "image/jpeg",
+        // 1 ano: a URL contém um uuid, então trocar a foto gera outra URL —
+        // nunca há "mesma URL, imagem diferente" para invalidar.
+        cacheControl: "31536000",
       });
     if (error) {
       failed++;
