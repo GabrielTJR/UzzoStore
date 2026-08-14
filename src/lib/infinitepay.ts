@@ -67,6 +67,22 @@ export async function createPaymentLink(params: {
       // checkout link"} — sem o motivo. Guardamos a resposta crua para o admin
       // enxergar (o cliente vê apenas a mensagem amigável).
       console.error("[infinitepay] links falhou", res.status, text);
+      // Também no audit_log: sem isto a falha só existe no log da Vercel, e a
+      // loja fica sabendo que "deu erro" sem nenhum meio de descobrir por quê.
+      await logAudit(null, {
+        action: "payment.link_failed",
+        entityType: "order",
+        entityLabel: `nº ${params.orderNsu}`,
+        metadata: {
+          status: res.status,
+          resposta: text.slice(0, 500),
+          handle,
+          total_centavos: params.items.reduce(
+            (s, i) => s + i.price * i.quantity,
+            0,
+          ),
+        },
+      });
       return {
         ok: false,
         error: "Erro ao gerar o pagamento.",
@@ -91,6 +107,12 @@ export async function createPaymentLink(params: {
 
     if (!url) {
       console.error("[infinitepay] resposta sem URL", text);
+      await logAudit(null, {
+        action: "payment.link_failed",
+        entityType: "order",
+        entityLabel: `nº ${params.orderNsu}`,
+        metadata: { motivo: "resposta sem URL", resposta: text.slice(0, 500), handle },
+      });
       return {
         ok: false,
         error: "Erro ao gerar o pagamento.",

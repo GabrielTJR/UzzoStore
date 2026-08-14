@@ -75,6 +75,13 @@ export default function SacolaPage() {
 
   useEffect(() => setMounted(true), []);
 
+  // O erro (ex.: "estoque insuficiente") DESABILITA os dois botões de compra.
+  // Sem limpar quando a sacola muda, quem baixa a quantidade para o que existe
+  // continua com a compra travada e sem entender o motivo — o aviso na tela já
+  // não vale mais para o conteúdo atual. Some assim que o cliente mexe na
+  // sacola; se o problema persistir, o servidor recusa de novo no clique.
+  useEffect(() => setError(null), [items]);
+
   const subtotal = cartSubtotal(items);
 
   function showToast(msg: string) {
