@@ -48,7 +48,7 @@ Rode tudo a partir do diretório `UzzoStore/`.
 - `npm run build` — **o portão de validação**: roda typecheck do TypeScript + ESLint + build de produção. **Não há suíte de testes**; rode `npm run build` para verificar que uma mudança compila e passa no typecheck antes de commitar.
 - `npm run lint` — só o ESLint
 
-Notas de Windows/ambiente: o CLI `gh` pode não estar no PATH da ferramenta Bash — chame pelo caminho completo (`C:\Program Files\GitHub CLI\gh.exe`). O repositório fica sob um caminho do **OneDrive** (a sincronização atrapalha o file-watching do dev do Turbopack; se o dev cair com erro de "Jest worker … exceeding retry limit", reinicie-o).
+Notas de Windows/ambiente: o repositório fica em **`C:\Users\Gabri\Documents\ProjetosClaude\UzzoStore`**. Ele **saiu do OneDrive em 14/08/2026** — a sincronização atrapalhava o file-watching do Turbopack e derrubava o dev com "Jest worker … exceeding retry limit". Se encontrar caminho de OneDrive em instrução antiga, está obsoleto. O CLI `gh` pode não estar no PATH da ferramenta Bash — chame pelo caminho completo (`C:\Program Files\GitHub CLI\gh.exe`).
 
 ## O que é isto
 
@@ -148,7 +148,21 @@ Em ago/2026 o egress do Supabase (9,6/5 GB) **e** os limites da Vercel (Origin T
 
 ## Mudanças de schema
 
-Adicione migrações SQL em `supabase/migrations/`, aplique via MCP do Supabase (`apply_migration`) ou pelo SQL editor, e mantenha as migrações do repo em sincronia com o banco ao vivo. **O nome do arquivo importa:** `apply_migration` registra a migração na tabela remota `schema_migrations` com uma versão de timestamp de 14 dígitos gerada (ex.: `20260726153929`). O check "Preview" do Supabase no GitHub compara essa versão remota com a versão extraída dos dígitos iniciais de cada nome de arquivo local — então o arquivo local PRECISA ter esse timestamp exato como prefixo (`<timestamp>_<nome>.sql`, ex.: `20260726153929_0003_auth_roles_audit.sql`), ou o check falha com "Remote migration versions not found in local migrations directory". Regenere `src/lib/supabase/database.types.ts` após mudanças de schema. Os dados de teste ficam em `supabase/seed.sql` (prefixados com `seed-`; remova com `delete from public.products where microvix_id like 'seed-%'`).
+### Como falar com o banco
+
+O **MCP do Supabase cai com frequência** (`-32600 You do not have permission`). Quando isso acontecer, NÃO fique preso: o **CLI é o caminho oficial** e cobre tudo que o MCP fazia. Já está autenticado e com o projeto linkado (`anlbavcstwffnpisacax`):
+
+| Comando                                       | Para quê                                       |
+| --------------------------------------------- | ---------------------------------------------- |
+| `npx supabase db query "select ..." --linked` | consultar (devolve JSON)                       |
+| `npx supabase db push`                        | aplicar as migrações de `supabase/migrations/` |
+| `npx supabase migration list`                 | conferir se local e remoto batem               |
+| `npx supabase gen types typescript --linked`  | regenerar `database.types.ts`                  |
+| `npx supabase db advisors`                    | achados de segurança/desempenho                |
+
+Terceiro caminho, só para leitura **pública**: PostgREST com a anon key (`curl "$URL/rest/v1/<tabela>?select=..."`) — não enxerga tabela protegida por RLS. Para ler tabela protegida sem CLI/MCP seria preciso a `SUPABASE_SERVICE_ROLE_KEY` no `.env.local` (hoje vazia, e é por isso que o `/admin` não funciona local).
+
+Adicione migrações SQL em `supabase/migrations/`, aplique via CLI (`db push`), MCP (`apply_migration`) ou SQL editor, e mantenha as migrações do repo em sincronia com o banco ao vivo. **O nome do arquivo importa:** `apply_migration` registra a migração na tabela remota `schema_migrations` com uma versão de timestamp de 14 dígitos gerada (ex.: `20260726153929`). O check "Preview" do Supabase no GitHub compara essa versão remota com a versão extraída dos dígitos iniciais de cada nome de arquivo local — então o arquivo local PRECISA ter esse timestamp exato como prefixo (`<timestamp>_<nome>.sql`, ex.: `20260726153929_0003_auth_roles_audit.sql`), ou o check falha com "Remote migration versions not found in local migrations directory". Regenere `src/lib/supabase/database.types.ts` após mudanças de schema. Os dados de teste ficam em `supabase/seed.sql` (prefixados com `seed-`; remova com `delete from public.products where microvix_id like 'seed-%'`).
 
 ## Deploy e infraestrutura (mudou em ago/2026 — o que valia antes está obsoleto)
 
@@ -166,13 +180,31 @@ Auditoria de leitura sobre o site no ar (6 áreas, achados confirmados de forma 
 
 **O que NÃO foi testado** (a auditoria foi somente leitura, para não sujar a loja): compra de ponta a ponta, login/cadastro reais, webhook por POST, envio efetivo de e-mail e o interior do admin. Isso depende de teste manual do dono.
 
+## E-mail do domínio (resolvido em 14/08/2026 — não refaça o diagnóstico)
+
+Três remetentes convivem no mesmo domínio. **Cada um tem seu SPF, em lugar diferente** — foi exatamente aqui que erramos duas vezes:
+
+| Quem envia                                              | Onde                                         | SPF                                   |
+| ------------------------------------------------------- | -------------------------------------------- | ------------------------------------- |
+| A **loja** (Resend: pedido pago, status, aviso à loja)  | subzona `send.uzzostore.com.br`              | `v=spf1 include:amazonses.com ~all`   |
+| **Você**, respondendo cliente pelo `contato@` (Titan)   | apex `uzzostore.com.br`                      | `v=spf1 include:spf.titan.email ~all` |
+| Supabase Auth (confirmação de cadastro, reset de senha) | usa o SMTP configurado no painel do Supabase | —                                     |
+
+- **Recebimento**: MX **só da Titan** (`mx1` pref 10, `mx2` pref 20). Um MX `mail.uzzostore.com.br` apontando para o cPanel do HostGator **quebra tudo** (ganha por prioridade 0 e entrega numa caixa que não existe) — foi o que derrubou o `contato@` por algumas horas. Não recrie.
+- **Não misture os dois SPF.** Colocar o SPF da Titan em `send.` faz todo e-mail da loja falhar SPF; o inverso derruba o seu. Só pode existir **um** registro SPF por nome.
+- **DKIM**: `resend._domainkey` existe e está correto (**não toque**). O DKIM da Titan (`titan1/titan2._domainkey`) ainda **não foi cadastrado** — fica no painel da Titan em **"Reputação de e-mail" → Add DKIM record** (é TXT, e a Titan já assina com uma chave padrão; o registro só alinha a assinatura ao domínio). É melhoria de reputação, não conserto.
+- **DMARC**: `p=none` com `rua` para `contato@`.
+- `EMAIL_FROM` = `Uzzo Store <naoresponda@uzzostore.com.br>`; `EMAIL_REPLY_TO` manda a resposta para `contato@`, que é a caixa lida de verdade.
+
+Comprovado no ar em 14/08: e-mail da loja chegando na **caixa de entrada** (não no spam) do `contato@`, e `email.sent` no audit_log sem falhas.
+
 ## Pendências fora do código (com o dono da loja)
 
 Estas **não** se resolvem no repositório — não tente "consertar" no código:
 
-- **MX/SPF do domínio**: em 13/08 o apex ficou sem MX (a caixa `contato@uzzostore.com.br` parou de receber) e o TXT de SPF foi salvo com o texto de exemplo, não com um `v=spf1` válido. Há ainda conflito de MX: `mail.uzzostore.com.br` (pref 0) disputando com `mx1/mx2.titan.email` (pref 10/20) — só um provedor pode valer. O **envio** pelo Resend está correto (DKIM `resend._domainkey`, DMARC e a subzona `send.uzzostore.com.br` com SPF+MX próprios) — não mexa nesses.
-- **Endereços de e-mail**: a loja **envia** por `naoresponda@` e **lê** em `contato@`. Por isso `EMAIL_REPLY_TO` existe: sem ele, resposta de cliente cai no vazio.
+- **Validar a compra de ponta a ponta**: nenhum pedido recente foi PAGO de verdade. O pedido nº 1011 gerou link de pagamento e ficou `pending`. Falta confirmar webhook → baixa de estoque → e-mail de aprovação. É a última peça não testada do fluxo de dinheiro.
+- **DKIM da Titan** (ver seção acima) — tentativa em 14/08 deu erro no painel.
 - **Supabase**: ligar "Leaked password protection" (a única regra hoje é `length >= 8`) e manter os modelos de e-mail em pt-BR (`docs/EMAILS.md`).
-- **Conteúdo do admin** (dado, não código): texto de teste no 1º banner, imagem de desktop faltando no 2º slide, produto "Teste" de R$ 1,00 publicado e uma descrição trocada em `calca-de-alfaiataria`.
+- **Conteúdo do admin** (dado, não código): texto de teste no 1º banner ("Teste Visual" e "Conheças as promoções"), imagem de desktop faltando no 2º slide, produto "Teste" de R$ 1,00 publicado e uma descrição trocada em `calca-de-alfaiataria`.
 - **Segurança**: a `SUPABASE_SERVICE_ROLE_KEY` foi exposta em texto claro numa conversa — deve ser rotacionada no Supabase e atualizada na Vercel.
-- **Higiene**: apagar o pedido de teste **nº 1001** que ficou em produção.
+- **Higiene**: pedidos de teste em produção (1001, 1009, 1010, 1011). Atenção: 1007/1008 estão com situação `paid`/`ready` mas `payment_status = pending` — foram avançados **na mão** pelo admin, sem pagamento online. Não é bug, mas confunde quem olha o `payment_status`.
