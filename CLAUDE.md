@@ -6,6 +6,40 @@ Este arquivo orienta o Claude Code (claude.ai/code) ao trabalhar com o código d
 
 > ⚠️ **Next.js 16** (App Router, React 19, Turbopack). As APIs diferem de versões antigas do Next — siga a nota do AGENTS.md acima e consulte `node_modules/next/dist/docs/` para qualquer coisa sensível à versão. Em especial: `params`/`searchParams` nas páginas são **Promises** (dê `await`); a convenção de interceptação de requisição é **`proxy.ts`**, NÃO `middleware.ts`.
 
+## Como trabalhamos (LEIA ANTES DE COMEÇAR — regras do dono do projeto)
+
+Estas três regras nasceram de problemas reais em produção (ago/2026: site fora do ar por estourar cota, e um commit quebrado subindo por cima de outro). Valem para **toda** sessão.
+
+### 1. Trabalhamos por VERSÃO — não dê push a cada alteração
+
+Cada push dispara um build na Vercel, e build gasta **CPU + transferência** da cota. Foi assim que a conta antiga foi pausada.
+
+- **Commite localmente à vontade**; agrupe as mudanças e só suba quando fechar uma **versão** com sentido próprio.
+- **Push exige o "pode subir" do dono.** Não empurre por iniciativa própria, nem "só para testar" — teste com `npm run build` e `npx next start` local.
+- Ao subir, prefira **um push com vários commits** a vários pushes seguidos.
+
+### 2. Toda alteração passa por uma pergunta de CUSTO
+
+Antes de entregar, responda para si mesmo: **isto multiplica trabalho por visita?**
+
+- Vai rodar uma consulta a cada acesso? Dá para **cachear** (`unstable_cache` + etiqueta) ou é dado de sessão (não pode cachear)?
+- Vai buscar **imagem grande** ou muitas variantes? Lembre que cada variante do otimizador **baixa o original** do Supabase.
+- O `select` traz coluna que ninguém usa? Traz `gallery` inteira quando bastam 4 fotos?
+- É um laço que chama o banco por item (N+1)? Um job/cron que roda sozinho?
+- Alguém sem login consegue disparar isso em repetição? (Server Action é **endpoint público** — veja o freio por IP em `sacola/actions.ts`.)
+
+Se a resposta apontar crescimento por visita/por item, **diga isso ao dono junto com a entrega** e proponha o caminho barato. A seção "Cache e egress" abaixo tem os números que já nos custaram caro.
+
+### 3. Existe SEMPRE outra sessão trabalhando neste repo — não colidam
+
+Já aconteceu de duas sessões mexerem no mesmo arquivo e uma sobrescrever a outra (o refactor `0d0715f` subiu quebrado e o `main` ficou sem buildar).
+
+- **Antes de editar**: `git status` e `git log --oneline -5`. **Antes de subir**: `git fetch` e confira se o remoto andou.
+- Se o remoto andou, **`git rebase origin/main`** — nunca `push --force`, que apaga o trabalho da outra sessão.
+- **O arquivo pode ter mudado no disco desde que você o leu.** Releia antes de editar por contexto; se uma ferramenta avisar que o arquivo mudou, releia em vez de insistir.
+- **Depois de integrar, rode `npm run build`** mesmo que a sua parte não tenha mudado: o problema costuma nascer na _combinação_ dos dois lados.
+- Se achar código quebrado que não é seu (erro de sintaxe, nome de função que não existe), **conserte em um commit separado** e diga o que era — não misture com a sua entrega.
+
 ## Comandos
 
 Rode tudo a partir do diretório `UzzoStore/`.
@@ -20,7 +54,7 @@ Notas de Windows/ambiente: o CLI `gh` pode não estar no PATH da ferramenta Bash
 
 E-commerce da **Uzzo Store** (moda masculina, Balneário Camboriú/SC). A justificativa de design, os detalhes de integração e o roadmap por fases estão em **`docs/ARQUITETURA.md`** — leia antes de mudanças grandes.
 
-O ERP da loja, o **Linx Microvix, é a fonte de verdade *pretendida*** para produtos/estoque/preços, mas essa integração **ainda não foi construída** (o Microvix é só de polling; travado por falta de uma chave de acesso B2C). Até lá, produtos/preços/estoque são gerenciados **manualmente pelo admin**. O código é estruturado para o Microvix depois assumir as tabelas "espelho" sem retrabalhar a vitrine.
+O ERP da loja, o **Linx Microvix, é a fonte de verdade _pretendida_** para produtos/estoque/preços, mas essa integração **ainda não foi construída** (o Microvix é só de polling; travado por falta de uma chave de acesso B2C). Até lá, produtos/preços/estoque são gerenciados **manualmente pelo admin**. O código é estruturado para o Microvix depois assumir as tabelas "espelho" sem retrabalhar a vitrine.
 
 ## Backend: Supabase (três clients — não misture)
 
@@ -38,6 +72,7 @@ Duas categorias de tabelas — essa divisão guia tudo:
 - **Próprias do site** (`colors`, `product_colors`, `measurement_models`, `home_sections`, `wishlist`, `product_content` = slug/SEO, `customers`, `carts`, `cart_items`, `reservations`, `orders`, `order_items`, `payments`, `sync_state`).
 
 Fatos-chave (atualizados na migração `0004` — a feature "Cor"):
+
 - A **unidade vendável é a variante** (`product_variants`), que é uma **grade (cor × tamanho)**. Cada variante pertence a uma linha de **`product_colors`** via `product_color_id` (e mantém o texto livre `color` = o nome da cor, para compatibilidade com o espelho do Microvix). Índice único em `(product_color_id, coalesce(size,''))`.
 - **`colors`** é um **cadastro global de cores** (próprio do site): `name` (único) + `hex` opcional (swatch). Nomes padronizados viabilizam filtrar por cor no catálogo.
 - **`product_colors`** liga uma cor global a um produto e é dona da **`gallery`** daquela cor (array JSON de URLs do Storage). **As fotos são por cor**, não por produto.
@@ -115,6 +150,29 @@ Em ago/2026 o egress do Supabase (9,6/5 GB) **e** os limites da Vercel (Origin T
 
 Adicione migrações SQL em `supabase/migrations/`, aplique via MCP do Supabase (`apply_migration`) ou pelo SQL editor, e mantenha as migrações do repo em sincronia com o banco ao vivo. **O nome do arquivo importa:** `apply_migration` registra a migração na tabela remota `schema_migrations` com uma versão de timestamp de 14 dígitos gerada (ex.: `20260726153929`). O check "Preview" do Supabase no GitHub compara essa versão remota com a versão extraída dos dígitos iniciais de cada nome de arquivo local — então o arquivo local PRECISA ter esse timestamp exato como prefixo (`<timestamp>_<nome>.sql`, ex.: `20260726153929_0003_auth_roles_audit.sql`), ou o check falha com "Remote migration versions not found in local migrations directory". Regenere `src/lib/supabase/database.types.ts` após mudanças de schema. Os dados de teste ficam em `supabase/seed.sql` (prefixados com `seed-`; remova com `delete from public.products where microvix_id like 'seed-%'`).
 
-## Deploy
+## Deploy e infraestrutura (mudou em ago/2026 — o que valia antes está obsoleto)
 
-Dar push na `main` dispara um deploy de produção na Vercel (produção em https://uzzostore.com.br; também https://uzzo-store.vercel.app); as mesmas env vars precisam estar em Vercel → Production. O dono do repo às vezes commita de um checkout separado — **`git fetch` antes de dar push** e reconcilie por merge/rebase; nunca force-push.
+**A conta da Vercel MUDOU.** O projeto vive hoje na conta **`gabrieltoscano`** (Hobby). A conta antiga (`gabrieltjr`) foi **pausada por estourar a cota e depois excluída** — qualquer instrução antiga apontando para ela está morta. O domínio `uzzostore.com.br` também não usa mais os nameservers da Vercel: o **DNS é gerenciado no HostGator** (`dns3/dns4.hostgator.com.br`), com `A @ → 216.198.79.1` e os TXT `_vercel` de verificação. Execução em **São Paulo (gru1)**.
+
+Push na `main` dispara build de produção — mas **veja a regra de versão no topo deste arquivo: não dê push sem o "pode subir"**. As env vars precisam existir em Vercel → Production: `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `RESEND_API_KEY`, `EMAIL_FROM`, `EMAIL_REPLY_TO`, `INFINITEPAY_HANDLE`, `ADMIN_EMAILS`, `NEXT_PUBLIC_SITE_URL`.
+
+Armadilha de build já vivida: **`metadataBase`** (em `layout.tsx`) roda no carregamento do módulo, ou seja, em toda página do build — inclusive `/_not-found`. Com `NEXT_PUBLIC_SITE_URL` **vazia** (projeto novo antes de configurar), `new URL("")` derruba o build inteiro. O `??` só cobre o caso ausente, não a string vazia: valide de verdade.
+
+**A InfinitePay não precisa de nada no painel dela** ao trocar de hospedagem — as URLs de webhook/retorno vão no corpo do POST que cria o link, e a única credencial é o `INFINITEPAY_HANDLE`. O que **precisa** ser conferido é o **Supabase Auth** (Site URL e Redirect URLs apontando para `https://uzzostore.com.br`), porque os e-mails de login saem de lá.
+
+## Estado verificado em produção (auditoria de 13/08/2026)
+
+Auditoria de leitura sobre o site no ar (6 áreas, achados confirmados de forma adversarial). **Não reinvestigue estes pontos — já foram medidos:** filtros/busca/ordenação/paginação corretos e estáveis entre páginas; RLS testado no banco ao vivo (anônimo lê `[]` em `customers`, `addresses`, `orders`, `order_items`, `wishlist`, `payments`, `audit_log`, `admins`); as 26 server actions de admin re-verificam autorização; rotas de admin redirecionam deslogado sem vazar payload; preço relido no servidor; endereço conferido como do comprador; `decrement_stock` decide dentro do UPDATE; confirmação de pagamento só por `payment_check` + conferência de valor + idempotência em `payments`; nenhuma rota de conta/admin é cacheada na borda.
+
+**O que NÃO foi testado** (a auditoria foi somente leitura, para não sujar a loja): compra de ponta a ponta, login/cadastro reais, webhook por POST, envio efetivo de e-mail e o interior do admin. Isso depende de teste manual do dono.
+
+## Pendências fora do código (com o dono da loja)
+
+Estas **não** se resolvem no repositório — não tente "consertar" no código:
+
+- **MX/SPF do domínio**: em 13/08 o apex ficou sem MX (a caixa `contato@uzzostore.com.br` parou de receber) e o TXT de SPF foi salvo com o texto de exemplo, não com um `v=spf1` válido. Há ainda conflito de MX: `mail.uzzostore.com.br` (pref 0) disputando com `mx1/mx2.titan.email` (pref 10/20) — só um provedor pode valer. O **envio** pelo Resend está correto (DKIM `resend._domainkey`, DMARC e a subzona `send.uzzostore.com.br` com SPF+MX próprios) — não mexa nesses.
+- **Endereços de e-mail**: a loja **envia** por `naoresponda@` e **lê** em `contato@`. Por isso `EMAIL_REPLY_TO` existe: sem ele, resposta de cliente cai no vazio.
+- **Supabase**: ligar "Leaked password protection" (a única regra hoje é `length >= 8`) e manter os modelos de e-mail em pt-BR (`docs/EMAILS.md`).
+- **Conteúdo do admin** (dado, não código): texto de teste no 1º banner, imagem de desktop faltando no 2º slide, produto "Teste" de R$ 1,00 publicado e uma descrição trocada em `calca-de-alfaiataria`.
+- **Segurança**: a `SUPABASE_SERVICE_ROLE_KEY` foi exposta em texto claro numa conversa — deve ser rotacionada no Supabase e atualizada na Vercel.
+- **Higiene**: apagar o pedido de teste **nº 1001** que ficou em produção.
