@@ -706,6 +706,7 @@ export type Database = {
           brand: string | null
           category_id: string | null
           category_name: string | null
+          name_search: string | null
           effective_price: number | null
           id: string
           measurement_model_id: string | null

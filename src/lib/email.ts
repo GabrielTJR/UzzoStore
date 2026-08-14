@@ -102,6 +102,23 @@ function brl(value: number): string {
   return value.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 }
 
+/**
+ * Escapa texto vindo do cliente antes de entrar no HTML do e-mail.
+ *
+ * Nome, telefone, endereço e nome de produto são digitados por terceiros e
+ * chegam aqui só com `trim()`. Sem escapar, cabe um `<a href>` dentro do nome —
+ * e o e-mail sai assinado com DKIM do domínio da loja, ou seja, com toda a
+ * aparência de legítimo para quem abre no painel.
+ */
+function esc(value: string | null | undefined): string {
+  return String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
 function layout(title: string, body: string): string {
   return `<div style="font-family:Arial,Helvetica,sans-serif;max-width:520px;margin:0 auto;padding:32px 24px;color:#111">
   <h1 style="font-size:22px;margin:0 0 16px">${title}</h1>
@@ -131,8 +148,8 @@ export async function sendOrderPaidEmail(params: {
   const lines = params.items
     .map(
       (i) =>
-        `<li style="margin-bottom:4px">${i.qty}× ${i.productName}${
-          i.variantLabel ? ` — ${i.variantLabel}` : ""
+        `<li style="margin-bottom:4px">${i.qty}× ${esc(i.productName)}${
+          i.variantLabel ? ` — ${esc(i.variantLabel)}` : ""
         } · ${brl(i.unitPrice * i.qty)}</li>`,
     )
     .join("");
@@ -144,7 +161,7 @@ export async function sendOrderPaidEmail(params: {
     html: layout(
       "Pagamento confirmado 🎉",
       `<p style="font-size:15px;line-height:1.6;margin:0 0 16px">
-        ${params.customerName ? `Olá, ${params.customerName.split(" ")[0]}! ` : ""}
+        ${params.customerName ? `Olá, ${esc(params.customerName.split(" ")[0])}! ` : ""}
         Recebemos o pagamento do seu pedido <strong>nº ${params.orderNumber}</strong>.
       </p>
       <ul style="font-size:14px;line-height:1.6;color:#444;padding-left:18px;margin:0 0 16px">${lines}</ul>
@@ -187,8 +204,8 @@ export async function sendNewOrderAdminEmail(params: {
   const lines = params.items
     .map(
       (i) =>
-        `<li style="margin-bottom:4px">${i.qty}× ${i.productName}${
-          i.variantLabel ? ` — ${i.variantLabel}` : ""
+        `<li style="margin-bottom:4px">${i.qty}× ${esc(i.productName)}${
+          i.variantLabel ? ` — ${esc(i.variantLabel)}` : ""
         } · ${brl(i.unitPrice * i.qty)}</li>`,
     )
     .join("");
@@ -197,18 +214,20 @@ export async function sendNewOrderAdminEmail(params: {
     params.shipping === "pickup"
       ? "🏬 Retirada na loja"
       : params.shipping === "delivery"
-        ? `🚚 Entrega — ${params.addressLine ?? "endereço no painel"}`
+        ? `🚚 Entrega — ${esc(params.addressLine ?? "endereço no painel")}`
         : "combinar pelo WhatsApp";
 
   const html = layout(
-    params.channel === "online" ? "Pedido pago no site 💰" : "Pedido pelo WhatsApp",
+    params.channel === "online"
+      ? "Pedido pago no site 💰"
+      : "Pedido pelo WhatsApp",
     `<p style="font-size:15px;line-height:1.6;margin:0 0 12px">
       <strong>Pedido nº ${params.orderNumber}</strong> —
       ${params.channel === "online" ? "pagamento já confirmado." : "aguardando confirmação no WhatsApp."}
     </p>
     <p style="font-size:14px;line-height:1.6;color:#444;margin:0 0 12px">
-      Cliente: ${params.customerName ?? "visitante sem conta"}${
-        params.customerPhone ? ` · ${params.customerPhone}` : ""
+      Cliente: ${esc(params.customerName ?? "visitante sem conta")}${
+        params.customerPhone ? ` · ${esc(params.customerPhone)}` : ""
       }<br>${entrega}
     </p>
     <ul style="font-size:14px;line-height:1.6;color:#444;padding-left:18px;margin:0 0 12px">${lines}</ul>
@@ -264,7 +283,7 @@ export async function sendOrderStatusEmail(params: {
     html: layout(
       copy.title,
       `<p style="font-size:15px;line-height:1.6;margin:0 0 16px">
-        ${params.customerName ? `Olá, ${params.customerName.split(" ")[0]}! ` : ""}
+        ${params.customerName ? `Olá, ${esc(params.customerName.split(" ")[0])}! ` : ""}
         Pedido <strong>nº ${params.orderNumber}</strong>.
       </p>
       <p style="font-size:15px;line-height:1.6;margin:0">${copy.body}</p>`,

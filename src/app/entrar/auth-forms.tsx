@@ -12,9 +12,25 @@ const label = "block text-sm font-medium";
 const primary =
   "inline-flex h-11 w-full items-center justify-center rounded-full bg-foreground px-8 text-sm font-medium text-background transition-opacity hover:opacity-90 disabled:opacity-50";
 
-/** Caminho interno seguro para voltar depois do login (evita open-redirect). */
+/**
+ * Caminho interno seguro para voltar depois do login (evita open-redirect).
+ *
+ * Checar o prefixo não basta: `/\evil.com` começa com "/" e não com "//", mas
+ * o parser de URL resolve para `https://evil.com/`. Por isso normalizamos de
+ * verdade contra a origem atual e só aceitamos o que continua nela.
+ */
 function safeNext(v: string | null): string {
-  return v && v.startsWith("/") && !v.startsWith("//") ? v : "/conta";
+  if (!v) return "/conta";
+  try {
+    // Base fictícia: este componente também renderiza no servidor, onde
+    // `window` não existe. Se o valor escapar dessa base, é externo.
+    const base = "http://interno.invalid";
+    const url = new URL(v, base);
+    if (url.origin !== base) return "/conta";
+    return `${url.pathname}${url.search}${url.hash}`;
+  } catch {
+    return "/conta";
+  }
 }
 
 export function LoginForm() {
@@ -46,11 +62,31 @@ export function LoginForm() {
 
   return (
     <form onSubmit={handleSubmit} className="space-y-5">
+      {/* Chega aqui vindo de um link de e-mail que não valeu mais (expirou,
+          foi aberto em outro aparelho ou já tinha sido usado). Sem isto a
+          pessoa cairia na tela de login sem entender por quê. */}
+      {params.get("erro") === "link-invalido" && (
+        <div className="rounded-md border border-border bg-black/5 px-4 py-3 text-sm dark:bg-white/5">
+          Esse link expirou ou foi aberto em outro aparelho. Entre com sua senha
+          ou{" "}
+          <Link href="/esqueci-senha" className="underline underline-offset-4">
+            peça um novo link
+          </Link>
+          .
+        </div>
+      )}
       <div className="space-y-1.5">
         <label className={label} htmlFor="email">
           E-mail
         </label>
-        <input id="email" name="email" type="email" required autoComplete="email" className={field} />
+        <input
+          id="email"
+          name="email"
+          type="email"
+          required
+          autoComplete="email"
+          className={field}
+        />
       </div>
       <div className="space-y-1.5">
         <label className={label} htmlFor="password">
@@ -191,13 +227,26 @@ export function SignupForm() {
         <label className={label} htmlFor="fullName">
           Nome completo
         </label>
-        <input id="fullName" name="fullName" required autoComplete="name" className={field} />
+        <input
+          id="fullName"
+          name="fullName"
+          required
+          autoComplete="name"
+          className={field}
+        />
       </div>
       <div className="space-y-1.5">
         <label className={label} htmlFor="email">
           E-mail
         </label>
-        <input id="email" name="email" type="email" required autoComplete="email" className={field} />
+        <input
+          id="email"
+          name="email"
+          type="email"
+          required
+          autoComplete="email"
+          className={field}
+        />
       </div>
       <div className="space-y-1.5">
         <label className={label} htmlFor="password">
@@ -244,7 +293,9 @@ export function ForgotPasswordForm() {
     const supabase = createClient();
     const { error } = await supabase.auth.resetPasswordForEmail(
       String(form.get("email") ?? "").trim(),
-      { redirectTo: `${window.location.origin}/auth/callback?next=/nova-senha` },
+      {
+        redirectTo: `${window.location.origin}/auth/callback?next=/nova-senha`,
+      },
     );
     setBusy(false);
     if (error) {
@@ -269,7 +320,13 @@ export function ForgotPasswordForm() {
         <label className={label} htmlFor="email">
           E-mail da conta
         </label>
-        <input id="email" name="email" type="email" required className={field} />
+        <input
+          id="email"
+          name="email"
+          type="email"
+          required
+          className={field}
+        />
       </div>
       {error && <p className="text-sm text-red-600">{error}</p>}
       <button type="submit" disabled={busy} className={primary}>

@@ -64,9 +64,17 @@ export function ProductView({
 }) {
   const addItem = useCart((s) => s.addItem);
 
-  // Cor inicial: a 1ª cor comprável, senão a 1ª cor.
+  // Cor inicial: comprável E com foto — nessa ordem. O card da vitrine abre na
+  // 1ª cor COM FOTO (ele não conhece estoque), então preferir "comprável com
+  // foto" faz as duas telas concordarem sempre que essa cor tem saldo, sem
+  // precisar carregar estoque na listagem. Se nada for comprável, ainda assim
+  // mostramos uma cor com foto em vez de cair num placeholder.
   const firstBuyableColor =
-    colors.find((c) => colorBuyable(c, price)) ?? colors[0] ?? null;
+    colors.find((c) => colorBuyable(c, price) && c.gallery.length > 0) ??
+    colors.find((c) => colorBuyable(c, price)) ??
+    colors.find((c) => c.gallery.length > 0) ??
+    colors[0] ??
+    null;
 
   const [selectedColorId, setSelectedColorId] = useState<string | null>(
     firstBuyableColor?.id ?? null,
@@ -335,7 +343,12 @@ export function ProductView({
 
         {description && (
           <div className="mt-10 border-t border-border pt-6">
-            <p className="text-sm leading-relaxed text-muted">{description}</p>
+            {/* `whitespace-pre-line` preserva as quebras digitadas no admin: o
+                campo é um textarea simples, e sem isto a descrição em tópicos
+                vira um parágrafo corrido. */}
+            <p className="whitespace-pre-line text-sm leading-relaxed text-muted">
+              {description}
+            </p>
           </div>
         )}
       </div>

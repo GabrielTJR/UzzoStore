@@ -109,9 +109,11 @@ export default function SacolaPage() {
         buildWhatsappMessage(items, subtotal, res.orderNumber),
       )}`;
 
-      clearCart(); // 🛒 limpa carrinho
-
+      // Esvaziar a sacola AQUI derrubaria a tela para "Sua sacola está vazia"
+      // no mesmo render do toast — o cliente veria cara de erro justamente no
+      // momento da conversão. Limpa só ao sair para o WhatsApp.
       setTimeout(() => {
+        clearCart();
         window.location.href = url;
       }, 1200);
     } catch {
@@ -188,6 +190,7 @@ export default function SacolaPage() {
               <button
                 type="button"
                 onClick={() => setQty(item.variantId, item.qty - 1)}
+                aria-label={`Diminuir quantidade de ${item.productName}`}
                 className="flex h-9 w-9 items-center justify-center"
               >
                 −
@@ -198,6 +201,7 @@ export default function SacolaPage() {
               <button
                 type="button"
                 onClick={() => setQty(item.variantId, item.qty + 1)}
+                aria-label={`Aumentar quantidade de ${item.productName}`}
                 className="flex h-9 w-9 items-center justify-center"
               >
                 +
@@ -211,6 +215,7 @@ export default function SacolaPage() {
             <button
               type="button"
               onClick={() => removeItem(item.variantId)}
+              aria-label={`Remover ${item.productName} da sacola`}
               className="text-muted hover:text-foreground"
             >
               ✕

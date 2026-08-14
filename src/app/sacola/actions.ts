@@ -1,6 +1,8 @@
 "use server";
 
+import { headers } from "next/headers";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { logAudit } from "@/lib/audit";
 import { getSessionUser } from "@/lib/session";
 import { getAdminUser } from "@/lib/admin";
 import { sendNewOrderAdminEmail } from "@/lib/email";
@@ -46,13 +48,17 @@ type VariantRow = {
  * Só os produtos são cobrados — frete é combinado depois no WhatsApp.
  */
 export type ShippingChoice =
-  | { method: "pickup" }
-  | { method: "delivery"; addressId: string };
+  { method: "pickup" } | { method: "delivery"; addressId: string };
 
 export async function startOnlinePaymentAction(
   items: CheckoutItem[],
   shipping: ShippingChoice,
-): Promise<{ ok: boolean; url?: string; error?: string; needsLogin?: boolean }> {
+): Promise<{
+  ok: boolean;
+  url?: string;
+  error?: string;
+  needsLogin?: boolean;
+}> {
   const user = await getSessionUser();
   if (!user) return { ok: false, needsLogin: true, error: "Entre para pagar." };
   if (!infinitepayHandle())
@@ -102,7 +108,9 @@ export async function startOnlinePaymentAction(
   const admin = createAdminClient();
   const { data: rows } = await admin
     .from("order_items")
-    .select("product_name, variant_label, unit_price, qty, orders!inner ( number )")
+    .select(
+      "product_name, variant_label, unit_price, qty, orders!inner ( number )",
+    )
     .eq("orders.number", order.orderNumber);
 
   const items_ = (rows ?? []).map((r) => ({
@@ -146,6 +154,40 @@ export async function startOnlinePaymentAction(
   return { ok: true, url: link.url };
 }
 
+/** Quantos pedidos o mesmo IP pode abrir na janela abaixo. */
+const LIMITE_PEDIDOS = 8;
+const JANELA_MINUTOS = 10;
+
+/**
+ * Freio simples por IP, contado no próprio `audit_log` (que já grava o IP de
+ * cada evento) — não precisa de tabela nova nem de serviço externo.
+ *
+ * Falha ABERTO de propósito: se a contagem der erro, deixamos o pedido passar.
+ * Barrar venda de cliente real por causa de um problema no log seria pior do
+ * que o abuso que estamos tentando evitar.
+ */
+async function excedeuLimite(
+  admin: ReturnType<typeof createAdminClient>,
+): Promise<boolean> {
+  try {
+    const h = await headers();
+    const ip = (h.get("x-forwarded-for") ?? "").split(",")[0]?.trim();
+    if (!ip) return false; // sem IP (ex.: local) não dá para limitar
+
+    const desde = new Date(Date.now() - JANELA_MINUTOS * 60_000).toISOString();
+    const { count, error } = await admin
+      .from("audit_log")
+      .select("id", { count: "exact", head: true })
+      .eq("action", "order.create")
+      .eq("ip", ip)
+      .gte("created_at", desde);
+    if (error) return false;
+    return (count ?? 0) >= LIMITE_PEDIDOS;
+  } catch {
+    return false;
+  }
+}
+
 /** Base pública do site (a InfinitePay precisa de URLs absolutas). */
 function siteUrl(): string {
   const env = process.env.NEXT_PUBLIC_SITE_URL?.trim();
@@ -161,7 +203,12 @@ function siteUrl(): string {
  */
 async function stockShortages(
   admin: ReturnType<typeof createAdminClient>,
-  rows: { variant_id: string; product_name: string; variant_label: string | null; qty: number }[],
+  rows: {
+    variant_id: string;
+    product_name: string;
+    variant_label: string | null;
+    qty: number;
+  }[],
 ): Promise<{ name: string; available: number }[]> {
   const { data } = await admin
     .from("stock_cache")
@@ -207,6 +254,18 @@ export async function createOrderAction(
     return { ok: false, error: "Loja indisponível no momento." };
 
   const admin = createAdminClient();
+
+  // Server Action é endpoint público e aqui o login é opcional: sem freio, o
+  // mesmo payload válido pode ser reenviado em laço, enchendo `orders` e
+  // gastando a cota do Resend — quando ela acaba, os avisos de pedido PAGO
+  // param de sair em silêncio. O limite é por IP e generoso o bastante para
+  // não pegar cliente indeciso.
+  if (await excedeuLimite(admin)) {
+    return {
+      ok: false,
+      error: "Muitos pedidos seguidos. Aguarde alguns minutos e tente de novo.",
+    };
+  }
   const { data, error } = await admin
     .from("product_variants")
     .select("id, size, color, products ( name, price, promo_price )")
@@ -293,6 +352,16 @@ export async function createOrderAction(
     await admin.from("orders").delete().eq("id", order.id);
     return { ok: false, error: "Não foi possível registrar os itens." };
   }
+
+  // Alimenta a contagem do freio por IP acima (e deixa rastro em /admin/logs
+  // de pedido aberto por visitante sem conta).
+  await logAudit(null, {
+    action: "order.create",
+    entityType: "order",
+    entityId: order.id,
+    entityLabel: `nº ${order.number}`,
+    metadata: { canal: channel, itens: rows.length, total: subtotal },
+  });
 
   // Avisa a loja. Pedido pago no site é avisado no confirmPayment (só depois
   // de o dinheiro entrar); aqui cobrimos o caminho do WhatsApp.

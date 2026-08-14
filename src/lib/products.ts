@@ -125,6 +125,15 @@ function toGallery(value: unknown): string[] {
   return Array.isArray(value) ? (value as string[]) : [];
 }
 
+/**
+ * Deixa o termo no mesmo formato de `products.name_search`: minúsculo e sem
+ * acento. `NFD` separa a letra do acento e o range ̀-ͯ remove só as
+ * marcas — o "ç" vira "c" pelo mesmo caminho.
+ */
+export function normalizeSearch(term: string): string {
+  return term.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().trim();
+}
+
 /** Preço efetivo (numérico) a partir dos campos do produto. */
 function effectivePrice(
   price: number | null,
@@ -228,8 +237,11 @@ async function queryProducts(opts: ProductQuery): Promise<ProductPage> {
   if (opts.onlyPromo) query = query.gt("products.promo_price", 0);
   if (opts.search) {
     // `%` e `,` quebrariam o filtro do PostgREST; escapamos antes.
-    const termo = opts.search.replace(/[%,()]/g, " ").trim();
-    if (termo) query = query.ilike("products.name", `%${termo}%`);
+    const termo = normalizeSearch(opts.search.replace(/[%,()]/g, " ").trim());
+    // Compara com `name_search` (minúscula e sem acento, migração 0014) — o
+    // cadastro do ERP mistura "CALÇA" e "SUETER", e no celular se digita sem
+    // acento. Normalizar só um dos lados falharia no outro sentido.
+    if (termo) query = query.like("products.name_search", `%${termo}%`);
   }
   if (colorProductIds) query = query.in("products.id", colorProductIds);
   if (opts.productIds) {
