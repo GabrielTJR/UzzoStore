@@ -20,6 +20,17 @@ function from(): string {
 }
 
 /**
+ * Para onde vai a RESPOSTA do cliente.
+ *
+ * A loja envia por `naoresponda@` (que não tem caixa) e lê em `contato@`. Sem
+ * isto, quem clica em "responder" no aviso de pedido escreve para o vazio e
+ * ninguém fica sabendo. Configurável por `EMAIL_REPLY_TO`.
+ */
+function replyTo(): string {
+  return process.env.EMAIL_REPLY_TO?.trim() || "contato@uzzostore.com.br";
+}
+
+/**
  * Envia e SEMPRE registra a tentativa no audit_log (/admin/logs).
  *
  * Sem isso, uma falha de envio só aparecia no log da Vercel — e a loja ficava
@@ -53,6 +64,7 @@ async function send(params: {
       body: JSON.stringify({
         from: from(),
         to: [params.to],
+        reply_to: replyTo(),
         subject: params.subject,
         html: params.html,
       }),
