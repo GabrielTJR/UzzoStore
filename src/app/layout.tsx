@@ -21,10 +21,26 @@ const WHATSAPP_URL = "https://wa.me/5547991744865";
 const MAPS_URL = "https://maps.app.goo.gl/bUxWeib7bJHjGp3K6";
 const INSTAGRAM_URL = "https://www.instagram.com/uzzostorebc/";
 
+/**
+ * Base das URLs de metadados (OG/canonical). Precisa ser uma URL VÁLIDA já no
+ * build — `metadataBase` é avaliado no carregamento do módulo, então uma env
+ * ausente OU vazia (`new URL("")`) derruba o build inteiro, inclusive páginas
+ * estáticas como `/_not-found`. O `??` sozinho não basta: ele só cobre o caso
+ * ausente, não a string vazia que a Vercel entrega quando a variável existe sem
+ * valor. Por isso validamos e caímos no domínio de produção.
+ */
+function resolveSiteUrl(): URL {
+  const raw = process.env.NEXT_PUBLIC_SITE_URL?.trim();
+  try {
+    if (raw) return new URL(raw);
+  } catch {
+    // valor inválido → usa o padrão abaixo
+  }
+  return new URL("https://uzzostore.com.br");
+}
+
 export const metadata: Metadata = {
-  metadataBase: new URL(
-    process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000",
-  ),
+  metadataBase: resolveSiteUrl(),
   title: {
     default: "Uzzo Store — Moda masculina em Balneário Camboriú",
     template: "%s | Uzzo Store",
