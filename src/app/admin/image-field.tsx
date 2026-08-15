@@ -2,7 +2,8 @@
 
 import { useRef, useState } from "react";
 import Image from "next/image";
-import { uploadPhotos } from "@/lib/upload-photos";
+import { uploadPhotos, resumoRecusados } from "@/lib/upload-photos";
+import { FORMATOS_ACEITOS } from "@/lib/compress-image";
 
 /**
  * Campo de imagem para a decoração: envia o arquivo DIRETO ao Storage (URL
@@ -28,6 +29,7 @@ export function ImageField({
   const inputRef = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [aviso, setAviso] = useState<string | null>(null);
   // Guarda o par caminho→blob: a prévia segue o VALOR, não a posição do campo.
   // (Slides/cards são removidos por índice; sem isso, a prévia de um ia parar
   //  no slide vizinho e o admin apagava a imagem errada.)
@@ -50,15 +52,28 @@ export function ImageField({
 
   async function handleFile(file: File) {
     setError(null);
+    setAviso(null);
     setBusyBoth(true);
     try {
-      const { paths } = await uploadPhotos([file], "home");
+      const { paths, recusados, semCompressao } = await uploadPhotos(
+        [file],
+        "home",
+      );
       if (paths.length === 0) {
-        setError("Falha ao enviar a imagem.");
+        setError(
+          recusados.length > 0
+            ? resumoRecusados(recusados)
+            : "Falha ao enviar a imagem.",
+        );
         return;
       }
       onChange(paths[0]);
       setUploaded({ path: paths[0], url: URL.createObjectURL(file) });
+      // O banner é a maior imagem do site: se subiu sem comprimir, quem
+      // cadastrou precisa saber para trocar o arquivo — senão vira egress todo
+      // mês, que é exatamente o que derrubou a loja em agosto.
+      if (semCompressao.length > 0)
+        setAviso("Enviada sem compressão — troque por um JPG menor se possível.");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Falha ao enviar.");
     } finally {
@@ -87,7 +102,7 @@ export function ImageField({
         <input
           ref={inputRef}
           type="file"
-          accept="image/*"
+          accept={FORMATOS_ACEITOS}
           disabled={busy}
           onChange={(e) => {
             const f = e.target.files?.[0];
@@ -110,6 +125,11 @@ export function ImageField({
         )}
         {busy && <span className="text-xs text-muted">enviando…</span>}
         {error && <span className="text-xs text-red-600">{error}</span>}
+        {aviso && (
+          <span className="text-xs text-amber-600 dark:text-amber-400">
+            {aviso}
+          </span>
+        )}
       </div>
     </div>
   );

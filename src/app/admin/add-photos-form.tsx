@@ -2,7 +2,8 @@
 
 import { useRef, useState } from "react";
 import { commitPhotosAction } from "./actions";
-import { uploadPhotos } from "@/lib/upload-photos";
+import { uploadPhotos, resumoRecusados } from "@/lib/upload-photos";
+import { FORMATOS_ACEITOS } from "@/lib/compress-image";
 import { useToast } from "@/components/toast";
 
 export function AddPhotosForm({ productColorId }: { productColorId: string }) {
@@ -24,9 +25,18 @@ export function AddPhotosForm({ productColorId }: { productColorId: string }) {
 
     setBusy(true);
     try {
-      const { paths, failed } = await uploadPhotos(files, productColorId);
+      const { paths, failed, recusados, semCompressao } = await uploadPhotos(
+        files,
+        productColorId,
+      );
       if (paths.length === 0) {
-        setError("Falha ao enviar as imagens.");
+        // Sem o motivo, quem cadastrou não tem como saber que o problema era o
+        // formato (HEIC do iPhone é o caso comum) e fica tentando de novo.
+        setError(
+          recusados.length > 0
+            ? `Nenhuma foto enviada — ${resumoRecusados(recusados)}.`
+            : "Falha ao enviar as imagens.",
+        );
         return;
       }
       const res = await commitPhotosAction(productColorId, paths);
@@ -34,10 +44,21 @@ export function AddPhotosForm({ productColorId }: { productColorId: string }) {
         setError(res.error ?? "Erro ao salvar as fotos.");
         return;
       }
+
+      const avisos: string[] = [];
+      if (failed > 0) avisos.push(`${failed} falhou(aram) no envio`);
+      if (recusados.length > 0)
+        avisos.push(`recusada(s): ${resumoRecusados(recusados)}`);
+      if (semCompressao.length > 0)
+        avisos.push(
+          `${semCompressao.length} subiu(ram) sem compressão (arquivo pesado)`,
+        );
+
       showToast(
-        failed > 0
-          ? `${paths.length} foto(s) enviada(s), ${failed} falhou(aram)`
+        avisos.length > 0
+          ? `${paths.length} foto(s) enviada(s) — ${avisos.join("; ")}`
           : "Fotos enviadas",
+        avisos.length > 0 ? "error" : "success",
       );
       formRef.current?.reset();
     } catch (err) {
@@ -57,7 +78,7 @@ export function AddPhotosForm({ productColorId }: { productColorId: string }) {
         ref={inputRef}
         type="file"
         name="images"
-        accept="image/*"
+        accept={FORMATOS_ACEITOS}
         multiple
         required
         disabled={busy}

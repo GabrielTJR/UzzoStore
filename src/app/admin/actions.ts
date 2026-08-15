@@ -49,16 +49,15 @@ function storagePathFromUrl(url: string): string | null {
   return i === -1 ? null : url.slice(i + marker.length);
 }
 
-const ALLOWED_EXT = new Set([
-  "jpg",
-  "jpeg",
-  "png",
-  "webp",
-  "gif",
-  "avif",
-  "heic",
-  "heif",
-]);
+/**
+ * Extensões que o caminho no Storage pode receber. Espelha os `FORMATOS_ACEITOS`
+ * do cliente (`lib/compress-image.ts`) de propósito: só entra o que o navegador
+ * consegue comprimir. HEIC/GIF/AVIF saíram porque escapavam da compressão e
+ * subiam com o tamanho original — e HEIC ainda por cima não abre na maioria dos
+ * navegadores. Mexer aqui só afeta envios NOVOS; imagem já publicada continua
+ * servida normalmente pela URL que já tem.
+ */
+const ALLOWED_EXT = new Set(["jpg", "jpeg", "png", "webp"]);
 
 /** Valida um caminho de objeto no Storage ("pasta/arquivo.ext") — sem barra inicial nem traversal. */
 function isSafeStoragePath(path: string): boolean {
