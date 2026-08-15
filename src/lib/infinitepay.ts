@@ -16,8 +16,15 @@ import { logAudit } from "@/lib/audit";
 
 const API = "https://api.checkout.infinitepay.io";
 
+/**
+ * A InfiniteTag aparece no app da InfinitePay COM o "$" na frente, e foi assim
+ * que ela acabou na env da Vercel. A API rejeita o "$" com um 422 genérico
+ * ("Unable to create checkout link") — exatamente o mesmo erro de handle
+ * inexistente, sem dizer o motivo. O checkout ficou 5 dias fora por causa disso
+ * (09 a 14/08/2026). Tirar o "$" aqui custa nada e mata a classe inteira.
+ */
 export function infinitepayHandle(): string | null {
-  return process.env.INFINITEPAY_HANDLE?.trim() || null;
+  return process.env.INFINITEPAY_HANDLE?.trim().replace(/^\$+/, "") || null;
 }
 
 /** Reais -> centavos (a API cobra em centavos). */

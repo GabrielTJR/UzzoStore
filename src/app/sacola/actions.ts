@@ -139,13 +139,23 @@ export async function startOnlinePaymentAction(
     },
   });
   if (!link.ok || !link.url) {
+    // O pedido já está gravado, mas sem link não há como pagar. Deixá-lo
+    // "pending" enche o painel de pedido fantasma — foi o que aconteceu com os
+    // nº 1007, 1008 e 1010 enquanto o handle esteve inválido. Cancelamos em vez
+    // de apagar: a tentativa frustrada é informação útil para a loja, e a falha
+    // em si já fica registrada como `payment.link_failed` em /admin/logs.
+    await admin
+      .from("orders")
+      .update({ status: "canceled", updated_at: new Date().toISOString() })
+      .eq("number", order.orderNumber);
+
     // Para o admin, mostra a resposta crua da InfinitePay — sem isso a tela só
     // diz "erro" e não dá para descobrir o que o provedor recusou.
-    const admin = await getAdminUser();
+    const adminUser = await getAdminUser();
     return {
       ok: false,
       error:
-        admin && link.detail
+        adminUser && link.detail
           ? `${link.error ?? "Erro ao gerar o pagamento."} [${link.detail}]`
           : (link.error ?? "Erro ao gerar o pagamento."),
     };
