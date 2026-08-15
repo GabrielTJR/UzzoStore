@@ -98,10 +98,7 @@ export default async function EditarProdutoPage({
 
         <div className="space-y-8">
           {product.colors.map((color) => (
-            <div
-              key={color.id}
-              className="rounded-lg border border-border p-5"
-            >
+            <div key={color.id} className="rounded-lg border border-border p-5">
               <div className="mb-4 flex items-center justify-between gap-3">
                 <div className="flex items-center gap-2">
                   <span

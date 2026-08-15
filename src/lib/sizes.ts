@@ -1,18 +1,7 @@
 // Ordenação natural de tamanhos de vestuário (P < M < G < GG ...), com apoio a
 // tamanhos numéricos (38 < 40 < 42). Usada na vitrine e no admin para não cair
 // no localeCompare puro (que ordena "GG" antes de "M").
-const SIZE_ORDER = [
-  "PP",
-  "P",
-  "M",
-  "G",
-  "GG",
-  "XG",
-  "XGG",
-  "XXG",
-  "EG",
-  "EGG",
-];
+const SIZE_ORDER = ["PP", "P", "M", "G", "GG", "XG", "XGG", "XXG", "EG", "EGG"];
 
 export function compareSizes(a: string | null, b: string | null): number {
   const sa = (a ?? "").trim().toUpperCase();

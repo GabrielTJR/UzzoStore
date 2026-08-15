@@ -39,7 +39,13 @@ export function AddAdminForm() {
           <label className={label} htmlFor="email">
             E-mail *
           </label>
-          <input id="email" name="email" type="email" required className={field} />
+          <input
+            id="email"
+            name="email"
+            type="email"
+            required
+            className={field}
+          />
         </div>
       </div>
       <div className="space-y-1.5">

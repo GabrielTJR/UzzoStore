@@ -9,7 +9,11 @@ import {
   nextStatusLabel,
 } from "@/lib/admin-orders";
 import { formatBRL } from "@/lib/format";
-import { updateOrderStatusAction, markOrdersSeenAction } from "../actions";
+import {
+  updateOrderStatusAction,
+  markOrdersSeenAction,
+  updateOrderTrackingAction,
+} from "../actions";
 import { SubmitButton } from "@/components/submit-button";
 
 export const metadata: Metadata = { title: "Pedidos" };
@@ -50,7 +54,8 @@ export default async function PedidosAdminPage() {
             pendingText="Marcando…"
             className="h-9 rounded-full border border-border px-5 text-sm font-medium hover:border-foreground"
           >
-            Marcar {novos} {novos === 1 ? "pedido novo" : "pedidos novos"} como visto{novos === 1 ? "" : "s"}
+            Marcar {novos} {novos === 1 ? "pedido novo" : "pedidos novos"} como
+            visto{novos === 1 ? "" : "s"}
           </SubmitButton>
         </form>
       )}
@@ -59,166 +64,210 @@ export default async function PedidosAdminPage() {
         {orders.map((o) => {
           const next = nextOrderStatus(o.status, o.shippingMethod);
           return (
-          <div
-            key={o.id}
-            className={`rounded-lg border p-5 ${
-              o.isNew ? "border-red-500/60 bg-red-500/5" : "border-border"
-            }`}
-          >
-            <div className="flex flex-wrap items-baseline justify-between gap-3">
-              <div>
-                <p className="font-medium">
-                  {o.isNew && (
-                    <span className="mr-2 rounded-full bg-red-600 px-2 py-0.5 text-xs font-medium text-white">
-                      NOVO
+            <div
+              key={o.id}
+              className={`rounded-lg border p-5 ${
+                o.isNew ? "border-red-500/60 bg-red-500/5" : "border-border"
+              }`}
+            >
+              <div className="flex flex-wrap items-baseline justify-between gap-3">
+                <div>
+                  <p className="font-medium">
+                    {o.isNew && (
+                      <span className="mr-2 rounded-full bg-red-600 px-2 py-0.5 text-xs font-medium text-white">
+                        NOVO
+                      </span>
+                    )}
+                    Pedido nº {o.number}
+                    <span
+                      className={`ml-3 rounded-full border px-2 py-0.5 text-xs font-normal ${
+                        STATUS_STYLE[o.status] ?? "border-border text-muted"
+                      }`}
+                    >
+                      {ORDER_STATUS[o.status as keyof typeof ORDER_STATUS] ??
+                        o.status}
+                    </span>
+                  </p>
+                  <p className="mt-1 text-xs text-muted">
+                    {new Date(o.createdAt).toLocaleString("pt-BR")} ·{" "}
+                    {o.customerName ?? "visitante sem conta"}
+                    {o.customerPhone ? ` · ${o.customerPhone}` : ""}
+                    {o.channel === "online" ? " · pago no site" : " · WhatsApp"}
+                  </p>
+                </div>
+                <p className="text-lg font-medium">{formatBRL(o.total)}</p>
+              </div>
+
+              <ul className="mt-3 space-y-1 text-sm text-muted">
+                {o.items.map((i, k) => (
+                  <li key={k}>
+                    {i.qty}× {i.productName}
+                    {i.variantLabel ? ` — ${i.variantLabel}` : ""} ·{" "}
+                    {formatBRL(i.unitPrice * i.qty)}
+                  </li>
+                ))}
+              </ul>
+
+              {/* Entrega: sem isso não dá para saber se retira ou para onde enviar */}
+              {o.shippingMethod === "pickup" && (
+                <p className="mt-3 rounded-md border border-border px-3 py-2 text-sm">
+                  🏬 <span className="font-medium">Retirada na loja</span>
+                </p>
+              )}
+              {o.shippingMethod === "delivery" && o.shippingAddress && (
+                <p className="mt-3 rounded-md border border-border px-3 py-2 text-sm">
+                  🚚 <span className="font-medium">Entrega</span>
+                  <span className="block text-muted">
+                    {o.shippingAddress.street}
+                    {o.shippingAddress.number
+                      ? `, ${o.shippingAddress.number}`
+                      : ""}
+                    {o.shippingAddress.complement
+                      ? ` — ${o.shippingAddress.complement}`
+                      : ""}
+                    {o.shippingAddress.district
+                      ? `, ${o.shippingAddress.district}`
+                      : ""}{" "}
+                    · {o.shippingAddress.city}/{o.shippingAddress.state} · CEP{" "}
+                    {o.shippingAddress.cep}
+                  </span>
+                  {o.customerCpf && (
+                    <span className="block text-muted">
+                      CPF do cliente: {o.customerCpf}
                     </span>
                   )}
-                  Pedido nº {o.number}
-                  <span
-                    className={`ml-3 rounded-full border px-2 py-0.5 text-xs font-normal ${
-                      STATUS_STYLE[o.status] ?? "border-border text-muted"
-                    }`}
+                  {o.shippingService && (
+                    <span className="block text-muted">
+                      Frete: {o.shippingService} —{" "}
+                      {o.shippingCost > 0
+                        ? formatBRL(o.shippingCost)
+                        : "grátis"}
+                    </span>
+                  )}
+                  {o.couponCode && (
+                    <span className="block text-muted">
+                      Cupom {o.couponCode}: −{formatBRL(o.discount)}
+                    </span>
+                  )}
+                </p>
+              )}
+
+              {/* Rastreio: salve ANTES de avançar para "enviado" — o e-mail ao
+                cliente sai com o link do código que estiver salvo aqui. */}
+              {o.shippingMethod === "delivery" && o.status !== "canceled" && (
+                <form
+                  action={updateOrderTrackingAction}
+                  className="mt-3 flex flex-wrap items-center gap-2 text-sm"
+                >
+                  <input type="hidden" name="orderId" value={o.id} />
+                  <label htmlFor={`tracking-${o.id}`} className="text-muted">
+                    Rastreio:
+                  </label>
+                  <input
+                    id={`tracking-${o.id}`}
+                    name="tracking"
+                    defaultValue={o.trackingCode ?? ""}
+                    placeholder="AA123456789BR"
+                    className="h-9 w-44 rounded-md border border-border bg-transparent px-3 font-mono text-xs uppercase outline-none focus:border-foreground"
+                  />
+                  <SubmitButton
+                    pendingText="…"
+                    className="h-9 rounded-full border border-border px-4 text-xs font-medium hover:border-foreground"
                   >
-                    {ORDER_STATUS[o.status as keyof typeof ORDER_STATUS] ??
-                      o.status}
-                  </span>
-                </p>
-                <p className="mt-1 text-xs text-muted">
-                  {new Date(o.createdAt).toLocaleString("pt-BR")} ·{" "}
-                  {o.customerName ?? "visitante sem conta"}
-                  {o.customerPhone ? ` · ${o.customerPhone}` : ""}
-                  {o.channel === "online" ? " · pago no site" : " · WhatsApp"}
-                </p>
-              </div>
-              <p className="text-lg font-medium">{formatBRL(o.total)}</p>
-            </div>
+                    Salvar
+                  </SubmitButton>
+                </form>
+              )}
 
-            <ul className="mt-3 space-y-1 text-sm text-muted">
-              {o.items.map((i, k) => (
-                <li key={k}>
-                  {i.qty}× {i.productName}
-                  {i.variantLabel ? ` — ${i.variantLabel}` : ""} ·{" "}
-                  {formatBRL(i.unitPrice * i.qty)}
-                </li>
-              ))}
-            </ul>
-
-            {/* Entrega: sem isso não dá para saber se retira ou para onde enviar */}
-            {o.shippingMethod === "pickup" && (
-              <p className="mt-3 rounded-md border border-border px-3 py-2 text-sm">
-                🏬 <span className="font-medium">Retirada na loja</span>
-              </p>
-            )}
-            {o.shippingMethod === "delivery" && o.shippingAddress && (
-              <p className="mt-3 rounded-md border border-border px-3 py-2 text-sm">
-                🚚 <span className="font-medium">Entrega</span>
-                <span className="block text-muted">
-                  {o.shippingAddress.street}
-                  {o.shippingAddress.number ? `, ${o.shippingAddress.number}` : ""}
-                  {o.shippingAddress.complement
-                    ? ` — ${o.shippingAddress.complement}`
-                    : ""}
-                  {o.shippingAddress.district
-                    ? `, ${o.shippingAddress.district}`
-                    : ""}{" "}
-                  · {o.shippingAddress.city}/{o.shippingAddress.state} · CEP{" "}
-                  {o.shippingAddress.cep}
-                </span>
-                {o.customerCpf && (
-                  <span className="block text-muted">
-                    CPF do cliente: {o.customerCpf}
-                  </span>
-                )}
-              </p>
-            )}
-
-            {/* Progressão do pedido: mostra em que etapa está e qual é o
+              {/* Progressão do pedido: mostra em que etapa está e qual é o
                 próximo passo, em vez de botões soltos sem ordem. */}
-            <div className="mt-4 border-t border-border pt-4">
-              <ol className="mb-4 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs">
-                {orderSteps(o.shippingMethod).map((s, i, arr) => {
-                  const done =
-                    arr.indexOf(o.status as (typeof arr)[number]) >= i &&
-                    o.status !== "canceled";
-                  const current = o.status === s;
-                  return (
-                    <li key={s} className="flex items-center gap-2">
-                      <span
-                        className={
-                          current
-                            ? "font-medium text-foreground"
-                            : done
-                              ? "text-green-700 dark:text-green-400"
-                              : "text-muted"
-                        }
-                      >
-                        {done && !current ? "✓ " : ""}
-                        {ORDER_STATUS[s]}
-                      </span>
-                      {i < arr.length - 1 && (
-                        <span className="text-muted">→</span>
-                      )}
-                    </li>
-                  );
-                })}
-                {o.status === "canceled" && (
-                  <li className="font-medium text-red-600">Cancelado</li>
-                )}
-              </ol>
-
-              <div className="flex flex-wrap items-center gap-3">
-                {next && (
-                  <form action={updateOrderStatusAction}>
-                    <input type="hidden" name="orderId" value={o.id} />
-                    <input type="hidden" name="status" value={next} />
-                    <SubmitButton
-                      pendingText="Salvando…"
-                      className="h-9 rounded-full bg-foreground px-5 text-sm font-medium text-background hover:opacity-90"
-                    >
-                      {nextStatusLabel(next)}
-                    </SubmitButton>
-                  </form>
-                )}
-
-                {o.status !== "canceled" && o.status !== "delivered" && (
-                  <form action={updateOrderStatusAction}>
-                    <input type="hidden" name="orderId" value={o.id} />
-                    <input type="hidden" name="status" value="canceled" />
-                    <SubmitButton
-                      pendingText="…"
-                      className="text-sm text-red-600 underline-offset-4 hover:underline dark:text-red-400"
-                    >
-                      Cancelar pedido
-                    </SubmitButton>
-                  </form>
-                )}
-
-                {/* Correção manual, para quando alguém avança sem querer. */}
-                <details className="ml-auto text-xs text-muted">
-                  <summary className="cursor-pointer select-none hover:text-foreground">
-                    corrigir situação
-                  </summary>
-                  <div className="mt-2 flex flex-wrap gap-2">
-                    {(
-                      Object.keys(ORDER_STATUS) as (keyof typeof ORDER_STATUS)[]
-                    ).map((s) => (
-                      <form key={s} action={updateOrderStatusAction}>
-                        <input type="hidden" name="orderId" value={o.id} />
-                        <input type="hidden" name="status" value={s} />
-                        <SubmitButton
-                          disabled={o.status === s}
-                          pendingText="…"
-                          className="h-7 rounded-full border border-border px-3 text-xs hover:border-foreground disabled:opacity-40"
+              <div className="mt-4 border-t border-border pt-4">
+                <ol className="mb-4 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs">
+                  {orderSteps(o.shippingMethod).map((s, i, arr) => {
+                    const done =
+                      arr.indexOf(o.status as (typeof arr)[number]) >= i &&
+                      o.status !== "canceled";
+                    const current = o.status === s;
+                    return (
+                      <li key={s} className="flex items-center gap-2">
+                        <span
+                          className={
+                            current
+                              ? "font-medium text-foreground"
+                              : done
+                                ? "text-green-700 dark:text-green-400"
+                                : "text-muted"
+                          }
                         >
+                          {done && !current ? "✓ " : ""}
                           {ORDER_STATUS[s]}
-                        </SubmitButton>
-                      </form>
-                    ))}
-                  </div>
-                </details>
+                        </span>
+                        {i < arr.length - 1 && (
+                          <span className="text-muted">→</span>
+                        )}
+                      </li>
+                    );
+                  })}
+                  {o.status === "canceled" && (
+                    <li className="font-medium text-red-600">Cancelado</li>
+                  )}
+                </ol>
+
+                <div className="flex flex-wrap items-center gap-3">
+                  {next && (
+                    <form action={updateOrderStatusAction}>
+                      <input type="hidden" name="orderId" value={o.id} />
+                      <input type="hidden" name="status" value={next} />
+                      <SubmitButton
+                        pendingText="Salvando…"
+                        className="h-9 rounded-full bg-foreground px-5 text-sm font-medium text-background hover:opacity-90"
+                      >
+                        {nextStatusLabel(next)}
+                      </SubmitButton>
+                    </form>
+                  )}
+
+                  {o.status !== "canceled" && o.status !== "delivered" && (
+                    <form action={updateOrderStatusAction}>
+                      <input type="hidden" name="orderId" value={o.id} />
+                      <input type="hidden" name="status" value="canceled" />
+                      <SubmitButton
+                        pendingText="…"
+                        className="text-sm text-red-600 underline-offset-4 hover:underline dark:text-red-400"
+                      >
+                        Cancelar pedido
+                      </SubmitButton>
+                    </form>
+                  )}
+
+                  {/* Correção manual, para quando alguém avança sem querer. */}
+                  <details className="ml-auto text-xs text-muted">
+                    <summary className="cursor-pointer select-none hover:text-foreground">
+                      corrigir situação
+                    </summary>
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      {(
+                        Object.keys(
+                          ORDER_STATUS,
+                        ) as (keyof typeof ORDER_STATUS)[]
+                      ).map((s) => (
+                        <form key={s} action={updateOrderStatusAction}>
+                          <input type="hidden" name="orderId" value={o.id} />
+                          <input type="hidden" name="status" value={s} />
+                          <SubmitButton
+                            disabled={o.status === s}
+                            pendingText="…"
+                            className="h-7 rounded-full border border-border px-3 text-xs hover:border-foreground disabled:opacity-40"
+                          >
+                            {ORDER_STATUS[s]}
+                          </SubmitButton>
+                        </form>
+                      ))}
+                    </div>
+                  </details>
+                </div>
               </div>
             </div>
-          </div>
           );
         })}
 

@@ -78,10 +78,7 @@ export function SectionRowActions({
    * página da lista: só `revalidatePath` no servidor (ou um `redirect` para a
    * mesma URL) não troca o que está na tela — o router reaproveita o cache.
    */
-  function run(
-    fn: (formData: FormData) => Promise<void>,
-    formData: FormData,
-  ) {
+  function run(fn: (formData: FormData) => Promise<void>, formData: FormData) {
     startTransition(async () => {
       await fn(formData);
       router.refresh();

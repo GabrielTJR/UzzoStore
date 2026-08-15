@@ -21,10 +21,10 @@ export function ProductInfoForm({
   categories: StoreCategory[];
   models: MeasurementModelOption[];
 }) {
-  const [state, action, pending] = useActionState<ActionResult | null, FormData>(
-    updateProductAction,
-    null,
-  );
+  const [state, action, pending] = useActionState<
+    ActionResult | null,
+    FormData
+  >(updateProductAction, null);
   const { showToast } = useToast();
   const [dirty, setDirty] = useState(false);
 
@@ -123,6 +123,25 @@ export function ProductInfoForm({
             }
             className={field}
           />
+        </div>
+        <div className="space-y-1.5">
+          <label className={label} htmlFor="weightGrams">
+            Peso embalado (g)
+          </label>
+          <input
+            id="weightGrams"
+            name="weightGrams"
+            inputMode="numeric"
+            placeholder="ex.: 450"
+            defaultValue={
+              product.weightGrams != null ? String(product.weightGrams) : ""
+            }
+            className={field}
+          />
+          <p className="text-xs text-muted">
+            Usado na cotação do frete. Vazio = padrão da categoria. Pese COM a
+            embalagem — peso a menos gera cobrança extra da transportadora.
+          </p>
         </div>
       </div>
 

@@ -7,6 +7,7 @@ import { useCart, cartSubtotal } from "@/lib/cart-store";
 import { useCartUi } from "@/lib/cart-ui";
 import { formatBRL } from "@/lib/format";
 import { installmentsFor } from "@/lib/installments";
+import { FreeShippingBar } from "@/components/free-shipping-bar";
 
 /**
  * Gaveta lateral da sacola. Abre ao adicionar um item (sem tirar o cliente da
@@ -16,7 +17,11 @@ import { installmentsFor } from "@/lib/installments";
  * A página /sacola continua existindo: é onde vive o fluxo completo
  * (WhatsApp/pagamento). A gaveta é o atalho; os botões levam para lá.
  */
-export function CartDrawer() {
+export function CartDrawer({
+  shippingEnabled = false,
+}: {
+  shippingEnabled?: boolean;
+}) {
   const { open, closeCart } = useCartUi();
   const items = useCart((s) => s.items);
   const setQty = useCart((s) => s.setQty);
@@ -203,6 +208,7 @@ export function CartDrawer() {
             </ul>
 
             <footer className="space-y-3 border-t border-border p-5 pb-[calc(1.25rem+env(safe-area-inset-bottom))]">
+              {shippingEnabled && <FreeShippingBar subtotal={subtotal} />}
               <div className="flex items-baseline justify-between">
                 <span className="text-sm text-muted">Subtotal</span>
                 <div className="text-right">

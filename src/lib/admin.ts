@@ -44,31 +44,33 @@ export const getAdminUser = cache(async (): Promise<User | null> => {
  * Usuário logado + registro em public.admins (papel, nome, flag de 1º acesso).
  * Também memoizado por requisição (o guard de página e a UI podem chamar juntos).
  */
-export const getAdminRecord = cache(async (): Promise<{
-  user: User;
-  record: AdminRecord;
-} | null> => {
-  const user = await getSessionUser();
-  if (!user) return null;
-  const supabase = await createClient();
+export const getAdminRecord = cache(
+  async (): Promise<{
+    user: User;
+    record: AdminRecord;
+  } | null> => {
+    const user = await getSessionUser();
+    if (!user) return null;
+    const supabase = await createClient();
 
-  const { data } = await supabase
-    .from("admins")
-    .select("role, full_name, must_change_password")
-    .eq("user_id", user.id)
-    .maybeSingle();
+    const { data } = await supabase
+      .from("admins")
+      .select("role, full_name, must_change_password")
+      .eq("user_id", user.id)
+      .maybeSingle();
 
-  if (data) return { user, record: data as AdminRecord };
+    if (data) return { user, record: data as AdminRecord };
 
-  // Fallback de bootstrap: admin por ADMIN_EMAILS ainda sem linha em admins.
-  if (user.email && adminEmails().includes(user.email.toLowerCase())) {
-    return {
-      user,
-      record: { role: "admin", full_name: null, must_change_password: false },
-    };
-  }
-  return null;
-});
+    // Fallback de bootstrap: admin por ADMIN_EMAILS ainda sem linha em admins.
+    if (user.email && adminEmails().includes(user.email.toLowerCase())) {
+      return {
+        user,
+        record: { role: "admin", full_name: null, must_change_password: false },
+      };
+    }
+    return null;
+  },
+);
 
 /**
  * Guard de página: exige admin. Redireciona para /admin/login se não for admin,

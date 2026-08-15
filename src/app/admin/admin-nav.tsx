@@ -16,6 +16,7 @@ const LINKS = [
   { href: "/admin/categorias", label: "Categorias" },
   { href: "/admin/cores", label: "Cores" },
   { href: "/admin/medidas", label: "Medidas" },
+  { href: "/admin/cupons", label: "Cupons" },
   { href: "/admin/logs", label: "Logs" },
   { href: "/admin/equipe", label: "Equipe" },
   { href: "/admin/conta", label: "Conta" },

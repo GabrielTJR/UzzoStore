@@ -49,8 +49,8 @@ export default async function MedidasPage() {
           >
             <span className="font-medium">{m.name}</span>
             <span className="text-xs text-muted">
-              {m.columns} {m.columns === 1 ? "coluna" : "colunas"} ·{" "}
-              {m.rows} {m.rows === 1 ? "tamanho" : "tamanhos"} · {m.products}{" "}
+              {m.columns} {m.columns === 1 ? "coluna" : "colunas"} · {m.rows}{" "}
+              {m.rows === 1 ? "tamanho" : "tamanhos"} · {m.products}{" "}
               {m.products === 1 ? "produto" : "produtos"}
             </span>
           </Link>

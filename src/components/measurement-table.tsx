@@ -55,10 +55,7 @@ export function MeasurementTable({ chart }: { chart: MeasurementChart }) {
                     <tr className="border-b border-border">
                       <th className="py-2 pr-3 text-left font-medium">Tam.</th>
                       {chart.columns.map((c, i) => (
-                        <th
-                          key={i}
-                          className="px-3 py-2 text-left font-medium"
-                        >
+                        <th key={i} className="px-3 py-2 text-left font-medium">
                           {c}
                         </th>
                       ))}

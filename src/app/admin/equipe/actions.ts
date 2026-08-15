@@ -23,7 +23,9 @@ export async function addAdminAction(
     return { ok: false, error: "Falta SUPABASE_SERVICE_ROLE_KEY no servidor." };
   }
 
-  const email = String(formData.get("email") ?? "").trim().toLowerCase();
+  const email = String(formData.get("email") ?? "")
+    .trim()
+    .toLowerCase();
   const name = String(formData.get("name") ?? "").trim();
   const tempPassword = String(formData.get("tempPassword") ?? "");
   if (!email) return { ok: false, error: "Informe o e-mail." };
@@ -50,7 +52,10 @@ export async function addAdminAction(
     isNew = true;
   } else {
     // E-mail já existe no Auth → localiza o usuário para promover a admin.
-    const { data } = await admin.auth.admin.listUsers({ page: 1, perPage: 1000 });
+    const { data } = await admin.auth.admin.listUsers({
+      page: 1,
+      perPage: 1000,
+    });
     const existing = (data?.users ?? []).find(
       (u) => u.email?.toLowerCase() === email,
     );

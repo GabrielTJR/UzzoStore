@@ -33,7 +33,11 @@ export function NewCategoryForm() {
   }, [state]);
 
   return (
-    <form ref={formRef} action={action} className="flex flex-wrap items-end gap-3">
+    <form
+      ref={formRef}
+      action={action}
+      className="flex flex-wrap items-end gap-3"
+    >
       <label className="text-xs text-muted">
         Nome da categoria
         <input

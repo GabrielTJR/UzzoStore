@@ -31,7 +31,11 @@ export function NewColorForm() {
   }, [state]);
 
   return (
-    <form ref={formRef} action={action} className="flex flex-wrap items-end gap-3">
+    <form
+      ref={formRef}
+      action={action}
+      className="flex flex-wrap items-end gap-3"
+    >
       <label className="text-xs text-muted">
         Nome da cor
         <input
@@ -115,9 +119,7 @@ export function ColorRow({
       </form>
 
       <span className="text-xs text-muted">
-        {usage > 0
-          ? `${usage} produto${usage === 1 ? "" : "s"}`
-          : "não usada"}
+        {usage > 0 ? `${usage} produto${usage === 1 ? "" : "s"}` : "não usada"}
       </span>
 
       {usage === 0 ? (

@@ -3,10 +3,7 @@ import type { Metadata } from "next";
 import { requireAdmin } from "@/lib/admin";
 import { getAdminHomeSections } from "@/lib/admin-products";
 import { KIND_LABEL } from "@/lib/home-sections";
-import {
-  AddHomeSectionForm,
-  SectionRowActions,
-} from "../home-section-forms";
+import { AddHomeSectionForm, SectionRowActions } from "../home-section-forms";
 
 export const metadata: Metadata = { title: "Decoração da home" };
 
@@ -46,9 +43,9 @@ export default async function DecoracaoPage() {
       </h1>
       <p className="mt-2 text-sm text-muted">
         Monte a página inicial com blocos: banner, faixa de aviso, mosaico de
-        coleções e vitrines de produto. Use ↑ ↓ para ordenar e o botão
-        No ar/Oculto para publicar. Blocos novos nascem ocultos — monte
-        primeiro, publique depois.
+        coleções e vitrines de produto. Use ↑ ↓ para ordenar e o botão No
+        ar/Oculto para publicar. Blocos novos nascem ocultos — monte primeiro,
+        publique depois.
       </p>
 
       <div className="mt-8 rounded-lg border border-dashed border-border p-5">
@@ -100,7 +97,8 @@ export default async function DecoracaoPage() {
         ))}
         {sections.length === 0 && (
           <p className="rounded-md border border-dashed border-border p-4 text-sm text-muted">
-            Nenhum bloco ainda — a home mostra o layout padrão (capa + destaques).
+            Nenhum bloco ainda — a home mostra o layout padrão (capa +
+            destaques).
           </p>
         )}
       </div>

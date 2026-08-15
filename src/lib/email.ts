@@ -269,6 +269,8 @@ export async function sendOrderStatusEmail(params: {
   customerName: string | null;
   orderNumber: number;
   status: "ready" | "shipped" | "delivered";
+  /** Código de rastreio — vira link no e-mail de "enviado". */
+  trackingCode?: string | null;
 }): Promise<boolean> {
   const copy = {
     ready: {
@@ -279,7 +281,17 @@ export async function sendOrderStatusEmail(params: {
     shipped: {
       subject: `Pedido nº ${params.orderNumber} enviado`,
       title: "Seu pedido saiu para entrega 🚚",
-      body: "Seu pedido já está a caminho. Qualquer dúvida sobre a entrega, é só chamar no WhatsApp.",
+      body: params.trackingCode
+        ? /^[A-Z]{2}\d{9}BR$/.test(params.trackingCode)
+          ? `Seu pedido já está a caminho! Acompanhe pelo código <strong>${esc(
+              params.trackingCode,
+            )}</strong>: <a href="https://rastreamento.correios.com.br/app/index.php?objeto=${encodeURIComponent(
+              params.trackingCode,
+            )}">rastrear encomenda</a>. Qualquer dúvida, é só chamar no WhatsApp.`
+          : `Seu pedido já está a caminho! Código de rastreio: <strong>${esc(
+              params.trackingCode,
+            )}</strong> — acompanhe no site da transportadora. Qualquer dúvida, é só chamar no WhatsApp.`
+        : "Seu pedido já está a caminho. Qualquer dúvida sobre a entrega, é só chamar no WhatsApp.",
     },
     delivered: {
       subject: `Pedido nº ${params.orderNumber} concluído`,
@@ -299,6 +311,32 @@ export async function sendOrderStatusEmail(params: {
         Pedido <strong>nº ${params.orderNumber}</strong>.
       </p>
       <p style="font-size:15px;line-height:1.6;margin:0">${copy.body}</p>`,
+    ),
+  });
+}
+
+/** "Avise-me quando chegar": disparado quando o admin repõe o estoque. */
+export async function sendBackInStockEmail(params: {
+  to: string;
+  productName: string;
+  productSlug: string;
+}): Promise<boolean> {
+  const url = `${process.env.NEXT_PUBLIC_SITE_URL?.trim() || "https://uzzostore.com.br"}/produtos/${params.productSlug}`;
+  return send({
+    to: params.to,
+    kind: "volta_estoque",
+    subject: `${params.productName} voltou ao estoque!`,
+    html: layout(
+      "Chegou de novo 🎉",
+      `<p style="font-size:15px;line-height:1.6;margin:0 0 16px">
+        Você pediu para ser avisado: <strong>${esc(params.productName)}</strong>
+        está disponível outra vez — e peça única costuma sair rápido.
+      </p>
+      <p style="margin:0 0 8px">
+        <a href="${url}" style="display:inline-block;background:#111;color:#fff;padding:12px 28px;border-radius:999px;font-size:14px;text-decoration:none">
+          Ver o produto
+        </a>
+      </p>`,
     ),
   });
 }

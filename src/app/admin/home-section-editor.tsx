@@ -208,7 +208,9 @@ export function HomeSectionEditor({
                   <label className={label}>Texto do botão</label>
                   <input
                     value={s.buttonLabel ?? ""}
-                    onChange={(e) => setSlide(i, { buttonLabel: e.target.value })}
+                    onChange={(e) =>
+                      setSlide(i, { buttonLabel: e.target.value })
+                    }
                     placeholder="APROVEITAR AGORA"
                     className={field}
                   />
@@ -217,7 +219,9 @@ export function HomeSectionEditor({
                   <label className={label}>Link do botão</label>
                   <input
                     value={s.buttonHref ?? ""}
-                    onChange={(e) => setSlide(i, { buttonHref: e.target.value })}
+                    onChange={(e) =>
+                      setSlide(i, { buttonHref: e.target.value })
+                    }
                     placeholder="/produtos?promo=1"
                     className={field}
                   />
@@ -292,7 +296,9 @@ export function HomeSectionEditor({
                 {cards.length > 1 && (
                   <button
                     type="button"
-                    onClick={() => setCards((cs) => cs.filter((_, k) => k !== i))}
+                    onClick={() =>
+                      setCards((cs) => cs.filter((_, k) => k !== i))
+                    }
                     className="text-xs text-red-600 hover:underline dark:text-red-400"
                   >
                     remover

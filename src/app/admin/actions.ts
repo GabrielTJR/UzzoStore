@@ -10,7 +10,7 @@ import { createClient } from "@/lib/supabase/server";
 import { logAudit } from "@/lib/audit";
 import { isHomeSectionKind, KIND_LABEL } from "@/lib/home-sections";
 import { isOrderStatus } from "@/lib/admin-orders";
-import { sendOrderStatusEmail } from "@/lib/email";
+import { sendOrderStatusEmail, sendBackInStockEmail } from "@/lib/email";
 import type { Json } from "@/lib/supabase/database.types";
 
 const BUCKET = "product-images";
@@ -360,6 +360,11 @@ export async function updateProductAction(
   const featured = formData.get("featured") === "on";
   const measurementModelId =
     String(formData.get("measurementModelId") ?? "").trim() || null;
+  // Peso em gramas para a cotação de frete (vazio = padrão da categoria).
+  const weightRaw = String(formData.get("weightGrams") ?? "").trim();
+  const weightGrams = weightRaw ? parseInt(weightRaw, 10) : null;
+  if (weightRaw && (!Number.isFinite(weightGrams) || weightGrams! <= 0))
+    return { ok: false, error: "Peso inválido (use gramas, ex.: 450)." };
 
   if (!id) return { ok: false, error: "Produto inválido." };
   if (!name) return { ok: false, error: "Informe o nome do produto." };
@@ -380,6 +385,7 @@ export async function updateProductAction(
       active_ecommerce: active,
       price,
       promo_price: promo,
+      weight_grams: weightGrams,
       measurement_model_id: measurementModelId,
     })
     .eq("id", id);
@@ -607,6 +613,52 @@ export async function removeProductColorAction(
 
 // --- Variantes (tamanho + estoque, por cor) ---------------------------------
 
+async function dispatchStockAlerts(
+  admin: ReturnType<typeof createAdminClient>,
+  variantId: string,
+  productId: string,
+): Promise<void> {
+  try {
+    const { data: alerts } = await admin
+      .from("stock_alerts")
+      .select("id, email")
+      .eq("variant_id", variantId)
+      .is("notified_at", null)
+      .limit(50);
+    if (!alerts?.length) return;
+
+    const { data: prod } = await admin
+      .from("products")
+      .select("name, product_content ( slug )")
+      .eq("id", productId)
+      .maybeSingle();
+    const row = prod as unknown as {
+      name: string;
+      product_content: { slug: string }[] | { slug: string } | null;
+    } | null;
+    const content = Array.isArray(row?.product_content)
+      ? row?.product_content[0]
+      : row?.product_content;
+    if (!row?.name || !content?.slug) return;
+
+    for (const a of alerts) {
+      const sent = await sendBackInStockEmail({
+        to: a.email,
+        productName: row.name,
+        productSlug: content.slug,
+      });
+      if (sent)
+        await admin
+          .from("stock_alerts")
+          .update({ notified_at: new Date().toISOString() })
+          .eq("id", a.id);
+    }
+  } catch (err) {
+    // aviso de estoque nunca pode derrubar o salvamento do admin
+    console.error("[avise-me] disparo falhou", err);
+  }
+}
+
 export async function saveVariantAction(
   _prev: ActionResult | null,
   formData: FormData,
@@ -674,6 +726,11 @@ export async function saveVariantAction(
       { variant_id: vId, deposito_id: "loja", qty_available: qty },
       { onConflict: "variant_id,deposito_id" },
     );
+
+  // Estoque voltou: dispara os "avise-me" pendentes desta variante. Teto de 50
+  // por reposição protege a cota do Resend; melhor avisar os 50 primeiros do
+  // que estourar a cota e silenciar os e-mails de pedido pago.
+  if (qty > 0) await dispatchStockAlerts(admin, vId, productId);
 
   await logAudit(actor, {
     action: "variant.save",
@@ -1099,7 +1156,7 @@ export async function updateOrderStatusAction(
   if (status === "ready" || status === "shipped" || status === "delivered") {
     const { data: order } = await admin
       .from("orders")
-      .select("number, customer_id")
+      .select("number, customer_id, tracking_code")
       .eq("id", id)
       .maybeSingle();
     if (order?.customer_id) {
@@ -1118,6 +1175,7 @@ export async function updateOrderStatusAction(
           customerName: profile?.full_name ?? null,
           orderNumber: order.number,
           status,
+          trackingCode: order.tracking_code ?? null,
         });
     }
   }
@@ -1130,6 +1188,128 @@ export async function updateOrderStatusAction(
   });
   revalidatePath("/admin/pedidos");
   revalidatePath("/conta/pedidos");
+}
+
+/** Salva o código de rastreio do pedido (aparece em /conta/pedidos e no
+ * e-mail de "enviado" — salve o rastreio ANTES de avançar para enviado). */
+export async function updateOrderTrackingAction(
+  formData: FormData,
+): Promise<void> {
+  const actor = await getAdminUser();
+  if (!actor) return;
+  if (serviceRoleMissing()) return;
+
+  const id = String(formData.get("orderId") ?? "");
+  const tracking =
+    String(formData.get("tracking") ?? "")
+      .trim()
+      .toUpperCase()
+      .slice(0, 60) || null;
+  if (!id) return;
+
+  const admin = createAdminClient();
+  await admin
+    .from("orders")
+    .update({ tracking_code: tracking, updated_at: new Date().toISOString() })
+    .eq("id", id);
+
+  await logAudit(actor, {
+    action: "order.tracking",
+    entityType: "order",
+    entityId: id,
+    metadata: { tracking },
+  });
+  revalidatePath("/admin/pedidos");
+  revalidatePath("/conta/pedidos");
+}
+
+// --- Cupons ------------------------------------------------------------------
+
+export async function createCouponAction(
+  _prev: ActionResult | null,
+  formData: FormData,
+): Promise<ActionResult> {
+  const actor = await getAdminUser();
+  if (!actor) return { ok: false, error: "Não autorizado." };
+  if (serviceRoleMissing())
+    return { ok: false, error: "Falta SUPABASE_SERVICE_ROLE_KEY no servidor." };
+
+  const code = String(formData.get("code") ?? "")
+    .trim()
+    .toUpperCase()
+    .replace(/[^A-Z0-9-]/g, "")
+    .slice(0, 30);
+  const percent = Number(
+    String(formData.get("percent") ?? "").replace(",", "."),
+  );
+  const minSubtotal =
+    Number(String(formData.get("minSubtotal") ?? "0").replace(",", ".")) || 0;
+  const maxUsesRaw = String(formData.get("maxUses") ?? "").trim();
+  const maxUses = maxUsesRaw ? parseInt(maxUsesRaw, 10) : null;
+  const expiresRaw = String(formData.get("expiresAt") ?? "").trim();
+
+  if (!code) return { ok: false, error: "Informe o código." };
+  if (!Number.isFinite(percent) || percent <= 0 || percent > 90)
+    return { ok: false, error: "Desconto deve ser entre 1% e 90%." };
+  if (maxUsesRaw && (!Number.isFinite(maxUses) || maxUses! <= 0))
+    return { ok: false, error: "Limite de usos inválido." };
+
+  const admin = createAdminClient();
+  const { error } = await admin.from("coupons").insert({
+    code,
+    percent_off: percent,
+    min_subtotal: minSubtotal,
+    max_uses: maxUses,
+    expires_at: expiresRaw
+      ? new Date(`${expiresRaw}T23:59:59`).toISOString()
+      : null,
+  });
+  if (error) return { ok: false, error: "Já existe um cupom com esse código." };
+
+  await logAudit(actor, {
+    action: "coupon.create",
+    entityType: "coupon",
+    entityLabel: code,
+    metadata: { percent, minSubtotal, maxUses },
+  });
+  revalidatePath("/admin/cupons");
+  return { ok: true };
+}
+
+export async function toggleCouponAction(formData: FormData): Promise<void> {
+  const actor = await getAdminUser();
+  if (!actor) return;
+  if (serviceRoleMissing()) return;
+  const code = String(formData.get("code") ?? "");
+  const active = formData.get("active") === "1";
+  if (!code) return;
+
+  const admin = createAdminClient();
+  await admin.from("coupons").update({ active }).eq("code", code);
+  await logAudit(actor, {
+    action: "coupon.toggle",
+    entityType: "coupon",
+    entityLabel: code,
+    metadata: { active },
+  });
+  revalidatePath("/admin/cupons");
+}
+
+export async function deleteCouponAction(formData: FormData): Promise<void> {
+  const actor = await getAdminUser();
+  if (!actor) return;
+  if (serviceRoleMissing()) return;
+  const code = String(formData.get("code") ?? "");
+  if (!code) return;
+
+  const admin = createAdminClient();
+  await admin.from("coupons").delete().eq("code", code);
+  await logAudit(actor, {
+    action: "coupon.delete",
+    entityType: "coupon",
+    entityLabel: code,
+  });
+  revalidatePath("/admin/cupons");
 }
 
 /** Marca todos os pedidos como vistos (tira o destaque de "novo"). */

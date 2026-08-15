@@ -73,6 +73,11 @@ export type AdminOrder = {
   customerPhone: string | null;
   customerCpf: string | null;
   shippingMethod: string | null;
+  shippingService: string | null;
+  shippingCost: number;
+  couponCode: string | null;
+  discount: number;
+  trackingCode: string | null;
   isNew: boolean;
   shippingAddress: {
     label?: string | null;
@@ -95,9 +100,18 @@ type Row = {
   total: number;
   created_at: string;
   shipping_method: string | null;
+  shipping_service: string | null;
+  shipping_cost: number | null;
+  coupon_code: string | null;
+  discount: number | null;
+  tracking_code: string | null;
   seen_at: string | null;
   shipping_address: AdminOrder["shippingAddress"];
-  customers: { full_name: string | null; phone: string | null; cpf: string | null } | null;
+  customers: {
+    full_name: string | null;
+    phone: string | null;
+    cpf: string | null;
+  } | null;
   order_items: {
     product_name: string;
     variant_label: string | null;
@@ -113,6 +127,7 @@ export async function getAdminOrders(limit = 100): Promise<AdminOrder[]> {
     .from("orders")
     .select(
       `id, number, status, channel, total, created_at, shipping_method, seen_at, shipping_address,
+       shipping_service, shipping_cost, coupon_code, discount, tracking_code,
        customers ( full_name, phone, cpf ),
        order_items ( product_name, variant_label, unit_price, qty )`,
     )
@@ -131,6 +146,11 @@ export async function getAdminOrders(limit = 100): Promise<AdminOrder[]> {
     customerPhone: o.customers?.phone ?? null,
     customerCpf: o.customers?.cpf ?? null,
     shippingMethod: o.shipping_method,
+    shippingService: o.shipping_service ?? null,
+    shippingCost: Number(o.shipping_cost ?? 0),
+    couponCode: o.coupon_code ?? null,
+    discount: Number(o.discount ?? 0),
+    trackingCode: o.tracking_code ?? null,
     isNew: o.seen_at === null,
     shippingAddress: o.shipping_address,
     items: (o.order_items ?? []).map((i) => ({

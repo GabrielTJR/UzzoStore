@@ -11,6 +11,8 @@ import {
   infinitepayHandle,
   toCents,
 } from "@/lib/infinitepay";
+import { quoteShipping, pesoDaPeca, shippingConfigured } from "@/lib/shipping";
+import { checkCoupon, consumeCoupon } from "@/lib/coupons";
 
 /**
  * Registra o pedido no banco ao finalizar a compra.
@@ -29,6 +31,26 @@ export type CheckoutResult = {
   ok: boolean;
   error?: string;
   orderNumber?: number;
+  /** Números CONFIRMADOS pelo servidor — a UI exibe estes, não os locais. */
+  totals?: {
+    subtotal: number;
+    discount: number;
+    shippingCost: number;
+    shippingName: string | null;
+    total: number;
+  };
+};
+
+/** Frete/cupom escolhidos na sacola. O preço NÃO vem daqui: o servidor recota
+ * pelo CEP + serviço e recusa se a escolha não existir mais. */
+export type OrderExtras = {
+  couponCode?: string | null;
+  freight?: {
+    cep: string;
+    serviceId: number;
+    /** preço que a tela mostrou — referência anti-surpresa, nunca fonte */
+    expectedPrice?: number;
+  } | null;
 };
 
 type VariantRow = {
@@ -39,6 +61,8 @@ type VariantRow = {
     name: string;
     price: number | null;
     promo_price: number | null;
+    weight_grams: number | null;
+    category_name: string | null;
   } | null;
 };
 
@@ -53,6 +77,11 @@ export type ShippingChoice =
 export async function startOnlinePaymentAction(
   items: CheckoutItem[],
   shipping: ShippingChoice,
+  extras?: {
+    couponCode?: string | null;
+    freightServiceId?: number | null;
+    freightExpectedPrice?: number | null;
+  },
 ): Promise<{
   ok: boolean;
   url?: string;
@@ -98,10 +127,32 @@ export async function startOnlinePaymentAction(
     };
   }
 
-  const order = await createOrderAction(items, "online", {
-    shippingMethod: shipping.method,
-    shippingAddress,
-  });
+  // Frete só faz sentido com entrega; o CEP usado é o do ENDEREÇO validado
+  // acima (nunca um CEP solto vindo do navegador).
+  const freight =
+    shipping.method === "delivery" &&
+    extras?.freightServiceId != null &&
+    shippingAddress?.cep
+      ? {
+          cep: String(shippingAddress.cep),
+          serviceId: extras.freightServiceId,
+          expectedPrice: extras.freightExpectedPrice ?? undefined,
+        }
+      : null;
+  // Com o frete configurado, entrega exige uma opção escolhida — sem isso o
+  // pedido nasceria sem frete e a loja pagaria o envio do próprio bolso.
+  if (shipping.method === "delivery" && shippingConfigured() && !freight)
+    return { ok: false, error: "Escolha uma opção de frete." };
+
+  const order = await createOrderAction(
+    items,
+    "online",
+    {
+      shippingMethod: shipping.method,
+      shippingAddress,
+    },
+    { couponCode: extras?.couponCode ?? null, freight },
+  );
   if (!order.ok || !order.orderNumber)
     return { ok: false, error: order.error ?? "Erro ao criar o pedido." };
 
@@ -113,12 +164,63 @@ export async function startOnlinePaymentAction(
     )
     .eq("orders.number", order.orderNumber);
 
-  const items_ = (rows ?? []).map((r) => ({
-    quantity: r.qty,
-    price: toCents(Number(r.unit_price)),
-    description: [r.product_name, r.variant_label].filter(Boolean).join(" — "),
+  // Cada linha vira UM item com o total da linha (quantity 1): é o único jeito
+  // de aplicar o desconto do cupom com precisão de centavo — desconto por
+  // unidade não fecha a soma, e a conferência do webhook exige que a soma dos
+  // itens seja EXATAMENTE o total do pedido.
+  const totals = order.totals!;
+  const lineCents = (rows ?? []).map((r) => ({
+    cents: toCents(Number(r.unit_price)) * r.qty,
+    description:
+      `${r.qty}× ` +
+      [r.product_name, r.variant_label].filter(Boolean).join(" — "),
   }));
-  if (items_.length === 0) return { ok: false, error: "Pedido vazio." };
+  if (lineCents.length === 0) return { ok: false, error: "Pedido vazio." };
+
+  // Distribui o desconto SEM nunca negativar linha: proporcional com clamp e
+  // a sobra varre as linhas que ainda têm saldo. No fim, um assert garante a
+  // invariante que o webhook confere: soma dos itens === total do pedido.
+  const discountCents = toCents(totals.discount);
+  if (discountCents > 0) {
+    const somaOriginal = lineCents.reduce((s, l) => s + l.cents, 0);
+    let restante = discountCents;
+    for (let i = 0; i < lineCents.length && restante > 0; i++) {
+      const proporcional = Math.floor(
+        (lineCents[i].cents * discountCents) / somaOriginal,
+      );
+      const parte = Math.min(restante, proporcional, lineCents[i].cents);
+      lineCents[i].cents -= parte;
+      restante -= parte;
+    }
+    for (let i = 0; i < lineCents.length && restante > 0; i++) {
+      const parte = Math.min(restante, lineCents[i].cents);
+      lineCents[i].cents -= parte;
+      restante -= parte;
+    }
+  }
+
+  const somaItens =
+    lineCents.reduce((s, l) => s + l.cents, 0) + toCents(totals.shippingCost);
+  if (somaItens !== toCents(totals.total)) {
+    // Melhor abortar do que cobrar diferente do que o pedido registra — a
+    // conferência do webhook usa exatamente orders.total.
+    console.error("[checkout] soma dos itens difere do total", {
+      somaItens,
+      total: totals.total,
+    });
+    return { ok: false, error: "Erro ao montar o pagamento. Tente de novo." };
+  }
+
+  const items_ = lineCents
+    .filter((l) => l.cents > 0)
+    .map((l) => ({ quantity: 1, price: l.cents, description: l.description }));
+  if (totals.shippingCost > 0) {
+    items_.push({
+      quantity: 1,
+      price: toCents(totals.shippingCost),
+      description: `Frete — ${totals.shippingName ?? "envio"}`,
+    });
+  }
 
   const { data: profile } = await admin
     .from("customers")
@@ -251,6 +353,7 @@ export async function createOrderAction(
     shippingMethod: "pickup" | "delivery";
     shippingAddress: Record<string, unknown> | null;
   },
+  extras?: OrderExtras,
 ): Promise<CheckoutResult> {
   const clean = (Array.isArray(items) ? items : [])
     .map((i) => ({
@@ -278,7 +381,9 @@ export async function createOrderAction(
   }
   const { data, error } = await admin
     .from("product_variants")
-    .select("id, size, color, products ( name, price, promo_price )")
+    .select(
+      "id, size, color, products ( name, price, promo_price, weight_grams, category_name )",
+    )
     .in(
       "id",
       clean.map((i) => i.variantId),
@@ -295,6 +400,7 @@ export async function createOrderAction(
     variant_label: string | null;
     unit_price: number;
     qty: number;
+    weight_grams: number;
   }[] = [];
 
   for (const item of clean) {
@@ -313,6 +419,10 @@ export async function createOrderAction(
       variant_label: label,
       unit_price: price,
       qty: item.qty,
+      weight_grams: pesoDaPeca(
+        v.products.weight_grams,
+        v.products.category_name,
+      ),
     });
   }
 
@@ -337,6 +447,71 @@ export async function createOrderAction(
   const subtotal = rows.reduce((s, r) => s + r.unit_price * r.qty, 0);
   const user = await getSessionUser(); // pedido de visitante fica sem cliente
 
+  // Cupom: validado AGORA, contra o subtotal relido — o que a sacola mostrou
+  // é cortesia. Cupom inválido barra o pedido em vez de seguir sem desconto:
+  // cobrar mais do que a tela prometeu é pior do que pedir para tentar de novo.
+  let discount = 0;
+  let couponCode: string | null = null;
+  if (extras?.couponCode) {
+    const c = await checkCoupon(admin, extras.couponCode, subtotal);
+    if (!c.ok) return { ok: false, error: `Cupom: ${c.error}` };
+    discount = c.discount;
+    couponCode = c.code;
+  }
+
+  // Frete: RECOTADO no servidor pelo CEP + serviço escolhido. O preço que veio
+  // da sacola morre aqui — localStorage não decide dinheiro.
+  let shippingCost = 0;
+  let shippingService: string | null = null;
+  if (extras?.freight) {
+    const quote = await quoteShipping({
+      cepDestino: extras.freight.cep,
+      itens: rows.map((r) => ({
+        weightGrams: r.weight_grams,
+        price: r.unit_price,
+        qty: r.qty,
+      })),
+    });
+    if (!quote)
+      return {
+        ok: false,
+        error:
+          "A cotação de frete está fora do ar — tente de novo em instantes.",
+      };
+    const opt = quote.options.find(
+      (o) => o.serviceId === extras.freight!.serviceId,
+    );
+    if (!opt)
+      return {
+        ok: false,
+        error: "O frete mudou — recalcule na sacola antes de finalizar.",
+      };
+    // O preço exibido vem como REFERÊNCIA (nunca como fonte): se a recotação
+    // ficou MAIS CARA que o que a tela prometeu, recusa em vez de cobrar a
+    // diferença em silêncio. Mais barato/igual segue.
+    if (
+      extras.freight.expectedPrice != null &&
+      opt.price > extras.freight.expectedPrice + 0.005
+    )
+      return {
+        ok: false,
+        error: "O frete mudou — recalcule na sacola antes de finalizar.",
+      };
+    shippingCost = opt.price;
+    shippingService = `${opt.name}${opt.company ? ` (${opt.company})` : ""}`;
+  }
+
+  const total = Math.max(0, subtotal - discount + shippingCost);
+
+  // A InfinitePay recusa cobrança abaixo de R$ 1,00 com um 422 GENÉRICO (o
+  // mesmo de handle inválido) — sem esta guarda, um cupom generoso num item
+  // barato criaria pedido cancelado fantasma com erro indiagnosticável.
+  if (channel === "online" && total < 1)
+    return {
+      ok: false,
+      error: "O valor mínimo para pagamento online é R$ 1,00.",
+    };
+
   const { data: order, error: orderErr } = await admin
     .from("orders")
     .insert({
@@ -344,7 +519,11 @@ export async function createOrderAction(
       status: "pending",
       payment_status: "pending",
       subtotal,
-      total: subtotal, // frete é combinado no WhatsApp por enquanto
+      discount,
+      coupon_code: couponCode,
+      shipping_cost: shippingCost,
+      shipping_service: shippingService,
+      total,
       channel,
       shipping_method: shipping?.shippingMethod ?? null,
       shipping_address: (shipping?.shippingAddress ?? null) as never,
@@ -354,9 +533,10 @@ export async function createOrderAction(
   if (orderErr || !order)
     return { ok: false, error: "Não foi possível registrar o pedido." };
 
-  const { error: itemsErr } = await admin
-    .from("order_items")
-    .insert(rows.map((r) => ({ ...r, order_id: order.id })));
+  const { error: itemsErr } = await admin.from("order_items").insert(
+    // o peso serve só para a cotação — não é coluna de order_items
+    rows.map(({ weight_grams: _peso, ...r }) => ({ ...r, order_id: order.id })),
+  );
   if (itemsErr) {
     // Sem itens o pedido é lixo: desfaz para não sujar o histórico/admin.
     await admin.from("orders").delete().eq("id", order.id);
@@ -365,12 +545,24 @@ export async function createOrderAction(
 
   // Alimenta a contagem do freio por IP acima (e deixa rastro em /admin/logs
   // de pedido aberto por visitante sem conta).
+  // WhatsApp: consome o uso na criação (o pedido segue para conversa humana).
+  // ONLINE: quem consome é o confirmPayment, DEPOIS do dinheiro entrar — senão
+  // link recusado/retry queimaria usos de cupom com max_uses sem venda nenhuma.
+  if (couponCode && channel === "whatsapp")
+    await consumeCoupon(admin, couponCode);
+
   await logAudit(null, {
     action: "order.create",
     entityType: "order",
     entityId: order.id,
     entityLabel: `nº ${order.number}`,
-    metadata: { canal: channel, itens: rows.length, total: subtotal },
+    metadata: {
+      canal: channel,
+      itens: rows.length,
+      total,
+      cupom: couponCode,
+      frete: shippingService,
+    },
   });
 
   // Avisa a loja. Pedido pago no site é avisado no confirmPayment (só depois
@@ -389,7 +581,7 @@ export async function createOrderAction(
     }
     await sendNewOrderAdminEmail({
       orderNumber: order.number,
-      total: subtotal,
+      total,
       items: rows.map((r) => ({
         productName: r.product_name,
         variantLabel: r.variant_label,
@@ -403,5 +595,15 @@ export async function createOrderAction(
     });
   }
 
-  return { ok: true, orderNumber: order.number };
+  return {
+    ok: true,
+    orderNumber: order.number,
+    totals: {
+      subtotal,
+      discount,
+      shippingCost,
+      shippingName: shippingService,
+      total,
+    },
+  };
 }

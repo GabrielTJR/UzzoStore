@@ -1,10 +1,7 @@
 "use client";
 
 import { useActionState, useEffect, useRef } from "react";
-import {
-  updateOwnNameAction,
-  changeOwnPasswordAction,
-} from "../auth-actions";
+import { updateOwnNameAction, changeOwnPasswordAction } from "../auth-actions";
 import { useToast } from "@/components/toast";
 import { SubmitButton } from "@/components/submit-button";
 import type { ActionResult } from "../actions";

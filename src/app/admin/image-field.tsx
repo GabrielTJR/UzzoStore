@@ -73,7 +73,9 @@ export function ImageField({
       // cadastrou precisa saber para trocar o arquivo — senão vira egress todo
       // mês, que é exatamente o que derrubou a loja em agosto.
       if (semCompressao.length > 0)
-        setAviso("Enviada sem compressão — troque por um JPG menor se possível.");
+        setAviso(
+          "Enviada sem compressão — troque por um JPG menor se possível.",
+        );
     } catch (err) {
       setError(err instanceof Error ? err.message : "Falha ao enviar.");
     } finally {

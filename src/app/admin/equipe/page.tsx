@@ -58,9 +58,7 @@ export default async function EquipePage() {
         <h1 className="mt-3 font-serif text-3xl font-semibold tracking-tight">
           Equipe
         </h1>
-        <p className="mt-1 text-sm text-muted">
-          Admins com acesso ao painel.
-        </p>
+        <p className="mt-1 text-sm text-muted">Admins com acesso ao painel.</p>
       </header>
 
       {serviceRoleMissing && (
@@ -116,7 +114,10 @@ export default async function EquipePage() {
             ))}
             {admins.length === 0 && !serviceRoleMissing && (
               <tr>
-                <td colSpan={isOwner ? 5 : 4} className="px-4 py-8 text-center text-muted">
+                <td
+                  colSpan={isOwner ? 5 : 4}
+                  className="px-4 py-8 text-center text-muted"
+                >
                   Nenhum admin cadastrado.
                 </td>
               </tr>

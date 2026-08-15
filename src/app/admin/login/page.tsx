@@ -57,12 +57,10 @@ export default function AdminLoginPage() {
       // Navegação COMPLETA: esta requisição já leva o cookie da sessão, então
       // o servidor autoriza o /admin de primeira (elimina a corrida, sem delay).
       window.location.assign("/admin");
-    } 
-    catch (err) {
+    } catch (err) {
       console.error(err);
       setError("Erro inesperado ao fazer login.");
-    } 
-    finally {
+    } finally {
       setLoading(false);
     }
   }
@@ -121,7 +119,9 @@ export default function AdminLoginPage() {
 
       {mode === "email" && (
         <form onSubmit={submitEmail} className="mt-8 space-y-4">
-          <p className="text-sm text-muted">Acesso restrito à equipe Uzzo Store.</p>
+          <p className="text-sm text-muted">
+            Acesso restrito à equipe Uzzo Store.
+          </p>
           <input
             type="email"
             required

@@ -30,6 +30,11 @@ type OrderRow = {
   channel: string;
   shipping_method: string | null;
   shipping_address: Address | null;
+  shipping_service: string | null;
+  shipping_cost: number | null;
+  coupon_code: string | null;
+  discount: number | null;
+  tracking_code: string | null;
   subtotal: number;
   shipping_total: number;
   total: number;
@@ -58,6 +63,7 @@ export default async function PedidoDetalhePage({
     .select(
       `id, number, status, payment_status, channel, shipping_method,
        shipping_address, subtotal, shipping_total, total, created_at,
+       shipping_service, shipping_cost, coupon_code, discount, tracking_code,
        order_items ( product_name, variant_label, unit_price, qty )`,
     )
     .eq("id", id)
@@ -138,14 +144,28 @@ export default async function PedidoDetalhePage({
             <dt className="text-muted">Subtotal</dt>
             <dd>{formatBRL(Number(o.subtotal))}</dd>
           </div>
-          <div className="flex justify-between">
-            <dt className="text-muted">Frete</dt>
-            <dd>
-              {Number(o.shipping_total) > 0
-                ? formatBRL(Number(o.shipping_total))
-                : "a combinar"}
-            </dd>
-          </div>
+          {Number(o.discount ?? 0) > 0 && (
+            <div className="flex justify-between">
+              <dt className="text-muted">Cupom {o.coupon_code}</dt>
+              <dd>−{formatBRL(Number(o.discount))}</dd>
+            </div>
+          )}
+          {(o.shipping_method === "delivery" ||
+            o.shipping_service != null ||
+            Number(o.shipping_cost ?? 0) > 0) && (
+            <div className="flex justify-between">
+              <dt className="text-muted">
+                Frete{o.shipping_service ? ` (${o.shipping_service})` : ""}
+              </dt>
+              <dd>
+                {Number(o.shipping_cost ?? 0) > 0
+                  ? formatBRL(Number(o.shipping_cost))
+                  : o.shipping_service
+                    ? "grátis"
+                    : "a combinar"}
+              </dd>
+            </div>
+          )}
           <div className="flex justify-between font-medium">
             <dt>Total pago</dt>
             <dd>{formatBRL(Number(o.total))}</dd>
@@ -157,6 +177,25 @@ export default async function PedidoDetalhePage({
         <h2 className="mb-3 text-sm font-medium uppercase tracking-[0.15em] text-muted">
           Entrega
         </h2>
+        {o.tracking_code && (
+          <p className="mb-3 rounded-md border border-border px-3 py-2">
+            📦 Rastreio:{" "}
+            {/^[A-Z]{2}\d{9}BR$/.test(o.tracking_code) ? (
+              <a
+                href={`https://rastreamento.correios.com.br/app/index.php?objeto=${encodeURIComponent(o.tracking_code)}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="font-mono font-medium underline underline-offset-4"
+              >
+                {o.tracking_code}
+              </a>
+            ) : (
+              <span className="font-mono font-medium">
+                {o.tracking_code} (acompanhe no site da transportadora)
+              </span>
+            )}
+          </p>
+        )}
         {o.shipping_method === "pickup" && (
           <p>
             <span className="font-medium">Retirada na loja</span>
@@ -182,9 +221,7 @@ export default async function PedidoDetalhePage({
           </p>
         )}
         {!o.shipping_method && (
-          <p className="text-muted">
-            Combinado pelo WhatsApp com a loja.
-          </p>
+          <p className="text-muted">Combinado pelo WhatsApp com a loja.</p>
         )}
       </div>
 

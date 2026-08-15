@@ -37,7 +37,12 @@ export function NewProductForm({
           <label className={label} htmlFor="category">
             Categoria
           </label>
-          <select id="category" name="category" defaultValue="" className={field}>
+          <select
+            id="category"
+            name="category"
+            defaultValue=""
+            className={field}
+          >
             <option value="" disabled>
               Selecione…
             </option>
@@ -143,7 +148,12 @@ export function NewProductForm({
         <label className={label} htmlFor="description">
           Descrição
         </label>
-        <textarea id="description" name="description" rows={3} className={field} />
+        <textarea
+          id="description"
+          name="description"
+          rows={3}
+          className={field}
+        />
       </div>
 
       {state?.error && (

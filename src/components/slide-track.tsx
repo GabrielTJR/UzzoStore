@@ -32,7 +32,10 @@ export function SlideTrack({
           style={{ transform: `translateX(-${index * 100}%)` }}
         >
           {images.map((url, i) => (
-            <div key={`${url}-${i}`} className="relative h-full w-full shrink-0">
+            <div
+              key={`${url}-${i}`}
+              className="relative h-full w-full shrink-0"
+            >
               <Image
                 src={url}
                 alt={images.length > 1 ? `${alt} ${i + 1}` : alt}

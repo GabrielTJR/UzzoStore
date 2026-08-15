@@ -6,6 +6,7 @@ import { useCart } from "@/lib/cart-store";
 import { useCartUi } from "@/lib/cart-ui";
 import { formatBRL } from "@/lib/format";
 import { installmentsFor } from "@/lib/installments";
+import { createStockAlertAction } from "@/app/produtos/[slug]/alert-actions";
 import { SlideTrack } from "@/components/slide-track";
 import { CarouselArrows } from "@/components/carousel-arrows";
 import { AdminProductOverlay } from "@/components/admin-product-overlay";
@@ -148,15 +149,19 @@ export function ProductView({
       : null;
   const parcelas = installmentsFor(price);
 
+  const selectedEsgotado =
+    !!selectedVariant && !variantBuyable(selectedVariant, price);
   const addLabel = added
     ? "Adicionado à sacola ✓"
     : !anyBuyable
       ? "Indisponível"
       : canAdd
         ? "Adicionar à sacola"
-        : hasSizes
-          ? "Selecione um tamanho"
-          : "Selecione uma cor";
+        : selectedEsgotado
+          ? "Esgotado"
+          : hasSizes
+            ? "Selecione um tamanho"
+            : "Selecione uma cor";
 
   return (
     <div className="grid gap-10 md:grid-cols-[minmax(0,22rem)_1fr] md:items-start lg:grid-cols-[minmax(0,26rem)_1fr]">
@@ -296,19 +301,21 @@ export function ProductView({
             <p className="text-sm font-medium">Tamanho</p>
             <div className="mt-3 flex flex-wrap gap-2">
               {sizeOptions.map((v) => {
-                const disabled = !variantBuyable(v, price);
+                const esgotado = !variantBuyable(v, price);
                 const isSelected = v.size === selectedSize;
                 return (
                   <button
                     key={v.id}
                     type="button"
-                    disabled={disabled}
+                    // Esgotado continua CLICÁVEL: selecionar é o caminho para o
+                    // "avise-me quando chegar" — botão desabilitado mataria isso.
                     onClick={() => setSelectedSize(v.size)}
+                    aria-label={`Tamanho ${v.size}${esgotado ? " — esgotado" : ""}`}
                     className={`flex h-10 min-w-10 items-center justify-center rounded-md border px-3 text-sm transition-colors ${
                       isSelected
                         ? "border-foreground bg-foreground text-background"
                         : "border-border hover:border-foreground"
-                    } ${disabled ? "cursor-not-allowed opacity-40 line-through" : ""}`}
+                    } ${esgotado ? "opacity-40 line-through" : ""}`}
                   >
                     {v.size}
                   </button>
@@ -360,6 +367,26 @@ export function ProductView({
           </div>
         )}
 
+        {/* Urgência HONESTA: o número vem do estoque real da variante. */}
+        {canAdd && selectedVariant && selectedVariant.qty <= 3 && (
+          <p className="mt-4 text-sm font-medium text-amber-600 dark:text-amber-500">
+            {selectedVariant.qty === 1
+              ? "Última unidade!"
+              : `Últimas ${selectedVariant.qty} unidades`}
+          </p>
+        )}
+
+        {(selectedEsgotado || !anyBuyable) &&
+          (selectedVariant || !hasSizes ? (
+            <BackInStockForm
+              variantId={selectedVariant?.id ?? color?.variants[0]?.id ?? null}
+            />
+          ) : (
+            <p className="mt-4 text-sm text-muted">
+              Selecione o tamanho esgotado para pedir o aviso de reposição.
+            </p>
+          ))}
+
         <button
           type="button"
           onClick={handleAdd}
@@ -410,5 +437,73 @@ export function ProductView({
         </div>
       </div>
     </div>
+  );
+}
+
+/** "Avise-me quando chegar" — aparece na variante esgotada. O disparo do
+ * e-mail acontece quando o admin repõe o estoque. */
+function BackInStockForm({ variantId }: { variantId: string | null }) {
+  const [email, setEmail] = useState("");
+  const [state, setState] = useState<"idle" | "busy" | "done" | "error">(
+    "idle",
+  );
+  const [msg, setMsg] = useState<string | null>(null);
+  if (!variantId) return null;
+
+  async function submit(e: React.FormEvent) {
+    e.preventDefault();
+    if (state === "busy") return;
+    setState("busy");
+    setMsg(null);
+    try {
+      const res = await createStockAlertAction(variantId as string, email);
+      if (res.ok) {
+        setState("done");
+      } else {
+        setState("error");
+        setMsg(res.error ?? "Não foi possível salvar.");
+      }
+    } catch {
+      setState("error");
+      setMsg("Não foi possível salvar. Tente de novo.");
+    }
+  }
+
+  if (state === "done")
+    return (
+      <p className="mt-4 rounded-md border border-border px-4 py-3 text-sm">
+        Pronto! Você será avisado por e-mail quando este item voltar. 📬
+      </p>
+    );
+
+  return (
+    <form
+      onSubmit={submit}
+      className="mt-4 rounded-md border border-border p-4"
+    >
+      <p className="text-sm font-medium">Avise-me quando chegar</p>
+      <p className="mt-0.5 text-xs text-muted">
+        Deixe seu e-mail e avisamos assim que este tamanho voltar.
+      </p>
+      <div className="mt-3 flex gap-2">
+        <input
+          type="email"
+          required
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          placeholder="seu@email.com"
+          aria-label="E-mail para aviso de estoque"
+          className="h-11 min-w-0 flex-1 rounded-md border border-border bg-transparent px-3 text-sm outline-none focus:border-foreground"
+        />
+        <button
+          type="submit"
+          disabled={state === "busy"}
+          className="inline-flex h-11 shrink-0 items-center justify-center rounded-full border border-border px-4 text-sm font-medium transition-colors hover:border-foreground disabled:opacity-50"
+        >
+          {state === "busy" ? "Salvando…" : "Avisar"}
+        </button>
+      </div>
+      {msg && <p className="mt-2 text-xs text-red-600">{msg}</p>}
+    </form>
   );
 }

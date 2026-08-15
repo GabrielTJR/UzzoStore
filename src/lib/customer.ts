@@ -55,8 +55,16 @@ export const getCustomerProfile = cache(
     if (!data) {
       const fullName =
         (user.user_metadata?.full_name as string | undefined) ?? null;
-      await supabase.from("customers").insert({ id: user.id, full_name: fullName });
-      return { id: user.id, email: user.email ?? null, fullName, cpf: null, phone: null };
+      await supabase
+        .from("customers")
+        .insert({ id: user.id, full_name: fullName });
+      return {
+        id: user.id,
+        email: user.email ?? null,
+        fullName,
+        cpf: null,
+        phone: null,
+      };
     }
 
     return {

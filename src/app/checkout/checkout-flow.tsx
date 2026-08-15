@@ -6,6 +6,11 @@ import { useRouter } from "next/navigation";
 import { useCart, cartSubtotal } from "@/lib/cart-store";
 import { formatBRL } from "@/lib/format";
 import { startOnlinePaymentAction } from "@/app/sacola/actions";
+import {
+  quoteShippingAction,
+  checkCouponAction,
+  type QuoteResult,
+} from "@/app/sacola/shipping-actions";
 import { ProfileForm } from "@/app/conta/account-forms";
 import { AddressForm } from "@/app/conta/enderecos/address-forms";
 import type { CustomerAddress, CustomerProfile } from "@/lib/customer";
@@ -22,6 +27,7 @@ export function CheckoutFlow({
 }) {
   const router = useRouter();
   const items = useCart((s) => s.items);
+  const coupon = useCart((s) => s.coupon);
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
 
@@ -37,14 +43,95 @@ export function CheckoutFlow({
   );
   const [addingAddress, setAddingAddress] = useState(false);
 
+  // Frete: cotado pelo CEP do ENDEREÇO escolhido (não por CEP digitado solto).
+  const [quote, setQuote] = useState<QuoteResult | null>(null);
+  const [quoting, setQuoting] = useState(false);
+  const [freightServiceId, setFreightServiceId] = useState<number | null>(null);
+  const [quoteTry, setQuoteTry] = useState(0);
+
+  // Cupom aplicado na sacola: revalida aqui só para EXIBIR o desconto — quem
+  // decide de verdade é o servidor na hora do pedido.
+  const [couponDiscount, setCouponDiscount] = useState(0);
+
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const selectedAddress = addresses.find((a) => a.id === addressId) ?? null;
+
+  useEffect(() => {
+    let ignore = false;
+    setQuote(null);
+    setFreightServiceId(null);
+    if (method !== "delivery" || !selectedAddress?.cep || items.length === 0)
+      return;
+    setQuoting(true);
+    quoteShippingAction(
+      selectedAddress.cep,
+      items.map((i) => ({ variantId: i.variantId, qty: i.qty })),
+    )
+      .then((res) => {
+        if (ignore) return;
+        setQuote(res);
+        // Pré-seleciona a opção mais barata — um toque a menos no celular.
+        if (res.ok && res.options.length > 0)
+          setFreightServiceId(res.options[0].serviceId);
+      })
+      .catch(() => {
+        if (!ignore) setQuote({ ok: false, error: "Não conseguimos cotar." });
+      })
+      .finally(() => {
+        if (!ignore) setQuoting(false);
+      });
+    return () => {
+      ignore = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [method, addressId, selectedAddress?.cep, items.length, quoteTry]);
+
+  useEffect(() => {
+    let ignore = false;
+    if (!coupon || items.length === 0) {
+      setCouponDiscount(0);
+      return;
+    }
+    checkCouponAction(
+      coupon,
+      items.map((i) => ({ variantId: i.variantId, qty: i.qty })),
+    ).then((res) => {
+      if (!ignore) setCouponDiscount(res.ok ? res.discount : 0);
+    });
+    return () => {
+      ignore = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [coupon, items.length]);
+
   const subtotal = cartSubtotal(items);
+  const freightOption =
+    quote?.ok && freightServiceId != null
+      ? (quote.options.find((o) => o.serviceId === freightServiceId) ?? null)
+      : null;
+  const freightCost = method === "delivery" ? (freightOption?.price ?? 0) : 0;
+  const total = Math.max(0, subtotal - couponDiscount + freightCost);
+
+  // Com a cotação funcionando, entrega exige uma opção de frete; se a cotação
+  // está indisponível (sem token/fora do ar), o pedido segue e o frete é
+  // combinado no WhatsApp — indisponibilidade não pode travar a venda.
+  // Cotação FALHOU com o serviço configurado (não é o caso "sem token"): não
+  // deixamos pagar às cegas — o cliente recota ou finaliza pelo WhatsApp.
+  const quoteFailed = !!quote && !quote.ok && !quote.unavailable;
+  const freightOk =
+    method === "pickup" ||
+    !quote ||
+    (!quote.ok && quote.unavailable === true) ||
+    (quote.ok && freightServiceId != null);
   const canPay =
     profileComplete &&
     items.length > 0 &&
-    (method === "pickup" || (method === "delivery" && !!addressId));
+    (method === "pickup" || (method === "delivery" && !!addressId)) &&
+    !quoting &&
+    !quoteFailed &&
+    freightOk;
 
   async function handlePay() {
     if (!canPay || busy) return;
@@ -56,6 +143,15 @@ export function CheckoutFlow({
         method === "pickup"
           ? { method: "pickup" }
           : { method: "delivery", addressId },
+        {
+          couponCode: coupon,
+          freightServiceId:
+            method === "delivery" && quote?.ok ? freightServiceId : null,
+          freightExpectedPrice:
+            method === "delivery" && quote?.ok
+              ? (freightOption?.price ?? null)
+              : null,
+        },
       );
       if (res.needsLogin) {
         router.push("/entrar?next=%2Fcheckout");
@@ -73,8 +169,7 @@ export function CheckoutFlow({
     }
   }
 
-  if (!mounted)
-    return <p className="mt-8 text-sm text-muted">Carregando…</p>;
+  if (!mounted) return <p className="mt-8 text-sm text-muted">Carregando…</p>;
 
   if (items.length === 0)
     return (
@@ -145,7 +240,7 @@ export function CheckoutFlow({
               className="mt-1 h-4 w-4"
             />
             <span>
-              <span className="font-medium">Retirar na loja</span>
+              <span className="font-medium">Retirar na loja — grátis</span>
               <span className="block text-muted">
                 Rua 3650, nº 3573 — Sala 2, Balneário Camboriú/SC
               </span>
@@ -163,7 +258,7 @@ export function CheckoutFlow({
             <span>
               <span className="font-medium">Entrega</span>
               <span className="block text-muted">
-                O frete é combinado no WhatsApp depois da compra.
+                Calculamos o frete pelo seu endereço.
               </span>
             </span>
           </label>
@@ -194,8 +289,8 @@ export function CheckoutFlow({
                     <span className="block text-muted">
                       {a.street}
                       {a.number ? `, ${a.number}` : ""}
-                      {a.complement ? ` — ${a.complement}` : ""} ·{" "}
-                      {a.city}/{a.state} · CEP {a.cep}
+                      {a.complement ? ` — ${a.complement}` : ""} · {a.city}/
+                      {a.state} · CEP {a.cep}
                     </span>
                   </span>
                 </label>
@@ -232,6 +327,73 @@ export function CheckoutFlow({
                   + Cadastrar novo endereço
                 </button>
               )}
+
+              {/* Opções de frete do endereço escolhido */}
+              {addressId && (
+                <div className="border-t border-border pt-4">
+                  <p className="text-sm font-medium">Frete</p>
+                  {quoting && (
+                    <p className="mt-2 text-sm text-muted">
+                      Calculando opções…
+                    </p>
+                  )}
+                  {quote && !quote.ok && (
+                    <div className="mt-2 space-y-2 text-sm text-muted">
+                      <p>
+                        {quote.unavailable
+                          ? "Cotação online em breve — combinamos o frete pelo WhatsApp depois do pagamento."
+                          : (quote.error ?? "Não conseguimos cotar agora.")}
+                      </p>
+                      {!quote.unavailable && (
+                        <button
+                          type="button"
+                          onClick={() => setQuoteTry((n) => n + 1)}
+                          className="rounded-full border border-border px-4 py-1.5 text-xs font-medium hover:border-foreground"
+                        >
+                          Tentar cotar de novo
+                        </button>
+                      )}
+                    </div>
+                  )}
+                  {quote?.ok && (
+                    <div
+                      className="mt-2 space-y-2"
+                      role="radiogroup"
+                      aria-label="Opções de frete"
+                    >
+                      {quote.options.map((o) => (
+                        <label
+                          key={o.serviceId}
+                          className={`flex cursor-pointer items-center justify-between gap-3 rounded-md border px-3 py-2.5 text-sm transition-colors ${
+                            freightServiceId === o.serviceId
+                              ? "border-foreground"
+                              : "border-border hover:border-foreground"
+                          }`}
+                        >
+                          <span className="flex items-center gap-2">
+                            <input
+                              type="radio"
+                              name="frete"
+                              checked={freightServiceId === o.serviceId}
+                              onChange={() => setFreightServiceId(o.serviceId)}
+                            />
+                            {o.name}
+                            {o.company ? ` · ${o.company}` : ""}
+                            {o.days > 0 && (
+                              <span className="text-xs text-muted">
+                                até {o.days} dias úteis
+                              </span>
+                            )}
+                          </span>
+                          <strong>
+                            {o.free ? "Grátis 🎉" : formatBRL(o.price)}
+                          </strong>
+                        </label>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -252,10 +414,33 @@ export function CheckoutFlow({
               </li>
             ))}
           </ul>
-          <div className="mt-4 flex items-center justify-between border-t border-border pt-4">
-            <span className="text-sm text-muted">Total</span>
-            <span className="text-xl font-medium">{formatBRL(subtotal)}</span>
-          </div>
+
+          <dl className="mt-4 space-y-1 border-t border-border pt-4 text-sm">
+            <div className="flex items-baseline justify-between">
+              <dt className="text-muted">Subtotal</dt>
+              <dd>{formatBRL(subtotal)}</dd>
+            </div>
+            {couponDiscount > 0 && (
+              <div className="flex items-baseline justify-between">
+                <dt className="text-muted">Cupom {coupon}</dt>
+                <dd>−{formatBRL(couponDiscount)}</dd>
+              </div>
+            )}
+            {method === "delivery" && freightOption && (
+              <div className="flex items-baseline justify-between">
+                <dt className="text-muted">Frete ({freightOption.name})</dt>
+                <dd>
+                  {freightOption.price > 0
+                    ? formatBRL(freightOption.price)
+                    : "Grátis"}
+                </dd>
+              </div>
+            )}
+            <div className="flex items-baseline justify-between pt-1">
+              <dt className="text-muted">Total</dt>
+              <dd className="text-xl font-medium">{formatBRL(total)}</dd>
+            </div>
+          </dl>
 
           {error && <p className="mt-3 text-sm text-red-600">{error}</p>}
 

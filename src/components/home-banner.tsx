@@ -118,7 +118,9 @@ export function HomeBanner({ slides }: { slides: BannerSlide[] }) {
             <button
               type="button"
               aria-label="Banner anterior"
-              onClick={() => setI((p) => (p - 1 + slides.length) % slides.length)}
+              onClick={() =>
+                setI((p) => (p - 1 + slides.length) % slides.length)
+              }
               className="absolute left-3 top-1/2 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full border border-white/40 bg-black/30 text-white backdrop-blur transition hover:bg-black/50 active:scale-90"
             >
               ‹

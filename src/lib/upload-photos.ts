@@ -44,7 +44,12 @@ export async function uploadPhotos(
 ): Promise<UploadResult> {
   const recusados: { name: string; motivo: string }[] = [];
   const semCompressao: string[] = [];
-  const vazio: UploadResult = { paths: [], failed: 0, recusados, semCompressao };
+  const vazio: UploadResult = {
+    paths: [],
+    failed: 0,
+    recusados,
+    semCompressao,
+  };
   if (files.length === 0) return vazio;
 
   // Comprime ANTES de pedir as URLs assinadas, por dois motivos: o caminho no

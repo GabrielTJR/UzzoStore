@@ -2,6 +2,7 @@ import "server-only";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { sendOrderPaidEmail, sendNewOrderAdminEmail } from "@/lib/email";
 import { logAudit } from "@/lib/audit";
+import { consumeCoupon } from "@/lib/coupons";
 
 /**
  * Pagamento online via InfinitePay (Checkout Integrado).
@@ -40,7 +41,11 @@ export async function createPaymentLink(params: {
   orderNsu: string;
   redirectUrl: string;
   webhookUrl: string;
-  customer?: { name?: string | null; email?: string | null; phone?: string | null };
+  customer?: {
+    name?: string | null;
+    email?: string | null;
+    phone?: string | null;
+  };
 }): Promise<{ ok: boolean; url?: string; error?: string; detail?: string }> {
   const handle = infinitepayHandle();
   if (!handle) return { ok: false, error: "Pagamento online indisponível." };
@@ -118,7 +123,11 @@ export async function createPaymentLink(params: {
         action: "payment.link_failed",
         entityType: "order",
         entityLabel: `nº ${params.orderNsu}`,
-        metadata: { motivo: "resposta sem URL", resposta: text.slice(0, 500), handle },
+        metadata: {
+          motivo: "resposta sem URL",
+          resposta: text.slice(0, 500),
+          handle,
+        },
       });
       return {
         ok: false,
@@ -201,7 +210,7 @@ export async function confirmPayment(params: {
 
   const { data: order } = await admin
     .from("orders")
-    .select("id, number, total, status")
+    .select("id, number, total, status, coupon_code")
     .eq("number", number)
     .maybeSingle();
   if (!order) return { paid: false, reason: "pedido" };
@@ -234,6 +243,10 @@ export async function confirmPayment(params: {
     })
     .eq("id", order.id);
 
+  // Só agora o cupom do pedido ONLINE conta como usado: o dinheiro entrou.
+  // (A trava de idempotência acima garante que roda uma vez por transação.)
+  if (order.coupon_code) await consumeCoupon(admin, order.coupon_code);
+
   await decreaseStock(order.id, order.number);
   await notifyPaid(order.id, order.number);
   return { paid: true, orderNumber: order.number };
@@ -264,14 +277,16 @@ async function notifyPaid(orderId: string, orderNumber: number): Promise<void> {
     if (!to) return;
 
     const items = (
-      (order as unknown as {
-        order_items: {
-          product_name: string;
-          variant_label: string | null;
-          unit_price: number;
-          qty: number;
-        }[];
-      }).order_items ?? []
+      (
+        order as unknown as {
+          order_items: {
+            product_name: string;
+            variant_label: string | null;
+            unit_price: number;
+            qty: number;
+          }[];
+        }
+      ).order_items ?? []
     ).map((i) => ({
       productName: i.product_name,
       variantLabel: i.variant_label,
@@ -320,7 +335,10 @@ async function notifyPaid(orderId: string, orderNumber: number): Promise<void> {
  * Se faltar saldo, o pagamento JÁ ACONTECEU — não dá para recusar. Então
  * registramos em /admin/logs para a loja resolver com o cliente.
  */
-async function decreaseStock(orderId: string, orderNumber: number): Promise<void> {
+async function decreaseStock(
+  orderId: string,
+  orderNumber: number,
+): Promise<void> {
   const admin = createAdminClient();
   const { data: items } = await admin
     .from("order_items")

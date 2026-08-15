@@ -6,9 +6,11 @@ import { CartButton } from "@/components/cart-button";
 import { CartDrawer } from "@/components/cart-drawer";
 import { WhatsappFab } from "@/components/whatsapp-fab";
 import { ToastProvider } from "@/components/toast";
+import { NewsletterForm } from "@/components/newsletter-form";
 import { getAdminUser } from "@/lib/admin";
 import { getSessionUser } from "@/lib/session";
 import { getHomeSections } from "@/lib/products";
+import { shippingConfigured } from "@/lib/shipping";
 import "./globals.css";
 
 const geistSans = Geist({ variable: "--font-geist-sans", subsets: ["latin"] });
@@ -177,7 +179,7 @@ export default async function RootLayout({
 
         {/* Gaveta da sacola (client, zustand) + WhatsApp flutuante. Montados
             no layout para funcionarem em qualquer página da vitrine. */}
-        <CartDrawer />
+        <CartDrawer shippingEnabled={shippingConfigured()} />
         <WhatsappFab />
 
         <footer className="border-t border-border">
@@ -216,6 +218,21 @@ export default async function RootLayout({
               <p>
                 <Link href="/conta/pedidos" className="hover:text-foreground">
                   Meus pedidos
+                </Link>
+              </p>
+              <p>
+                <Link href="/trocas" className="hover:text-foreground">
+                  Trocas e devoluções
+                </Link>
+              </p>
+              <p>
+                <Link href="/faq" className="hover:text-foreground">
+                  Perguntas frequentes
+                </Link>
+              </p>
+              <p>
+                <Link href="/sobre" className="hover:text-foreground">
+                  Sobre a loja
                 </Link>
               </p>
             </nav>
@@ -265,6 +282,12 @@ export default async function RootLayout({
                 </a>
               </p>
               <p>Envio para todo o Brasil</p>
+              <div className="pt-2">
+                <h3 className="mb-2 font-medium text-foreground">
+                  Fique por dentro
+                </h3>
+                <NewsletterForm />
+              </div>
             </div>
           </div>
 

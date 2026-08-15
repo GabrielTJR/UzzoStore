@@ -77,14 +77,19 @@ export function AddressForm({
   }, [state]);
 
   return (
-    <form action={action} className="space-y-4 rounded-lg border border-border p-5">
-      {address && (
-        <input type="hidden" name="addressId" value={address.id} />
-      )}
+    <form
+      action={action}
+      className="space-y-4 rounded-lg border border-border p-5"
+    >
+      {address && <input type="hidden" name="addressId" value={address.id} />}
       <div className="grid gap-4 sm:grid-cols-3">
         <label className={label}>
           Apelido (casa, trabalho)
-          <input name="label" defaultValue={address?.label ?? ""} className={`${field} mt-1`} />
+          <input
+            name="label"
+            defaultValue={address?.label ?? ""}
+            className={`${field} mt-1`}
+          />
         </label>
         <label className={label}>
           CEP *

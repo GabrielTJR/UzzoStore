@@ -49,6 +49,7 @@ export type AdminProduct = {
   description: string | null;
   price: number | null; // products.price (cheio)
   promoPrice: number | null; // products.promo_price
+  weightGrams: number | null; // gramas, para a cotação de frete
   measurementModelId: string | null;
   colors: AdminProductColor[];
 };
@@ -67,6 +68,7 @@ type ListRow = {
   active_ecommerce: boolean;
   price: number | null;
   promo_price: number | null;
+  weight_grams: number | null;
   categories: { name: string } | null;
   product_content: { slug: string; featured: boolean } | null;
   product_colors: { gallery: unknown }[];
@@ -79,6 +81,7 @@ type DetailRow = {
   active_ecommerce: boolean;
   category_id: string | null;
   price: number | null;
+  weight_grams: number | null;
   promo_price: number | null;
   measurement_model_id: string | null;
   categories: { id: string; name: string } | null;
@@ -119,7 +122,7 @@ export async function getAdminProducts(): Promise<AdminProductListItem[]> {
   const { data, error } = await admin
     .from("products")
     .select(
-      `id, name, active_ecommerce, price, promo_price,
+      `id, name, active_ecommerce, price, promo_price, weight_grams,
        categories ( name ),
        product_content ( slug, featured ),
        product_colors ( gallery )`,
@@ -145,7 +148,9 @@ export async function getAdminProducts(): Promise<AdminProductListItem[]> {
 }
 
 /** Detalhe completo de um produto para edição (inclusive inativo). */
-export async function getAdminProduct(id: string): Promise<AdminProduct | null> {
+export async function getAdminProduct(
+  id: string,
+): Promise<AdminProduct | null> {
   const admin = createAdminClient();
   const { data, error } = await admin
     .from("products")
@@ -198,6 +203,7 @@ export async function getAdminProduct(id: string): Promise<AdminProduct | null> 
     description: row.product_content?.rich_description ?? null,
     price: row.price != null ? Number(row.price) : null,
     promoPrice: row.promo_price != null ? Number(row.promo_price) : null,
+    weightGrams: row.weight_grams ?? null,
     measurementModelId: row.measurement_model_id,
     colors,
   };
@@ -213,7 +219,11 @@ export type AdminCategory = {
 export async function getAdminCategories(): Promise<AdminCategory[]> {
   const admin = createAdminClient();
   const [cats, prods] = await Promise.all([
-    admin.from("categories").select("id, name").eq("kind", "setor").order("name"),
+    admin
+      .from("categories")
+      .select("id, name")
+      .eq("kind", "setor")
+      .order("name"),
     admin.from("products").select("category_id"),
   ]);
   if (cats.error || !cats.data) return [];
@@ -267,9 +277,7 @@ export async function getAdminHomeSections(): Promise<HomeSection[]> {
     .order("sort_order")
     .order("created_at");
   if (error || !data) return [];
-  return data
-    .map((r) => toHomeSection(r))
-    .filter((s): s is HomeSection => !!s);
+  return data.map((r) => toHomeSection(r)).filter((s): s is HomeSection => !!s);
 }
 
 export type MeasurementModelListItem = {
@@ -298,8 +306,7 @@ export async function getMeasurementModelsList(): Promise<
     measurement_model_id: string | null;
   }[]) {
     if (p.measurement_model_id)
-      usage[p.measurement_model_id] =
-        (usage[p.measurement_model_id] ?? 0) + 1;
+      usage[p.measurement_model_id] = (usage[p.measurement_model_id] ?? 0) + 1;
   }
   return models.data.map((m) => ({
     id: m.id,

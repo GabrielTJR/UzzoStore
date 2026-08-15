@@ -29,7 +29,10 @@ export function parseColumns(value: unknown): string[] {
  * Linhas ([{size, values[]}]) a partir do jsonb, alinhando `values` ao número
  * de colunas (preenche/apara) para a tabela ficar sempre retangular.
  */
-export function parseRows(value: unknown, columnCount: number): MeasurementRow[] {
+export function parseRows(
+  value: unknown,
+  columnCount: number,
+): MeasurementRow[] {
   if (!Array.isArray(value)) return [];
   return value.map((r) => {
     const row = (r ?? {}) as { size?: unknown; values?: unknown };
