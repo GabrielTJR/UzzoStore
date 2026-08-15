@@ -3,7 +3,9 @@
 import { useState } from "react";
 import Image from "next/image";
 import { useCart } from "@/lib/cart-store";
+import { useCartUi } from "@/lib/cart-ui";
 import { formatBRL } from "@/lib/format";
+import { installmentsFor } from "@/lib/installments";
 import { SlideTrack } from "@/components/slide-track";
 import { CarouselArrows } from "@/components/carousel-arrows";
 import { AdminProductOverlay } from "@/components/admin-product-overlay";
@@ -63,6 +65,7 @@ export function ProductView({
   isFavorite?: boolean;
 }) {
   const addItem = useCart((s) => s.addItem);
+  const openCart = useCartUi((s) => s.openCart);
 
   // Cor inicial: comprável E com foto — nessa ordem. O card da vitrine abre na
   // 1ª cor COM FOTO (ele não conhece estoque), então preferir "comprável com
@@ -125,15 +128,35 @@ export function ProductView({
         color: color.name,
         size: selectedVariant.size,
         price: price as number,
+        image: color.gallery[0] ?? null,
       },
       qty,
     );
     setQtyText("1");
     setAdded(true);
+    // Abre a GAVETA em vez de só piscar um "✓": o cliente vê o item na sacola
+    // e decide na hora entre continuar e fechar — padrão das lojas modernas,
+    // e no celular evita a dúvida de "será que foi?".
+    openCart();
     window.setTimeout(() => setAdded(false), 2500);
   }
 
   const hasPromo = promoPrice != null && basePrice != null;
+  const off =
+    hasPromo && (basePrice as number) > 0 && price != null
+      ? Math.round((1 - price / (basePrice as number)) * 100)
+      : null;
+  const parcelas = installmentsFor(price);
+
+  const addLabel = added
+    ? "Adicionado à sacola ✓"
+    : !anyBuyable
+      ? "Indisponível"
+      : canAdd
+        ? "Adicionar à sacola"
+        : hasSizes
+          ? "Selecione um tamanho"
+          : "Selecione uma cor";
 
   return (
     <div className="grid gap-10 md:grid-cols-[minmax(0,22rem)_1fr] md:items-start lg:grid-cols-[minmax(0,26rem)_1fr]">
@@ -205,12 +228,25 @@ export function ProductView({
         </div>
 
         {price != null && (
-          <div className="mt-4 flex items-baseline gap-3">
-            <span className="text-2xl">{formatBRL(price)}</span>
-            {hasPromo && (
-              <span className="text-base text-muted line-through">
-                {formatBRL(basePrice as number)}
-              </span>
+          <div className="mt-4">
+            <div className="flex flex-wrap items-baseline gap-3">
+              <span className="text-2xl">{formatBRL(price)}</span>
+              {hasPromo && (
+                <span className="text-base text-muted line-through">
+                  {formatBRL(basePrice as number)}
+                </span>
+              )}
+              {off != null && off >= 5 && (
+                <span className="rounded-full bg-foreground px-2 py-0.5 text-xs font-semibold text-background">
+                  −{off}%
+                </span>
+              )}
+            </div>
+            {parcelas && (
+              <p className="mt-1 text-sm text-muted">
+                ou em até {parcelas.count}x de {formatBRL(parcelas.value)} no
+                cartão
+              </p>
             )}
           </div>
         )}
@@ -328,17 +364,9 @@ export function ProductView({
           type="button"
           onClick={handleAdd}
           disabled={!canAdd}
-          className="mt-8 inline-flex h-12 w-full items-center justify-center rounded-full bg-foreground px-8 text-sm font-medium text-background transition-opacity hover:opacity-90 disabled:opacity-40 sm:w-auto"
+          className="mt-8 hidden h-12 items-center justify-center rounded-full bg-foreground px-8 text-sm font-medium text-background transition-opacity hover:opacity-90 disabled:opacity-40 md:inline-flex"
         >
-          {added
-            ? "Adicionado à sacola ✓"
-            : !anyBuyable
-              ? "Indisponível"
-              : canAdd
-                ? "Adicionar à sacola"
-                : hasSizes
-                  ? "Selecione um tamanho"
-                  : "Selecione uma cor"}
+          {addLabel}
         </button>
 
         {description && (
@@ -351,6 +379,35 @@ export function ProductView({
             </p>
           </div>
         )}
+      </div>
+
+      {/* Barra de compra do celular: STICKY no fim da grade do produto —
+          gruda no rodapé da tela enquanto o produto está em vista e sai de
+          cena junto com ele (não cobre relacionados nem o rodapé do site,
+          que era o problema da versão `fixed`). */}
+      <div className="sticky bottom-0 z-30 -mx-6 border-t border-border bg-background/95 backdrop-blur md:hidden">
+        <div className="flex items-center gap-4 px-5 py-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))]">
+          <div className="min-w-0">
+            {price != null && (
+              <p className="text-base font-medium leading-tight">
+                {formatBRL(price)}
+              </p>
+            )}
+            {parcelas && (
+              <p className="truncate text-[0.7rem] text-muted">
+                até {parcelas.count}x de {formatBRL(parcelas.value)}
+              </p>
+            )}
+          </div>
+          <button
+            type="button"
+            onClick={handleAdd}
+            disabled={!canAdd}
+            className="ml-auto inline-flex h-11 max-w-64 flex-1 items-center justify-center rounded-full bg-foreground px-6 text-sm font-medium text-background transition-opacity hover:opacity-90 disabled:opacity-40"
+          >
+            {addLabel}
+          </button>
+        </div>
       </div>
     </div>
   );

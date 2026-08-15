@@ -3,6 +3,8 @@ import Link from "next/link";
 import Image from "next/image";
 import { Geist, Geist_Mono, Playfair_Display } from "next/font/google";
 import { CartButton } from "@/components/cart-button";
+import { CartDrawer } from "@/components/cart-drawer";
+import { WhatsappFab } from "@/components/whatsapp-fab";
 import { ToastProvider } from "@/components/toast";
 import { getAdminUser } from "@/lib/admin";
 import { getSessionUser } from "@/lib/session";
@@ -10,7 +12,10 @@ import { getHomeSections } from "@/lib/products";
 import "./globals.css";
 
 const geistSans = Geist({ variable: "--font-geist-sans", subsets: ["latin"] });
-const geistMono = Geist_Mono({ variable: "--font-geist-mono", subsets: ["latin"] });
+const geistMono = Geist_Mono({
+  variable: "--font-geist-mono",
+  subsets: ["latin"],
+});
 const playfair = Playfair_Display({
   variable: "--font-playfair",
   subsets: ["latin"],
@@ -115,6 +120,25 @@ export default async function RootLayout({
               >
                 WhatsApp
               </a>
+              <Link
+                href="/produtos"
+                aria-label="Buscar produtos"
+                className="-m-2 inline-flex items-center p-2 text-muted transition-colors hover:text-foreground"
+              >
+                <svg
+                  width="19"
+                  height="19"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.8"
+                  strokeLinecap="round"
+                  aria-hidden
+                >
+                  <circle cx="11" cy="11" r="7" />
+                  <path d="M20 20l-3.5-3.5" />
+                </svg>
+              </Link>
               <CartButton />
             </div>
           </div>
@@ -151,8 +175,13 @@ export default async function RootLayout({
           <ToastProvider>{children}</ToastProvider>
         </main>
 
+        {/* Gaveta da sacola (client, zustand) + WhatsApp flutuante. Montados
+            no layout para funcionarem em qualquer página da vitrine. */}
+        <CartDrawer />
+        <WhatsappFab />
+
         <footer className="border-t border-border">
-          <div className="mx-auto grid max-w-6xl gap-8 px-6 py-12 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="mx-auto grid max-w-6xl gap-8 px-6 py-12 sm:grid-cols-2 lg:grid-cols-5">
             <div className="space-y-3">
               <Logo height={30} />
               <p className="max-w-xs text-sm text-muted">
@@ -160,6 +189,36 @@ export default async function RootLayout({
                 elegância.
               </p>
             </div>
+
+            <nav
+              className="space-y-2 text-sm text-muted"
+              aria-label="Navegação do rodapé"
+            >
+              <h3 className="font-medium text-foreground">Loja</h3>
+              <p>
+                <Link href="/produtos" className="hover:text-foreground">
+                  Todos os produtos
+                </Link>
+              </p>
+              <p>
+                <Link
+                  href="/produtos?promo=1"
+                  className="hover:text-foreground"
+                >
+                  Promoções
+                </Link>
+              </p>
+              <p>
+                <Link href="/conta" className="hover:text-foreground">
+                  Minha conta
+                </Link>
+              </p>
+              <p>
+                <Link href="/conta/pedidos" className="hover:text-foreground">
+                  Meus pedidos
+                </Link>
+              </p>
+            </nav>
 
             <div className="space-y-2 text-sm text-muted">
               <h3 className="font-medium text-foreground">Contato</h3>
@@ -210,8 +269,9 @@ export default async function RootLayout({
           </div>
 
           <div className="border-t border-border">
-            <div className="mx-auto max-w-6xl px-6 py-4 text-xs text-muted">
-              © 2026 Uzzo Store. Todos os direitos reservados.
+            <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-2 px-6 py-4 text-xs text-muted">
+              <span>© 2026 Uzzo Store. Todos os direitos reservados.</span>
+              <span>Pix · Cartão em até 3x</span>
             </div>
           </div>
         </footer>

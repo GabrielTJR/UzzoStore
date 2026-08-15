@@ -260,6 +260,98 @@ export default async function ProdutosPage({
   const pageLink =
     "flex h-9 min-w-9 items-center justify-center rounded-md border px-3 text-sm transition-colors";
 
+  const chip =
+    "inline-flex min-h-9 items-center gap-1.5 rounded-full border border-border py-1.5 pl-3 pr-2 text-xs transition-colors hover:border-foreground";
+  const chipX = (
+    <span aria-hidden className="text-muted">
+      ✕
+    </span>
+  );
+
+  // Chips dos filtros ativos: mostram o que está aplicado e removem com um
+  // toque — no celular os filtros ficam recolhidos, então sem os chips o
+  // cliente não vê o que está filtrando.
+  const activeChips = (
+    <div className="mb-5 flex flex-wrap items-center gap-2">
+      {busca && (
+        <Link
+          scroll={false}
+          href={buildHref(
+            selectedCatSlugs,
+            selectedColors,
+            onlyPromo,
+            1,
+            "",
+            ordem,
+          )}
+          className={chip}
+        >
+          “{busca}”{chipX}
+        </Link>
+      )}
+      {onlyPromo && (
+        <Link
+          scroll={false}
+          href={buildHref(
+            selectedCatSlugs,
+            selectedColors,
+            false,
+            1,
+            busca,
+            ordem,
+          )}
+          className={chip}
+        >
+          Em promoção{chipX}
+        </Link>
+      )}
+      {selectedCatSlugs.map((s) => (
+        <Link
+          key={s}
+          scroll={false}
+          href={buildHref(
+            selectedCatSlugs.filter((x) => x !== s),
+            selectedColors,
+            onlyPromo,
+            1,
+            busca,
+            ordem,
+          )}
+          className={chip}
+        >
+          {bySlug.get(s)?.name ?? s}
+          {chipX}
+        </Link>
+      ))}
+      {selectedColors.map((c) => (
+        <Link
+          key={c}
+          scroll={false}
+          href={buildHref(
+            selectedCatSlugs,
+            selectedColors.filter((x) => x.toLowerCase() !== c.toLowerCase()),
+            onlyPromo,
+            1,
+            busca,
+            ordem,
+          )}
+          className={chip}
+        >
+          {displayColor(c)}
+          {chipX}
+        </Link>
+      ))}
+      <Link
+        scroll={false}
+        href="/produtos"
+        className="text-xs text-muted underline underline-offset-4 hover:text-foreground"
+      >
+        limpar tudo
+      </Link>
+    </div>
+  );
+  const hasActiveChips = activeCount > 0 || !!busca;
+
   return (
     <section className="mx-auto max-w-6xl px-6 pb-12 pt-6">
       <header className="mb-6">
@@ -284,7 +376,7 @@ export default async function ProdutosPage({
 
         <div>
           {/* Busca à esquerda, ordenação à direita — junto dos produtos. */}
-          <div className="mb-6 flex flex-wrap items-center gap-3">
+          <div className="mb-4 flex flex-wrap items-center gap-3">
             <div className="min-w-[12rem] flex-1">
               <Suspense fallback={null}>
                 <SearchBox />
@@ -294,6 +386,8 @@ export default async function ProdutosPage({
               <SortSelect value={ordem} />
             </Suspense>
           </div>
+
+          {hasActiveChips && activeChips}
 
           {products.length === 0 ? (
             <p className="text-muted">Nenhuma peça com esses filtros.</p>

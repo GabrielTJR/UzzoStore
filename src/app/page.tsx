@@ -3,6 +3,7 @@ import Image from "next/image";
 import { getProducts, getHomeSections, getCategories } from "@/lib/products";
 import { ProductCard } from "@/components/product-card";
 import { HomeBanner } from "@/components/home-banner";
+import { BenefitsStrip } from "@/components/benefits-strip";
 import { ProductPlaceholder } from "@/components/product-placeholder";
 import { getAdminUser } from "@/lib/admin";
 import type { HomeSection } from "@/lib/home-sections";
@@ -64,9 +65,14 @@ function ProductRow({
           Ver todos
         </Link>
       </div>
-      <div className="grid grid-cols-2 gap-x-6 gap-y-10 sm:grid-cols-3 lg:grid-cols-4">
+      {/* Celular: fileira que desliza com o dedo (snap) — padrão das lojas
+          modernas e mostra mais produtos sem empilhar uma página quilométrica.
+          Desktop: grade. */}
+      <div className="scrollbar-hide -mx-6 flex snap-x snap-mandatory gap-4 overflow-x-auto px-6 sm:mx-0 sm:grid sm:snap-none sm:grid-cols-3 sm:gap-x-6 sm:gap-y-10 sm:px-0 lg:grid-cols-4">
         {products.map((p) => (
-          <ProductCard key={p.slug} product={p} isAdmin={isAdmin} />
+          <div key={p.slug} className="min-w-[62%] snap-start sm:min-w-0">
+            <ProductCard product={p} isAdmin={isAdmin} />
+          </div>
         ))}
       </div>
     </section>
@@ -93,7 +99,9 @@ export default async function Home() {
         featured: src === "destaques" ? true : undefined,
         onlyPromo: src === "promo" ? true : undefined,
         categoryIds:
-          src === "categoria" && s.data.categoryId ? [s.data.categoryId] : undefined,
+          src === "categoria" && s.data.categoryId
+            ? [s.data.categoryId]
+            : undefined,
         page: 1,
         perPage: limit,
       });
@@ -109,9 +117,17 @@ export default async function Home() {
   // Sem decoração configurada: mantém a home antiga (hero + destaques).
   let fallbackFeatured: ProductListItem[] = [];
   if (!hasVitrine) {
-    const { items } = await getProducts({ featured: true, page: 1, perPage: 8 });
+    const { items } = await getProducts({
+      featured: true,
+      page: 1,
+      perPage: 8,
+    });
     fallbackFeatured = items;
   }
+
+  // A faixa de benefícios entra logo depois do 1º banner (ou do hero padrão):
+  // é o "por que comprar aqui" na primeira dobra, como nas lojas grandes.
+  const firstBannerId = sections.find((s) => s.kind === "banner")?.id;
 
   function renderSection(s: HomeSection, index: number) {
     if (s.kind === "banner") {
@@ -121,6 +137,11 @@ export default async function Home() {
       return (
         <div key={s.id} className={afterBanner ? "mt-8 sm:mt-10" : undefined}>
           <HomeBanner slides={s.data.slides ?? []} />
+          {s.id === firstBannerId && (
+            <div className="mt-8 sm:mt-10">
+              <BenefitsStrip />
+            </div>
+          )}
         </div>
       );
     }
@@ -209,7 +230,12 @@ export default async function Home() {
           Uzzo Store — moda masculina em Balneário Camboriú
         </h1>
       )}
-      {!hasBanner && <DefaultHero />}
+      {!hasBanner && (
+        <>
+          <DefaultHero />
+          <BenefitsStrip />
+        </>
+      )}
       {sections.map(renderSection)}
       {!hasVitrine && (
         <ProductRow

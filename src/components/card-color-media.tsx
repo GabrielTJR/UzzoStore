@@ -6,7 +6,13 @@ import { SlideTrack } from "./slide-track";
 import { CarouselArrows } from "./carousel-arrows";
 import type { ProductListItem } from "@/lib/products";
 
-export function CardColorMedia({ product }: { product: ProductListItem }) {
+export function CardColorMedia({
+  product,
+  badge,
+}: {
+  product: ProductListItem;
+  badge?: React.ReactNode;
+}) {
   const colors = product.colors;
   // Começa na 1ª cor que tem foto (para o anel bater com a imagem exibida).
   const firstWithImage = colors.findIndex((c) => c.images.length > 0);
@@ -14,35 +20,50 @@ export function CardColorMedia({ product }: { product: ProductListItem }) {
     firstWithImage < 0 ? 0 : firstWithImage,
   );
   const [photoIdx, setPhotoIdx] = useState(0);
+  // Espiada no hover (desktop): mostra a 2ª foto sem clique — a foto já veio
+  // no payload do card, então não custa nada. O peek DESLIGA no primeiro uso
+  // das setas (`navigated`): sem isso ele viraria um índice paralelo e o
+  // clique nas setas não mudaria a foto exibida (as setas ficariam "mortas"
+  // numa galeria de 2 fotos). As setas partem do índice EXIBIDO (`shownIdx`),
+  // senão o primeiro clique só "confirmaria" a foto que o peek já mostrava.
+  const [peek, setPeek] = useState(false);
+  const [navigated, setNavigated] = useState(false);
 
   const active = colors[colorIdx];
   const gallery = active?.images ?? [];
   const multi = gallery.length > 1;
+  const shownIdx = peek && multi && !navigated && photoIdx === 0 ? 1 : photoIdx;
 
   function selectColor(i: number) {
     setColorIdx(i);
     setPhotoIdx(0);
+    setNavigated(false);
+  }
+
+  function step(delta: number) {
+    setNavigated(true);
+    setPhotoIdx((shownIdx + delta + gallery.length) % gallery.length);
   }
 
   return (
     <>
-      <div className="relative">
+      <div
+        className="relative"
+        onMouseEnter={() => setPeek(true)}
+        onMouseLeave={() => setPeek(false)}
+      >
         <Link href={`/produtos/${product.slug}`} className="block">
           <SlideTrack
             key={colorIdx}
             images={gallery}
-            index={photoIdx}
+            index={shownIdx}
             alt={active ? `${product.name} — ${active.name}` : product.name}
             sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw"
           />
         </Link>
+        {badge}
         {multi && (
-          <CarouselArrows
-            onPrev={() =>
-              setPhotoIdx((p) => (p - 1 + gallery.length) % gallery.length)
-            }
-            onNext={() => setPhotoIdx((p) => (p + 1) % gallery.length)}
-          />
+          <CarouselArrows onPrev={() => step(-1)} onNext={() => step(1)} />
         )}
       </div>
 

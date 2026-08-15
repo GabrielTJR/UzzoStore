@@ -3,6 +3,9 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { getProductBySlug } from "@/lib/products";
 import { ProductView } from "@/components/product-view";
+import { RelatedProducts } from "@/components/related-products";
+import { BenefitsStrip } from "@/components/benefits-strip";
+import { categorySlug } from "@/lib/categories";
 import { getAdminUser } from "@/lib/admin";
 import { getSessionUser } from "@/lib/session";
 import { getWishlistIds } from "@/lib/wishlist";
@@ -61,35 +64,56 @@ export default async function ProdutoPage({
   const isAdmin = !!adminUser;
 
   return (
-    <article className="mx-auto max-w-6xl px-6 py-12">
-      <nav className="mb-8 text-sm text-muted">
-        <Link href="/produtos" className="hover:text-foreground">
-          Produtos
-        </Link>
-        {product.category && (
-          <>
-            {" · "}
-            <span>{product.category}</span>
-          </>
-        )}
-      </nav>
+    <>
+      <article className="mx-auto max-w-6xl px-6 py-8 md:py-12">
+        <nav
+          aria-label="Você está em"
+          className="mb-6 text-sm text-muted md:mb-8"
+        >
+          <Link href="/produtos" className="hover:text-foreground">
+            Produtos
+          </Link>
+          {product.category && (
+            <>
+              {" · "}
+              {/* Categoria clicável: leva ao catálogo já filtrado. */}
+              <Link
+                href={`/produtos?categorias=${categorySlug(product.category)}`}
+                className="hover:text-foreground"
+              >
+                {product.category}
+              </Link>
+            </>
+          )}
+        </nav>
 
-      <ProductView
-        productId={product.id}
-        slug={product.slug}
-        name={product.name}
-        category={product.category}
-        description={product.description}
-        price={product.price}
-        basePrice={product.basePrice}
-        promoPrice={product.promoPrice}
-        featured={product.featured}
-        isAdmin={isAdmin}
-        colors={product.colors}
-        measurement={product.measurement}
-        isLogged={!!sessionUser}
-        isFavorite={favorites.has(product.id)}
-      />
-    </article>
+        <ProductView
+          productId={product.id}
+          slug={product.slug}
+          name={product.name}
+          category={product.category}
+          description={product.description}
+          price={product.price}
+          basePrice={product.basePrice}
+          promoPrice={product.promoPrice}
+          featured={product.featured}
+          isAdmin={isAdmin}
+          colors={product.colors}
+          measurement={product.measurement}
+          isLogged={!!sessionUser}
+          isFavorite={favorites.has(product.id)}
+        />
+
+        <RelatedProducts
+          categoryName={product.category}
+          excludeId={product.id}
+          backTo={`/produtos/${product.slug}`}
+          isAdmin={isAdmin}
+          isLogged={!!sessionUser}
+          favorites={favorites}
+        />
+      </article>
+      <BenefitsStrip />
+    </>
   );
 }

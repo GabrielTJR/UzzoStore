@@ -9,6 +9,9 @@ export type CartItem = {
   size: string | null;
   price: number;
   qty: number;
+  /** 1ª foto da cor no momento do add — miniatura da gaveta/sacola. Opcional:
+   * sacolas persistidas antes deste campo não o têm. */
+  image?: string | null;
 };
 
 type CartState = {

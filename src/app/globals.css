@@ -55,3 +55,39 @@ body {
 .animate-toast-in {
   animation: toast-in 0.2s ease-out;
 }
+
+/* Gaveta da sacola (entra da direita) + fundo escurecido. */
+@keyframes drawer-in {
+  from {
+    transform: translateX(100%);
+  }
+  to {
+    transform: translateX(0);
+  }
+}
+
+.animate-drawer-in {
+  animation: drawer-in 0.25s ease-out;
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.animate-fade-in {
+  animation: fade-in 0.2s ease-out;
+}
+
+/* Faixas com deslize horizontal no celular: a barra de rolagem visível
+   quebraria o visual de "carrossel". O conteúdo continua rolável. */
+.scrollbar-hide {
+  scrollbar-width: none;
+}
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
