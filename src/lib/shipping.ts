@@ -21,7 +21,7 @@ import {
  * longe de estourar.
  */
 
-const CEP_LOJA = "88330-000"; // Balneário Camboriú — origem das postagens
+const CEP_LOJA = "88330-218"; // Rua 3650, Balneário Camboriú — origem das postagens
 
 export type ShippingOption = {
   /** id do serviço no Melhor Envio (1=PAC, 2=SEDEX, 3=.Package, 4=.Com…) */
