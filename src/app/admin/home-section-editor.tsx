@@ -172,7 +172,7 @@ export function HomeSectionEditor({
 
               <ImageField
                 label="Imagem (desktop)"
-                hint="Horizontal, ideal 1920×820. É a que aparece no computador."
+                hint="Horizontal, ideal 1920×1080. É a que aparece no computador."
                 value={s.imageDesktop}
                 onChange={(v) => setSlide(i, { imageDesktop: v })}
                 onBusyChange={trackUpload}
