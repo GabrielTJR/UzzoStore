@@ -36,7 +36,7 @@ export function HomeBanner({ slides }: { slides: BannerSlide[] }) {
 
   return (
     <section className="relative">
-      <div className="relative aspect-[4/5] w-full overflow-hidden bg-zinc-200 dark:bg-zinc-800 sm:aspect-[21/9]">
+      <div className="relative aspect-[4/5] w-full overflow-hidden bg-zinc-200 dark:bg-zinc-800 sm:aspect-[16/9]">
         {/* Todos os slides ficam montados e trocam por opacidade: remontar a
             <Image> a cada avanço deixava o banner branco enquanto carregava. */}
         {slides.map((sl, k) => {
