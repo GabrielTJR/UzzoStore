@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import Image from "next/image";
 import { Geist, Geist_Mono, Playfair_Display } from "next/font/google";
+import { Analytics } from "@vercel/analytics/next";
 import { CartButton } from "@/components/cart-button";
 import { CartDrawer } from "@/components/cart-drawer";
 import { WhatsappFab } from "@/components/whatsapp-fab";
@@ -298,6 +299,7 @@ export default async function RootLayout({
             </div>
           </div>
         </footer>
+        <Analytics />
       </body>
     </html>
   );
