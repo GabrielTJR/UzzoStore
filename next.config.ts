@@ -24,6 +24,28 @@ const nextConfig: NextConfig = {
     // Só WebP: com AVIF+WebP a Vercel guarda (e busca) duas versões de cada.
     formats: ["image/webp"],
   },
+  /**
+   * Seis produtos reais nasceram editando as linhas de SEED e herdaram o slug
+   * do produto fictício — uma calça morava em /camiseta-tech-dry-preta. Os
+   * slugs foram corrigidos no banco; estes redirecionamentos existem porque a
+   * loja divulga link de produto em WhatsApp e Instagram (é por isso que a
+   * página tem openGraph), e link compartilhado não volta atrás. 301 para o
+   * Google entender que é mudança de endereço, não conteúdo novo.
+   */
+  async redirects() {
+    return [
+      ["camiseta-tech-dry-preta", "calca-premium-poliamida"],
+      ["camiseta-basica-off-white", "calca-tech-elastico"],
+      ["camisa-slim-de-linho", "camiseta-resistente-a-agua"],
+      ["camisa-social-preta", "camisa-social-ultra-tech"],
+      ["calca-de-alfaiataria", "bermuda-zara-premium"],
+      ["moletom-essential", "calca-zara-alfaiataria"],
+    ].map(([de, para]) => ({
+      source: `/produtos/${de}`,
+      destination: `/produtos/${para}`,
+      permanent: true,
+    }));
+  },
 };
 
 export default nextConfig;
