@@ -268,7 +268,7 @@ export async function sendOrderStatusEmail(params: {
   to: string;
   customerName: string | null;
   orderNumber: number;
-  status: "ready" | "shipped" | "delivered";
+  status: "ready" | "shipped" | "done";
   /** Código de rastreio — vira link no e-mail de "enviado". */
   trackingCode?: string | null;
 }): Promise<boolean> {
@@ -293,7 +293,7 @@ export async function sendOrderStatusEmail(params: {
             )}</strong> — acompanhe no site da transportadora. Qualquer dúvida, é só chamar no WhatsApp.`
         : "Seu pedido já está a caminho. Qualquer dúvida sobre a entrega, é só chamar no WhatsApp.",
     },
-    delivered: {
+    done: {
       subject: `Pedido nº ${params.orderNumber} concluído`,
       title: "Pedido concluído ✅",
       body: "Esperamos que goste das peças! Se precisar de troca ou tiver qualquer dúvida, fale com a gente no WhatsApp.",

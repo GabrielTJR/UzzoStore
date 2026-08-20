@@ -2,57 +2,121 @@ import "server-only";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 /**
- * Situações do pedido. `orders.status` é texto livre no banco, então a
- * verdade do fluxo está aqui.
+ * O pedido anda em DOIS EIXOS INDEPENDENTES: pagamento e atendimento.
  *
- * O caminho depende da forma de entrega:
- *   retirada: aguardando → pago → pronto para retirada → concluído
- *   entrega:  aguardando → pago → enviado            → concluído
- * `cancelado` é possível enquanto não estiver concluído.
+ * Misturar os dois numa trilha linear só foi o que produziu, em produção,
+ * pedidos "pagos" sem dinheiro nenhum ter entrado (nº 1007 e 1008): o botão de
+ * avançar empurrava o pedido inteiro e o `payment_status` ficava para trás.
+ * Agora cada eixo tem domínio fechado no banco (migração 0016) e regra própria
+ * de quem pode escrever — a contradição fica impossível por construção, não por
+ * disciplina de quem clica.
  */
-export const ORDER_STATUS = {
+
+/** Eixo do dinheiro. */
+export const PAYMENT_STATUS = {
   pending: "Aguardando pagamento",
   paid: "Pago",
-  ready: "Pronto para retirada",
-  shipped: "Enviado",
-  delivered: "Concluído",
+  expired: "Expirado",
+  refunded: "Estornado",
   canceled: "Cancelado",
 } as const;
 
-export type OrderStatus = keyof typeof ORDER_STATUS;
+export type PaymentStatus = keyof typeof PAYMENT_STATUS;
 
-export function isOrderStatus(v: unknown): v is OrderStatus {
-  return typeof v === "string" && v in ORDER_STATUS;
+export function isPaymentStatus(v: unknown): v is PaymentStatus {
+  return typeof v === "string" && v in PAYMENT_STATUS;
 }
 
-/** Etapas visíveis do pedido, na ordem, conforme retirada ou entrega. */
-export function orderSteps(shippingMethod: string | null): OrderStatus[] {
-  const middle: OrderStatus = shippingMethod === "pickup" ? "ready" : "shipped";
-  return ["pending", "paid", middle, "delivered"];
+/** Eixo do trabalho físico da loja. */
+export const FULFILLMENT_STATUS = {
+  pending: "Aguardando",
+  preparing: "Separando",
+  ready: "Pronto para retirada",
+  shipped: "Enviado",
+  done: "Concluído",
+  canceled: "Cancelado",
+} as const;
+
+export type FulfillmentStatus = keyof typeof FULFILLMENT_STATUS;
+
+export function isFulfillmentStatus(v: unknown): v is FulfillmentStatus {
+  return typeof v === "string" && v in FULFILLMENT_STATUS;
 }
 
-/** Próxima etapa natural (null quando terminou ou foi cancelado). */
-export function nextOrderStatus(
-  status: string,
+/** Etapas do atendimento, conforme retirada ou entrega. */
+export function fulfillmentSteps(
   shippingMethod: string | null,
-): OrderStatus | null {
-  if (status === "canceled" || status === "delivered") return null;
-  const steps = orderSteps(shippingMethod);
-  const i = steps.indexOf(status as OrderStatus);
-  if (i === -1) return "paid"; // situação antiga/desconhecida: segue para paga
+): FulfillmentStatus[] {
+  const middle: FulfillmentStatus =
+    shippingMethod === "pickup" ? "ready" : "shipped";
+  return ["pending", "preparing", middle, "done"];
+}
+
+/** Próxima etapa natural do atendimento (null quando terminou/cancelou). */
+export function nextFulfillmentStatus(
+  current: string,
+  shippingMethod: string | null,
+): FulfillmentStatus | null {
+  if (current === "canceled" || current === "done") return null;
+  const steps = fulfillmentSteps(shippingMethod);
+  const i = steps.indexOf(current as FulfillmentStatus);
+  if (i === -1) return "preparing";
   return steps[i + 1] ?? null;
 }
 
-/** Rótulo do botão que avança o pedido. */
-export function nextStatusLabel(next: OrderStatus): string {
+/** Rótulo do botão que avança o atendimento. */
+export function fulfillmentLabel(next: FulfillmentStatus): string {
   return {
     pending: "Voltar para aguardando",
-    paid: "Marcar como pago",
+    preparing: "Marcar como separando",
     ready: "Marcar como pronto p/ retirada",
     shipped: "Marcar como enviado",
-    delivered: "Marcar como concluído",
+    done: "Marcar como concluído",
     canceled: "Cancelar",
   }[next];
+}
+
+/**
+ * O eixo físico só anda com o dinheiro dentro. É ESTA trava que impede o estado
+ * impossível de antes — separar peça de pedido não pago é prejuízo esperando
+ * acontecer.
+ */
+export function podeAvancarAtendimento(paymentStatus: string): boolean {
+  return paymentStatus === "paid";
+}
+
+/**
+ * Marcar pagamento na mão só faz sentido no WhatsApp, onde o dinheiro entra
+ * fora do sistema (PIX na maquininha, transferência, dinheiro vivo). No online
+ * quem decide é o `confirmPayment`, com `payment_check` e conferência de valor:
+ * um botão manual ali seria uma porta para marcar como pago o que não foi.
+ */
+export function aceitaPagamentoManual(channel: string): boolean {
+  return channel === "whatsapp";
+}
+
+/**
+ * O cliente não quer dois eixos — quer saber onde está o pedido dele. Colapsa
+ * os dois numa frase só: o pagamento manda enquanto não entrou, o atendimento
+ * manda depois.
+ */
+export function situacaoCliente(
+  paymentStatus: string,
+  fulfillmentStatus: string,
+): string {
+  if (fulfillmentStatus === "canceled" || paymentStatus === "canceled")
+    return "Cancelado";
+  if (paymentStatus === "expired") return "Expirado por falta de pagamento";
+  if (paymentStatus === "refunded") return "Estornado";
+  if (paymentStatus !== "paid") return "Aguardando pagamento";
+  return {
+    pending: "Pagamento confirmado",
+    preparing: "Separando seu pedido",
+    ready: "Pronto para retirada",
+    shipped: "Enviado",
+    done: "Concluído",
+    canceled: "Cancelado",
+  }[fulfillmentStatus as FulfillmentStatus] ?? "Pagamento confirmado";
 }
 
 export type AdminOrderItem = {
@@ -65,7 +129,9 @@ export type AdminOrderItem = {
 export type AdminOrder = {
   id: string;
   number: number;
-  status: string;
+  paymentStatus: string;
+  fulfillmentStatus: string;
+  expiresAt: string | null;
   channel: string;
   total: number;
   createdAt: string;
@@ -95,7 +161,9 @@ export type AdminOrder = {
 type Row = {
   id: string;
   number: number;
-  status: string;
+  payment_status: string;
+  fulfillment_status: string;
+  expires_at: string | null;
   channel: string;
   total: number;
   created_at: string;
@@ -126,7 +194,8 @@ export async function getAdminOrders(limit = 100): Promise<AdminOrder[]> {
   const { data, error } = await admin
     .from("orders")
     .select(
-      `id, number, status, channel, total, created_at, shipping_method, seen_at, shipping_address,
+      `id, number, payment_status, fulfillment_status, expires_at, channel, total, created_at,
+       shipping_method, seen_at, shipping_address,
        shipping_service, shipping_cost, coupon_code, discount, tracking_code,
        customers ( full_name, phone, cpf ),
        order_items ( product_name, variant_label, unit_price, qty )`,
@@ -138,7 +207,9 @@ export async function getAdminOrders(limit = 100): Promise<AdminOrder[]> {
   return (data as unknown as Row[]).map((o) => ({
     id: o.id,
     number: o.number,
-    status: o.status,
+    paymentStatus: o.payment_status,
+    fulfillmentStatus: o.fulfillment_status,
+    expiresAt: o.expires_at,
     channel: o.channel,
     total: Number(o.total),
     createdAt: o.created_at,

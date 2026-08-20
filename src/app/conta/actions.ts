@@ -154,17 +154,24 @@ export async function cancelOrderAction(formData: FormData): Promise<void> {
   const admin = createAdminClient();
   const { data: order } = await admin
     .from("orders")
-    .select("id, customer_id, status")
+    .select("id, customer_id, payment_status, fulfillment_status")
     .eq("id", id)
     .maybeSingle();
 
   if (!order) return;
   if (order.customer_id !== user.id) return; // pedido de outra pessoa
-  if (order.status !== "pending") return; // já pago/enviado: não cancela
+  // Só antes de o dinheiro entrar. Depois de pago quem resolve é a loja —
+  // cancelar sozinho deixaria pedido pago como cancelado, sem estorno.
+  if (order.payment_status !== "pending") return;
+  if (order.fulfillment_status === "canceled") return;
 
   await admin
     .from("orders")
-    .update({ status: "canceled", updated_at: new Date().toISOString() })
+    .update({
+      payment_status: "canceled",
+      fulfillment_status: "canceled",
+      updated_at: new Date().toISOString(),
+    })
     .eq("id", id);
 
   revalidatePath("/conta/pedidos");

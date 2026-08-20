@@ -3,14 +3,20 @@ import type { Metadata } from "next";
 import { requireAdmin } from "@/lib/admin";
 import {
   getAdminOrders,
-  ORDER_STATUS,
-  orderSteps,
-  nextOrderStatus,
-  nextStatusLabel,
+  PAYMENT_STATUS,
+  FULFILLMENT_STATUS,
+  fulfillmentSteps,
+  nextFulfillmentStatus,
+  fulfillmentLabel,
+  podeAvancarAtendimento,
+  aceitaPagamentoManual,
+  situacaoCliente,
+  type PaymentStatus,
 } from "@/lib/admin-orders";
 import { formatBRL } from "@/lib/format";
 import {
-  updateOrderStatusAction,
+  updateFulfillmentAction,
+  updatePaymentStatusAction,
   markOrdersSeenAction,
   updateOrderTrackingAction,
 } from "../actions";
@@ -18,13 +24,12 @@ import { SubmitButton } from "@/components/submit-button";
 
 export const metadata: Metadata = { title: "Pedidos" };
 
-const STATUS_STYLE: Record<string, string> = {
+const PAGAMENTO_STYLE: Record<string, string> = {
   pending: "border-amber-500 text-amber-700 dark:text-amber-400",
   paid: "border-green-600 text-green-700 dark:text-green-400",
-  shipped: "border-blue-500 text-blue-700 dark:text-blue-400",
+  expired: "border-border text-muted line-through",
+  refunded: "border-blue-500 text-blue-700 dark:text-blue-400",
   canceled: "border-border text-muted line-through",
-  ready: "border-purple-500 text-purple-700 dark:text-purple-400",
-  delivered: "border-green-700 text-green-800 dark:text-green-300",
 };
 
 export default async function PedidosAdminPage() {
@@ -62,7 +67,12 @@ export default async function PedidosAdminPage() {
 
       <div className="mt-8 space-y-4">
         {orders.map((o) => {
-          const next = nextOrderStatus(o.status, o.shippingMethod);
+          const next = nextFulfillmentStatus(
+            o.fulfillmentStatus,
+            o.shippingMethod,
+          );
+          // O eixo físico não anda sem o dinheiro dentro.
+          const travado = !podeAvancarAtendimento(o.paymentStatus);
           return (
             <div
               key={o.id}
@@ -81,11 +91,11 @@ export default async function PedidosAdminPage() {
                     Pedido nº {o.number}
                     <span
                       className={`ml-3 rounded-full border px-2 py-0.5 text-xs font-normal ${
-                        STATUS_STYLE[o.status] ?? "border-border text-muted"
+                        PAGAMENTO_STYLE[o.paymentStatus] ??
+                        "border-border text-muted"
                       }`}
                     >
-                      {ORDER_STATUS[o.status as keyof typeof ORDER_STATUS] ??
-                        o.status}
+                      {situacaoCliente(o.paymentStatus, o.fulfillmentStatus)}
                     </span>
                   </p>
                   <p className="mt-1 text-xs text-muted">
@@ -154,7 +164,8 @@ export default async function PedidosAdminPage() {
 
               {/* Rastreio: salve ANTES de avançar para "enviado" — o e-mail ao
                 cliente sai com o link do código que estiver salvo aqui. */}
-              {o.shippingMethod === "delivery" && o.status !== "canceled" && (
+              {o.shippingMethod === "delivery" &&
+                o.fulfillmentStatus !== "canceled" && (
                 <form
                   action={updateOrderTrackingAction}
                   className="mt-3 flex flex-wrap items-center gap-2 text-sm"
@@ -179,15 +190,53 @@ export default async function PedidosAdminPage() {
                 </form>
               )}
 
-              {/* Progressão do pedido: mostra em que etapa está e qual é o
-                próximo passo, em vez de botões soltos sem ordem. */}
-              <div className="mt-4 border-t border-border pt-4">
-                <ol className="mb-4 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs">
-                  {orderSteps(o.shippingMethod).map((s, i, arr) => {
+              {/* Dois eixos separados: o dinheiro e o trabalho físico. Um botão
+                só para os dois foi o que produziu pedido "pago" sem pagamento. */}
+              <div className="mt-4 space-y-4 border-t border-border pt-4">
+                <div className="flex flex-wrap items-center gap-3 text-sm">
+                  <span className="text-muted">Pagamento:</span>
+                  <span
+                    className={`rounded-full border px-2 py-0.5 text-xs ${
+                      PAGAMENTO_STYLE[o.paymentStatus] ??
+                      "border-border text-muted"
+                    }`}
+                  >
+                    {PAYMENT_STATUS[o.paymentStatus as PaymentStatus] ??
+                      o.paymentStatus}
+                  </span>
+
+                  {aceitaPagamentoManual(o.channel) ? (
+                    o.paymentStatus !== "paid" && (
+                      <form action={updatePaymentStatusAction}>
+                        <input type="hidden" name="orderId" value={o.id} />
+                        <input type="hidden" name="status" value="paid" />
+                        <SubmitButton
+                          pendingText="Salvando…"
+                          className="h-8 rounded-full border border-green-600 px-4 text-xs font-medium text-green-700 hover:bg-green-600 hover:text-white dark:text-green-400"
+                        >
+                          Confirmar pagamento
+                        </SubmitButton>
+                      </form>
+                    )
+                  ) : (
+                    <span className="text-xs text-muted">
+                      automático — quem confirma é a InfinitePay
+                    </span>
+                  )}
+
+                  {o.expiresAt && o.paymentStatus === "pending" && (
+                    <span className="text-xs text-muted">
+                      expira {new Date(o.expiresAt).toLocaleString("pt-BR")}
+                    </span>
+                  )}
+                </div>
+
+                <ol className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs">
+                  {fulfillmentSteps(o.shippingMethod).map((s, i, arr) => {
                     const done =
-                      arr.indexOf(o.status as (typeof arr)[number]) >= i &&
-                      o.status !== "canceled";
-                    const current = o.status === s;
+                      arr.indexOf(o.fulfillmentStatus as (typeof arr)[number]) >=
+                        i && o.fulfillmentStatus !== "canceled";
+                    const current = o.fulfillmentStatus === s;
                     return (
                       <li key={s} className="flex items-center gap-2">
                         <span
@@ -200,7 +249,7 @@ export default async function PedidosAdminPage() {
                           }
                         >
                           {done && !current ? "✓ " : ""}
-                          {ORDER_STATUS[s]}
+                          {FULFILLMENT_STATUS[s]}
                         </span>
                         {i < arr.length - 1 && (
                           <span className="text-muted">→</span>
@@ -208,58 +257,66 @@ export default async function PedidosAdminPage() {
                       </li>
                     );
                   })}
-                  {o.status === "canceled" && (
+                  {o.fulfillmentStatus === "canceled" && (
                     <li className="font-medium text-red-600">Cancelado</li>
                   )}
                 </ol>
 
                 <div className="flex flex-wrap items-center gap-3">
-                  {next && (
-                    <form action={updateOrderStatusAction}>
+                  {next && travado && (
+                    <p className="text-xs text-amber-700 dark:text-amber-400">
+                      O atendimento só avança depois do pagamento confirmado.
+                    </p>
+                  )}
+                  {next && !travado && (
+                    <form action={updateFulfillmentAction}>
                       <input type="hidden" name="orderId" value={o.id} />
                       <input type="hidden" name="status" value={next} />
                       <SubmitButton
                         pendingText="Salvando…"
                         className="h-9 rounded-full bg-foreground px-5 text-sm font-medium text-background hover:opacity-90"
                       >
-                        {nextStatusLabel(next)}
+                        {fulfillmentLabel(next)}
                       </SubmitButton>
                     </form>
                   )}
 
-                  {o.status !== "canceled" && o.status !== "delivered" && (
-                    <form action={updateOrderStatusAction}>
-                      <input type="hidden" name="orderId" value={o.id} />
-                      <input type="hidden" name="status" value="canceled" />
-                      <SubmitButton
-                        pendingText="…"
-                        className="text-sm text-red-600 underline-offset-4 hover:underline dark:text-red-400"
-                      >
-                        Cancelar pedido
-                      </SubmitButton>
-                    </form>
-                  )}
+                  {o.fulfillmentStatus !== "canceled" &&
+                    o.fulfillmentStatus !== "done" && (
+                      <form action={updateFulfillmentAction}>
+                        <input type="hidden" name="orderId" value={o.id} />
+                        <input type="hidden" name="status" value="canceled" />
+                        <SubmitButton
+                          pendingText="…"
+                          className="text-sm text-red-600 underline-offset-4 hover:underline dark:text-red-400"
+                        >
+                          Cancelar pedido
+                        </SubmitButton>
+                      </form>
+                    )}
 
-                  {/* Correção manual, para quando alguém avança sem querer. */}
+                  {/* Correção manual do ATENDIMENTO. O pagamento não entra aqui:
+                    no online ele é do provedor, e no WhatsApp já tem o botão
+                    próprio acima. */}
                   <details className="ml-auto text-xs text-muted">
                     <summary className="cursor-pointer select-none hover:text-foreground">
-                      corrigir situação
+                      corrigir atendimento
                     </summary>
                     <div className="mt-2 flex flex-wrap gap-2">
                       {(
                         Object.keys(
-                          ORDER_STATUS,
-                        ) as (keyof typeof ORDER_STATUS)[]
+                          FULFILLMENT_STATUS,
+                        ) as (keyof typeof FULFILLMENT_STATUS)[]
                       ).map((s) => (
-                        <form key={s} action={updateOrderStatusAction}>
+                        <form key={s} action={updateFulfillmentAction}>
                           <input type="hidden" name="orderId" value={o.id} />
                           <input type="hidden" name="status" value={s} />
                           <SubmitButton
-                            disabled={o.status === s}
+                            disabled={o.fulfillmentStatus === s}
                             pendingText="…"
                             className="h-7 rounded-full border border-border px-3 text-xs hover:border-foreground disabled:opacity-40"
                           >
-                            {ORDER_STATUS[s]}
+                            {FULFILLMENT_STATUS[s]}
                           </SubmitButton>
                         </form>
                       ))}

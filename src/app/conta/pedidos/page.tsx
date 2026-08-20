@@ -3,7 +3,7 @@ import type { Metadata } from "next";
 import { requireCustomer } from "@/lib/customer";
 import { createClient } from "@/lib/supabase/server";
 import { formatBRL } from "@/lib/format";
-import { ORDER_STATUS } from "@/lib/admin-orders";
+import { situacaoCliente } from "@/lib/admin-orders";
 import { CancelOrderButton } from "./cancel-order-button";
 
 export const metadata: Metadata = { title: "Meus pedidos" };
@@ -11,12 +11,11 @@ export const metadata: Metadata = { title: "Meus pedidos" };
 const tab =
   "rounded-full border border-border px-4 py-1.5 text-sm text-muted transition-colors hover:border-foreground hover:text-foreground";
 
-const STATUS = ORDER_STATUS as Record<string, string>;
-
 type OrderRow = {
   id: string;
   number: number;
-  status: string;
+  payment_status: string;
+  fulfillment_status: string;
   total: number;
   created_at: string;
   order_items: {
@@ -34,7 +33,7 @@ export default async function PedidosPage() {
   const { data } = await supabase
     .from("orders")
     .select(
-      "id, number, status, total, created_at, order_items ( product_name, variant_label, unit_price, qty )",
+      "id, number, payment_status, fulfillment_status, total, created_at, order_items ( product_name, variant_label, unit_price, qty )",
     )
     .eq("customer_id", user.id)
     .order("created_at", { ascending: false });
@@ -80,7 +79,7 @@ export default async function PedidosPage() {
                 })}
               </p>
               <span className="text-xs text-muted">
-                {STATUS[o.status] ?? o.status}
+                {situacaoCliente(o.payment_status, o.fulfillment_status)}
               </span>
             </div>
             <ul className="mt-3 space-y-1 text-sm text-muted">
@@ -103,9 +102,10 @@ export default async function PedidosPage() {
                 >
                   Ver detalhes
                 </Link>
-                {o.status === "pending" && (
-                  <CancelOrderButton orderId={o.id} number={o.number} />
-                )}
+                {o.payment_status === "pending" &&
+                  o.fulfillment_status !== "canceled" && (
+                    <CancelOrderButton orderId={o.id} number={o.number} />
+                  )}
               </div>
             </div>
           </div>

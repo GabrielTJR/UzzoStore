@@ -4,12 +4,15 @@ import { notFound } from "next/navigation";
 import { requireCustomer } from "@/lib/customer";
 import { createClient } from "@/lib/supabase/server";
 import { formatBRL } from "@/lib/format";
-import { ORDER_STATUS, orderSteps } from "@/lib/admin-orders";
+import {
+  PAYMENT_STATUS,
+  FULFILLMENT_STATUS,
+  fulfillmentSteps,
+  situacaoCliente,
+} from "@/lib/admin-orders";
 import { CancelOrderButton } from "../cancel-order-button";
 
 export const metadata: Metadata = { title: "Detalhes do pedido" };
-
-const STATUS = ORDER_STATUS as Record<string, string>;
 
 type Address = {
   label?: string | null;
@@ -25,8 +28,8 @@ type Address = {
 type OrderRow = {
   id: string;
   number: number;
-  status: string;
   payment_status: string;
+  fulfillment_status: string;
   channel: string;
   shipping_method: string | null;
   shipping_address: Address | null;
@@ -61,7 +64,7 @@ export default async function PedidoDetalhePage({
   const { data } = await supabase
     .from("orders")
     .select(
-      `id, number, status, payment_status, channel, shipping_method,
+      `id, number, payment_status, fulfillment_status, channel, shipping_method,
        shipping_address, subtotal, shipping_total, total, created_at,
        shipping_service, shipping_cost, coupon_code, discount, tracking_code,
        order_items ( product_name, variant_label, unit_price, qty )`,
@@ -88,16 +91,17 @@ export default async function PedidoDetalhePage({
         </h1>
         <p className="mt-1 text-sm text-muted">
           {new Date(o.created_at).toLocaleString("pt-BR")} ·{" "}
-          {STATUS[o.status] ?? o.status}
+          {situacaoCliente(o.payment_status, o.fulfillment_status)}
         </p>
       </div>
 
       {/* Andamento do pedido — o caminho muda entre retirada e entrega. */}
-      {o.status !== "canceled" && (
+      {o.fulfillment_status !== "canceled" && (
         <ol className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-lg border border-border p-5 text-sm">
-          {orderSteps(o.shipping_method).map((s, i, arr) => {
-            const reached = arr.indexOf(o.status as (typeof arr)[number]) >= i;
-            const current = o.status === s;
+          {fulfillmentSteps(o.shipping_method).map((s, i, arr) => {
+            const reached =
+              arr.indexOf(o.fulfillment_status as (typeof arr)[number]) >= i;
+            const current = o.fulfillment_status === s;
             return (
               <li key={s} className="flex items-center gap-3">
                 <span
@@ -110,7 +114,7 @@ export default async function PedidoDetalhePage({
                   }
                 >
                   {reached && !current ? "✓ " : ""}
-                  {STATUS[s]}
+                  {FULFILLMENT_STATUS[s]}
                 </span>
                 {i < arr.length - 1 && <span className="text-muted">→</span>}
               </li>
@@ -233,11 +237,14 @@ export default async function PedidoDetalhePage({
           {o.channel === "online"
             ? "Pago pelo site (Pix ou cartão)."
             : "Combinado pelo WhatsApp."}{" "}
-          Situação: {STATUS[o.status] ?? o.status}.
+          Situação: {PAYMENT_STATUS[
+            o.payment_status as keyof typeof PAYMENT_STATUS
+          ] ?? o.payment_status}.
         </p>
       </div>
 
-      {o.status === "pending" && (
+      {o.payment_status === "pending" &&
+        o.fulfillment_status !== "canceled" && (
         <CancelOrderButton orderId={o.id} number={o.number} />
       )}
     </section>

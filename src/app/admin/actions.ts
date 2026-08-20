@@ -9,7 +9,12 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { logAudit } from "@/lib/audit";
 import { isHomeSectionKind, KIND_LABEL } from "@/lib/home-sections";
-import { isOrderStatus } from "@/lib/admin-orders";
+import {
+  isFulfillmentStatus,
+  isPaymentStatus,
+  podeAvancarAtendimento,
+  aceitaPagamentoManual,
+} from "@/lib/admin-orders";
 import { sendOrderStatusEmail, sendBackInStockEmail } from "@/lib/email";
 import type { Json } from "@/lib/supabase/database.types";
 
@@ -1126,8 +1131,15 @@ export async function deleteMeasurementModelAction(
 
 // --- Pedidos ----------------------------------------------------------------
 
-/** Muda a situação do pedido (Aguardando / Pago / Enviado / Cancelado). */
-export async function updateOrderStatusAction(
+/**
+ * Avança o ATENDIMENTO do pedido (separando / pronto / enviado / concluído).
+ *
+ * Só anda com o dinheiro dentro: separar peça de pedido não pago é prejuízo
+ * esperando acontecer, e foi justamente a falta desta trava que deixou os
+ * pedidos nº 1007 e 1008 marcados como "pagos" sem nenhum pagamento. Cancelar
+ * e voltar para "aguardando" seguem livres — são correção, não avanço.
+ */
+export async function updateFulfillmentAction(
   formData: FormData,
 ): Promise<void> {
   const actor = await getAdminUser();
@@ -1136,13 +1148,26 @@ export async function updateOrderStatusAction(
 
   const id = String(formData.get("orderId") ?? "");
   const status = String(formData.get("status") ?? "");
-  if (!id || !isOrderStatus(status)) return;
+  if (!id || !isFulfillmentStatus(status)) return;
 
   const admin = createAdminClient();
+  const { data: pedido } = await admin
+    .from("orders")
+    .select("number, customer_id, tracking_code, payment_status")
+    .eq("id", id)
+    .maybeSingle();
+  if (!pedido) return;
+
+  const avanco = status !== "canceled" && status !== "pending";
+  if (avanco && !podeAvancarAtendimento(pedido.payment_status)) {
+    revalidatePath("/admin/pedidos");
+    return;
+  }
+
   const { error } = await admin
     .from("orders")
     .update({
-      status,
+      fulfillment_status: status,
       seen_at: new Date().toISOString(), // mexeu no pedido => já viu
       updated_at: new Date().toISOString(),
     })
@@ -1153,38 +1178,80 @@ export async function updateOrderStatusAction(
   }
 
   // Avisa o cliente nas etapas que importam para ele (e-mail nunca bloqueia).
-  if (status === "ready" || status === "shipped" || status === "delivered") {
-    const { data: order } = await admin
-      .from("orders")
-      .select("number, customer_id, tracking_code")
-      .eq("id", id)
-      .maybeSingle();
-    if (order?.customer_id) {
+  if (status === "ready" || status === "shipped" || status === "done") {
+    if (pedido.customer_id) {
       const [{ data: profile }, { data: authUser }] = await Promise.all([
         admin
           .from("customers")
           .select("full_name")
-          .eq("id", order.customer_id)
+          .eq("id", pedido.customer_id)
           .maybeSingle(),
-        admin.auth.admin.getUserById(order.customer_id),
+        admin.auth.admin.getUserById(pedido.customer_id),
       ]);
       const to = authUser?.user?.email;
       if (to)
         await sendOrderStatusEmail({
           to,
           customerName: profile?.full_name ?? null,
-          orderNumber: order.number,
+          orderNumber: pedido.number,
           status,
-          trackingCode: order.tracking_code ?? null,
+          trackingCode: pedido.tracking_code ?? null,
         });
     }
   }
 
   await logAudit(actor, {
-    action: "order.status",
+    action: "order.fulfillment",
     entityType: "order",
     entityId: id,
     metadata: { status },
+  });
+  revalidatePath("/admin/pedidos");
+  revalidatePath("/conta/pedidos");
+}
+
+/**
+ * Marca o PAGAMENTO na mão — só em pedido de WhatsApp, onde o dinheiro entra
+ * fora do sistema (PIX na maquininha, transferência, dinheiro). No online quem
+ * decide é o `confirmPayment`, que confere com a InfinitePay e compara o valor:
+ * um botão manual ali seria porta aberta para marcar como pago o que não foi.
+ */
+export async function updatePaymentStatusAction(
+  formData: FormData,
+): Promise<void> {
+  const actor = await getAdminUser();
+  if (!actor) return;
+  if (serviceRoleMissing()) return;
+
+  const id = String(formData.get("orderId") ?? "");
+  const status = String(formData.get("status") ?? "");
+  if (!id || !isPaymentStatus(status)) return;
+
+  const admin = createAdminClient();
+  const { data: pedido } = await admin
+    .from("orders")
+    .select("channel")
+    .eq("id", id)
+    .maybeSingle();
+  if (!pedido || !aceitaPagamentoManual(pedido.channel)) {
+    revalidatePath("/admin/pedidos");
+    return;
+  }
+
+  await admin
+    .from("orders")
+    .update({
+      payment_status: status,
+      seen_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", id);
+
+  await logAudit(actor, {
+    action: "order.payment",
+    entityType: "order",
+    entityId: id,
+    metadata: { status, canal: pedido.channel },
   });
   revalidatePath("/admin/pedidos");
   revalidatePath("/conta/pedidos");

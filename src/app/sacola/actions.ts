@@ -248,7 +248,11 @@ export async function startOnlinePaymentAction(
     // em si já fica registrada como `payment.link_failed` em /admin/logs.
     await admin
       .from("orders")
-      .update({ status: "canceled", updated_at: new Date().toISOString() })
+      .update({
+        payment_status: "canceled",
+        fulfillment_status: "canceled",
+        updated_at: new Date().toISOString(),
+      })
       .eq("number", order.orderNumber);
 
     // Para o admin, mostra a resposta crua da InfinitePay — sem isso a tela só
@@ -516,8 +520,15 @@ export async function createOrderAction(
     .from("orders")
     .insert({
       customer_id: user?.id ?? null,
-      status: "pending",
       payment_status: "pending",
+      // Pedido online não pago vira lixo: expira em 60 min (o relógio roda no
+      // pg_cron, dentro do Postgres, para não gastar invocação da Vercel). No
+      // WhatsApp fica nulo — lá o pagamento é combinado por fora e pode levar
+      // dias, então expirar seria cancelar venda boa.
+      expires_at:
+        channel === "online"
+          ? new Date(Date.now() + 60 * 60_000).toISOString()
+          : null,
       subtotal,
       discount,
       coupon_code: couponCode,

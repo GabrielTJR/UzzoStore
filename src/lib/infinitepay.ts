@@ -210,7 +210,7 @@ export async function confirmPayment(params: {
 
   const { data: order } = await admin
     .from("orders")
-    .select("id, number, total, status, coupon_code")
+    .select("id, number, total, payment_status, coupon_code")
     .eq("number", number)
     .maybeSingle();
   if (!order) return { paid: false, reason: "pedido" };
@@ -237,8 +237,7 @@ export async function confirmPayment(params: {
   await admin
     .from("orders")
     .update({
-      status: "paid",
-      payment_status: "approved",
+      payment_status: "paid",
       updated_at: new Date().toISOString(),
     })
     .eq("id", order.id);
