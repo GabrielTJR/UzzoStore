@@ -5,6 +5,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { logAudit } from "@/lib/audit";
 import { getSessionUser } from "@/lib/session";
 import { getAdminUser } from "@/lib/admin";
+import { reservarParaPedido, liberarReserva } from "@/lib/stock";
 import { sendNewOrderAdminEmail } from "@/lib/email";
 import {
   createPaymentLink,
@@ -246,14 +247,20 @@ export async function startOnlinePaymentAction(
     // nº 1007, 1008 e 1010 enquanto o handle esteve inválido. Cancelamos em vez
     // de apagar: a tentativa frustrada é informação útil para a loja, e a falha
     // em si já fica registrada como `payment.link_failed` em /admin/logs.
-    await admin
+    const { data: cancelado } = await admin
       .from("orders")
       .update({
         payment_status: "canceled",
         fulfillment_status: "canceled",
         updated_at: new Date().toISOString(),
       })
-      .eq("number", order.orderNumber);
+      .eq("number", order.orderNumber)
+      .select("id")
+      .maybeSingle();
+
+    // Sem devolver, a peça ficaria presa até a expiração por um pedido que
+    // já nasceu morto — e a vitrine mostraria "esgotado" sem ninguém comprando.
+    if (cancelado) await liberarReserva(admin, cancelado.id);
 
     // Para o admin, mostra a resposta crua da InfinitePay — sem isso a tela só
     // diz "erro" e não dá para descobrir o que o provedor recusou.
@@ -269,6 +276,14 @@ export async function startOnlinePaymentAction(
 
   return { ok: true, url: link.url };
 }
+
+/**
+ * Prazo do pedido online não pago. A reserva de estoque e a expiração usam o
+ * MESMO valor de propósito: se a reserva morresse antes, alguém pagaria um
+ * pedido cuja peça já voltou para a prateleira — o oversell que ela veio
+ * impedir. Curto porque o PIX confirma em minutos.
+ */
+const JANELA_PAGAMENTO_MIN = 20;
 
 /** Quantos pedidos o mesmo IP pode abrir na janela abaixo. */
 const LIMITE_PEDIDOS = 8;
@@ -521,13 +536,13 @@ export async function createOrderAction(
     .insert({
       customer_id: user?.id ?? null,
       payment_status: "pending",
-      // Pedido online não pago vira lixo: expira em 60 min (o relógio roda no
+      // Pedido online não pago vira lixo: expira em 20 min (o relógio roda no
       // pg_cron, dentro do Postgres, para não gastar invocação da Vercel). No
       // WhatsApp fica nulo — lá o pagamento é combinado por fora e pode levar
       // dias, então expirar seria cancelar venda boa.
       expires_at:
         channel === "online"
-          ? new Date(Date.now() + 60 * 60_000).toISOString()
+          ? new Date(Date.now() + JANELA_PAGAMENTO_MIN * 60_000).toISOString()
           : null,
       subtotal,
       discount,
@@ -552,6 +567,28 @@ export async function createOrderAction(
     // Sem itens o pedido é lixo: desfaz para não sujar o histórico/admin.
     await admin.from("orders").delete().eq("id", order.id);
     return { ok: false, error: "Não foi possível registrar os itens." };
+  }
+
+  // Pedido online SEGURA a peça já aqui, por JANELA_PAGAMENTO_MIN. Sem isso
+  // dois clientes conseguem pagar a mesma última peça e a loja tem que estornar
+  // um deles. A checagem de saldo lá em cima é só aviso — a garantia é esta,
+  // porque a decisão acontece dentro do UPDATE do banco.
+  // No WhatsApp não há reserva: lá a baixa é quando o admin confirma o
+  // pagamento, já que não existe prazo para esperar.
+  if (channel === "online") {
+    const falta = await reservarParaPedido(
+      admin,
+      order.id,
+      rows.map(({ weight_grams: _peso, ...r }) => r),
+      new Date(Date.now() + JANELA_PAGAMENTO_MIN * 60_000).toISOString(),
+    );
+    if (falta.length > 0) {
+      await admin.from("orders").delete().eq("id", order.id);
+      return {
+        ok: false,
+        error: `Estoque insuficiente — ${falta.join("; ")}.`,
+      };
+    }
   }
 
   // Alimenta a contagem do freio por IP acima (e deixa rastro em /admin/logs

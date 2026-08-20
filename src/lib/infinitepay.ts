@@ -2,6 +2,7 @@ import "server-only";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { sendOrderPaidEmail, sendNewOrderAdminEmail } from "@/lib/email";
 import { logAudit } from "@/lib/audit";
+import { consumirReserva } from "@/lib/stock";
 import { consumeCoupon } from "@/lib/coupons";
 
 /**
@@ -246,7 +247,9 @@ export async function confirmPayment(params: {
   // (A trava de idempotência acima garante que roda uma vez por transação.)
   if (order.coupon_code) await consumeCoupon(admin, order.coupon_code);
 
-  await decreaseStock(order.id, order.number);
+  // A peça JÁ saiu do estoque na criação do pedido (reserva, migração 0018).
+  // Aqui só se apaga a reserva: baixar de novo venderia a mesma peça duas vezes.
+  await consumirReserva(admin, order.id);
   await notifyPaid(order.id, order.number);
   return { paid: true, orderNumber: order.number };
 }
@@ -323,51 +326,5 @@ async function notifyPaid(orderId: string, orderNumber: number): Promise<void> {
     });
   } catch (err) {
     console.error("[infinitepay] falha ao avisar pagamento", err);
-  }
-}
-
-/**
- * Baixa do estoque as quantidades do pedido (depósito 'loja').
- *
- * Usa a função `decrement_stock` (migração 0012), que faz a conta dentro do
- * UPDATE: dois pagamentos simultâneos não conseguem levar a mesma peça.
- * Se faltar saldo, o pagamento JÁ ACONTECEU — não dá para recusar. Então
- * registramos em /admin/logs para a loja resolver com o cliente.
- */
-async function decreaseStock(
-  orderId: string,
-  orderNumber: number,
-): Promise<void> {
-  const admin = createAdminClient();
-  const { data: items } = await admin
-    .from("order_items")
-    .select("variant_id, qty, product_name, variant_label")
-    .eq("order_id", orderId);
-
-  const semSaldo: string[] = [];
-  for (const it of items ?? []) {
-    const { data: restante, error } = await admin.rpc("decrement_stock", {
-      p_variant_id: it.variant_id,
-      p_qty: it.qty,
-    });
-    if (error || restante === -1 || restante === null) {
-      semSaldo.push(
-        [it.product_name, it.variant_label].filter(Boolean).join(" — "),
-      );
-    }
-  }
-
-  if (semSaldo.length > 0) {
-    await logAudit(null, {
-      action: "stock.shortage",
-      entityType: "order",
-      entityId: orderId,
-      entityLabel: `Pedido nº ${orderNumber}`,
-      metadata: {
-        itens: semSaldo,
-        aviso:
-          "Pagamento confirmado sem saldo em estoque — conferir com o cliente.",
-      },
-    });
   }
 }

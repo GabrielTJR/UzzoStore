@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { liberarReserva } from "@/lib/stock";
 import { getCurrentUser } from "@/lib/customer";
 
 export type ActionResult = { ok: boolean; error?: string };
@@ -164,6 +165,10 @@ export async function cancelOrderAction(formData: FormData): Promise<void> {
   // cancelar sozinho deixaria pedido pago como cancelado, sem estorno.
   if (order.payment_status !== "pending") return;
   if (order.fulfillment_status === "canceled") return;
+
+  // Devolve a peça reservada antes de cancelar: o cliente desistiu, então ela
+  // volta para a vitrine na hora em vez de esperar a expiração.
+  await liberarReserva(admin, id);
 
   await admin
     .from("orders")

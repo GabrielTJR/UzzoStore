@@ -850,6 +850,7 @@ export type Database = {
           created_at: string
           expires_at: string
           id: string
+          order_id: string | null
           qty: number
           variant_id: string
         }
@@ -858,6 +859,7 @@ export type Database = {
           created_at?: string
           expires_at: string
           id?: string
+          order_id?: string | null
           qty: number
           variant_id: string
         }
@@ -866,6 +868,7 @@ export type Database = {
           created_at?: string
           expires_at?: string
           id?: string
+          order_id?: string | null
           qty?: number
           variant_id?: string
         }
@@ -875,6 +878,13 @@ export type Database = {
             columns: ["cart_id"]
             isOneToOne: false
             referencedRelation: "carts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "reservations_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
             referencedColumns: ["id"]
           },
           {
@@ -1044,7 +1054,12 @@ export type Database = {
         Returns: number
       }
       email_exists: { Args: { p_email: string }; Returns: boolean }
+      expira_pedidos_nao_pagos: { Args: never; Returns: number }
       imm_unaccent: { Args: { "": string }; Returns: string }
+      increment_stock: {
+        Args: { p_qty: number; p_variant_id: string }
+        Returns: number
+      }
       is_admin: { Args: never; Returns: boolean }
     }
     Enums: {

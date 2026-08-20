@@ -15,6 +15,12 @@ import {
   podeAvancarAtendimento,
   aceitaPagamentoManual,
 } from "@/lib/admin-orders";
+import {
+  baixarEstoque,
+  devolverEstoque,
+  itensDoPedido,
+  liberarReserva,
+} from "@/lib/stock";
 import { sendOrderStatusEmail, sendBackInStockEmail } from "@/lib/email";
 import type { Json } from "@/lib/supabase/database.types";
 
@@ -1164,6 +1170,12 @@ export async function updateFulfillmentAction(
     return;
   }
 
+  // Cancelar antes de pagar devolve a peça: deixá-la presa até a expiração
+  // mostraria "esgotado" por um pedido que a própria loja acabou de matar.
+  if (status === "canceled" && pedido.payment_status !== "paid") {
+    await liberarReserva(admin, id);
+  }
+
   const { error } = await admin
     .from("orders")
     .update({
@@ -1230,12 +1242,39 @@ export async function updatePaymentStatusAction(
   const admin = createAdminClient();
   const { data: pedido } = await admin
     .from("orders")
-    .select("channel")
+    .select("channel, payment_status, number")
     .eq("id", id)
     .maybeSingle();
   if (!pedido || !aceitaPagamentoManual(pedido.channel)) {
     revalidatePath("/admin/pedidos");
     return;
+  }
+
+  // No WhatsApp a peça só sai do estoque AQUI: não há reserva, porque não há
+  // prazo para esperar um pagamento combinado por fora. E desfazer devolve —
+  // senão marcar pago por engano sumiria com a peça do catálogo para sempre.
+  const eraPago = pedido.payment_status === "paid";
+  const viraPago = status === "paid";
+
+  if (viraPago && !eraPago) {
+    const falta = await baixarEstoque(admin, await itensDoPedido(admin, id));
+    if (falta.length > 0) {
+      // Não marca como pago o que a loja não tem para entregar.
+      await logAudit(actor, {
+        action: "stock.shortage",
+        entityType: "order",
+        entityId: id,
+        entityLabel: `nº ${pedido.number}`,
+        metadata: {
+          itens: falta,
+          aviso: "pagamento manual recusado por falta de saldo",
+        },
+      });
+      revalidatePath("/admin/pedidos");
+      return;
+    }
+  } else if (eraPago && !viraPago) {
+    await devolverEstoque(admin, await itensDoPedido(admin, id));
   }
 
   await admin

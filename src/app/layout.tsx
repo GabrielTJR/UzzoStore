@@ -294,7 +294,19 @@ export default async function RootLayout({
 
           <div className="border-t border-border">
             <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-2 px-6 py-4 text-xs text-muted">
-              <span>© 2026 Uzzo Store. Todos os direitos reservados.</span>
+              {/* Identificação da empresa: o Decreto 7.962/2013 exige razão
+                social, CNPJ e endereço físico em local de fácil visualização
+                em qualquer site que venda. Não é enfeite de rodapé. */}
+              <div className="space-y-0.5">
+                <p>
+                  © 2026 Uzzo Store · UZZO COMERCIO LTDA · CNPJ
+                  67.134.725/0001-43
+                </p>
+                <p>
+                  Av. Brasil, 3573 — Sala 02, Centro, Balneário Camboriú/SC ·
+                  CEP 88330-063
+                </p>
+              </div>
               <span>Pix · Cartão em até 3x</span>
             </div>
           </div>
