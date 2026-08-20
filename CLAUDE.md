@@ -130,6 +130,17 @@ Em ago/2026 o egress do Supabase (9,6/5 GB) **e** os limites da Vercel (Origin T
 - **Invalidação por etiqueta** (`CACHE_TAGS` em `products.ts`): toda mutação de admin chama **`updateTag(CACHE_TAGS.catalogo|cores|categorias|decoracao)`** em `admin/actions.ts` (expira na hora, dentro da Server Action — `revalidateTag` de um argumento só está deprecado no Next 16). A baixa de estoque no pagamento chama `revalidateTag(catalogo,"max")` no webhook. Janelas de fallback: lista 10 min, produto 5 min (é onde aparece "esgotado"), cadastros 1 h. **Ao criar uma nova leitura pública cacheada, escolha a etiqueta e garanta que a mutação correspondente a derruba** — senão a loja mostra dado velho.
 - **Selects enxutos**: traga só as colunas usadas. O card usa `products.category_name`/`effective_price` (colunas materializadas na migração `0013`) em vez de `join categories` — dispensa o embed e é o que o PostgREST consegue ordenar através do relacionamento.
 
+## Custo na Vercel (Pro, ago/2026) — regras aprendidas com fatura na mão
+
+O 1º dia do plano Pro queimou $3,46 dos $20. Causas MEDIDAS (Observability + fatura), não teoria:
+
+- **Armadilha de faceta**: o GPTBot fez **77 mil requisições em 12h** navegando as combinações de `?categorias=...&cores=...` de /produtos (espaço combinatório; cada combinação inédita fura o cache e vira consulta real no Supabase). Defesas que não podem regredir: `robots.ts` proíbe `/produtos?` e `?busca=/?ordem=/?pagina=`; canonical fixo `/produtos`; `prefetch={false}` em TODO link de faceta/paginação. Se criar filtro/página nova com querystring, aplique os três.
+- **Observability Plus veio LIGADO por padrão** no Pro novo: $1,20/milhão de eventos, SEM franquia, sem amostragem (cada acesso = 3-6 eventos). Foi 34% da fatura. Fica DESLIGADO (Settings → Billing → Observability Plus); o Observability grátis (1 dia de retenção) basta.
+- **Web Analytics no Pro não tem franquia** ($0,03/1k eventos; os 50k grátis são só do Hobby). Decisão do dono mantê-lo ou não — o repo NÃO tem @vercel/analytics; a coleta é ligada/desligada no painel.
+- **gru1 (São Paulo) é a região mais cara** ($0,221/h CPU vs $0,128 em iad1; $0,41/GB de Fast Origin Transfer vs $0,06). Mantida por latência — mas é por isso que request dinâmico aqui custa caro: bot em página dinâmica dói em dobro.
+- **NUNCA rode auditoria/verificação em massa contra produção** — os agentes de revisão desta sessão gastaram CPU/transfer/eventos reais. Auditoria roda contra `npx next start` local; produção só em passadas pontuais de poucas URLs.
+- **Spend Management** configurado com teto baixo + pausa automática (Settings → Billing). A checagem tem atraso de minutos; o teto protege o cartão, não o uptime.
+
 ## Regras que já foram quebradas (não regrida)
 
 - **Sacola — ordem do `clearCart`**: em `sacola/page.tsx`, esvaziar a sacola ANTES do `setTimeout` do redirect derruba a tela para "Sua sacola está vazia" no mesmo render do toast (o React agrupa as duas atualizações) — o cliente vê cara de erro no instante da conversão. Limpe **dentro** do timeout, junto do `window.location.href`.

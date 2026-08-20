@@ -22,6 +22,9 @@ import { getWishlistIds } from "@/lib/wishlist";
 export const metadata: Metadata = {
   title: "Produtos",
   description: "Peças da Uzzo Store — moda masculina em Balneário Camboriú.",
+  // Facetas (?categorias=&cores=...) canonizam para /produtos: buscador
+  // indexa UMA página, não o produto cartesiano dos filtros.
+  alternates: { canonical: "/produtos" },
 };
 
 /** Monta a URL de /produtos com os filtros ativos (página só quando > 1). */
@@ -168,6 +171,7 @@ export default async function ProdutosPage({
         action={
           selectedCatSlugs.length > 0 ? (
             <Link
+              prefetch={false}
               href={buildHref([], selectedColors, onlyPromo, 1, busca, ordem)}
               scroll={false}
               className="text-xs text-muted underline-offset-4 hover:text-foreground hover:underline"
@@ -202,6 +206,7 @@ export default async function ProdutosPage({
           action={
             selectedColors.length > 0 ? (
               <Link
+                prefetch={false}
                 href={buildHref(
                   selectedCatSlugs,
                   [],
@@ -275,6 +280,7 @@ export default async function ProdutosPage({
     <div className="mb-5 flex flex-wrap items-center gap-2">
       {busca && (
         <Link
+          prefetch={false}
           scroll={false}
           href={buildHref(
             selectedCatSlugs,
@@ -291,6 +297,7 @@ export default async function ProdutosPage({
       )}
       {onlyPromo && (
         <Link
+          prefetch={false}
           scroll={false}
           href={buildHref(
             selectedCatSlugs,
@@ -308,6 +315,7 @@ export default async function ProdutosPage({
       {selectedCatSlugs.map((s) => (
         <Link
           key={s}
+          prefetch={false}
           scroll={false}
           href={buildHref(
             selectedCatSlugs.filter((x) => x !== s),
@@ -326,6 +334,7 @@ export default async function ProdutosPage({
       {selectedColors.map((c) => (
         <Link
           key={c}
+          prefetch={false}
           scroll={false}
           href={buildHref(
             selectedCatSlugs,
@@ -424,6 +433,7 @@ export default async function ProdutosPage({
                 >
                   {page > 1 && (
                     <Link
+                      prefetch={false}
                       href={`${buildHref(
                         selectedCatSlugs,
                         selectedColors,
@@ -450,6 +460,7 @@ export default async function ProdutosPage({
                       </span>
                     ) : (
                       <Link
+                        prefetch={false}
                         key={p}
                         href={`${buildHref(
                           selectedCatSlugs,
@@ -474,6 +485,7 @@ export default async function ProdutosPage({
 
                   {page < totalPages && (
                     <Link
+                      prefetch={false}
                       href={`${buildHref(
                         selectedCatSlugs,
                         selectedColors,

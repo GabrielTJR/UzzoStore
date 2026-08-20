@@ -31,6 +31,7 @@ export function FilterCheckItem({
   return (
     <Link
       href={href}
+      prefetch={false}
       scroll={false}
       aria-label={`${checked ? "Remover filtro" : "Filtrar por"} ${String(children)}`}
       className="group flex items-center gap-2.5 py-1.5 text-sm transition-colors hover:text-foreground"

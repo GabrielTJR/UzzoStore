@@ -18,6 +18,14 @@ export default function robots(): MetadataRoute.Robots {
       userAgent: "*",
       allow: "/",
       disallow: [
+        // Armadilha de faceta: /produtos?categorias=...&cores=... gera um
+        // espaço COMBINATÓRIO de URLs — o GPTBot fez 77 mil requisições em
+        // 12h navegando essas combinações (ago/2026). O catálogo continua
+        // indexável por /produtos e /produtos/[slug]; as facetas, não.
+        "/produtos?",
+        "/*?busca=",
+        "/*?ordem=",
+        "/*?pagina=",
         "/admin",
         "/conta",
         "/sacola",
