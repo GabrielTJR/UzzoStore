@@ -312,7 +312,13 @@ export default async function RootLayout({
                   CEP 88330-218
                 </p>
               </div>
-              <span>Pix · Cartão em até 3x</span>
+              {/* Sem número de parcelas aqui: quem decide quantas é a
+                configuração da conta na InfinitePay, e a tela dela oferece
+                mais que 3. Prometer um teto no rodapé é prometer menos do que
+                a loja entrega — e mudar lá não deveria exigir deploy aqui.
+                (Débito não entra: o Checkout Integrado só faz Pix e crédito;
+                débito é exclusivo da maquininha presencial.) */}
+              <span>Pix · Cartão de crédito</span>
             </div>
           </div>
         </footer>
