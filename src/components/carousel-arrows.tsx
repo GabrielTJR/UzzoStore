@@ -3,12 +3,13 @@
 const arrowBtn =
   "absolute top-1/2 z-10 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full border border-border bg-background/80 text-foreground shadow-sm backdrop-blur transition duration-150 ease-out hover:scale-110 hover:bg-background active:scale-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-foreground/40";
 
-function Chevron({ dir }: { dir: "left" | "right" }) {
+/** Ícone compartilhado: o banner da home monta a própria seta, mas usa este. */
+export function Chevron({ dir, px = 18 }: { dir: "left" | "right"; px?: number }) {
   return (
     <svg
       viewBox="0 0 24 24"
-      width="18"
-      height="18"
+      width={px}
+      height={px}
       fill="none"
       stroke="currentColor"
       strokeWidth="2"

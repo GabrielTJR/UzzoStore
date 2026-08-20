@@ -3,7 +3,20 @@
 import { useEffect, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
+import { Chevron } from "@/components/carousel-arrows";
 import type { BannerSlide } from "@/lib/home-sections";
+
+/**
+ * Seta do banner. Fica DISCRETA em repouso (véu leve) para não competir com a
+ * arte, que é peça fechada com texto desenhado dentro, e só escurece no hover.
+ * Não usa a pílula do carousel-arrows de propósito: aquela é opaca e segue o
+ * token de tema — aqui a seta precisa se dissolver na foto.
+ *
+ * O chevron leva drop-shadow porque em repouso o véu é fraco demais para separar
+ * o branco de uma arte clara (o slide "Bye Bye Inverno" é quase todo bege).
+ */
+const bannerArrow =
+  "absolute top-1/2 z-10 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full border border-white/25 bg-black/15 text-white backdrop-blur-[2px] transition duration-200 ease-out hover:border-white/60 hover:bg-black/60 active:scale-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70 [&>svg]:drop-shadow-[0_1px_2px_rgba(0,0,0,0.6)]";
 
 const ALIGN: Record<BannerSlide["align"], string> = {
   left: "items-start text-left",
@@ -16,6 +29,13 @@ const ALIGN: Record<BannerSlide["align"], string> = {
  * cada 6s, com setas e bolinhas). A imagem de mobile é opcional: sem ela, usa a
  * de desktop — por isso as duas são renderizadas e alternadas por CSS
  * (art direction; next/image não faz isso sozinho).
+ *
+ * No desktop o banner é LIMITADO a max-w-6xl (mesma largura do resto da home).
+ * Ocupando a tela toda, o 16/9 dava 1080px de altura e engolia a primeira dobra.
+ * Limitar a LARGURA e manter a proporção encolhe a altura junto SEM cortar nada:
+ * as imagens são exatamente 1600x900 (16/9) no desktop e 1122x1402 (4/5) no
+ * mobile, então mexer na proporção comeria a arte — é peça fechada, com texto e
+ * ícones dentro. No celular segue de ponta a ponta, que é o certo em tela estreita.
  */
 export function HomeBanner({ slides }: { slides: BannerSlide[] }) {
   const [i, setI] = useState(0);
@@ -35,8 +55,8 @@ export function HomeBanner({ slides }: { slides: BannerSlide[] }) {
   const dark = s.theme === "dark";
 
   return (
-    <section className="relative">
-      <div className="relative aspect-[4/5] w-full overflow-hidden bg-zinc-200 dark:bg-zinc-800 sm:aspect-[16/9]">
+    <section className="relative mx-auto mt-6 w-full max-w-6xl sm:mt-8 sm:px-6">
+      <div className="relative aspect-[4/5] w-full overflow-hidden bg-zinc-200 dark:bg-zinc-800 sm:aspect-[16/9] sm:rounded-lg">
         {/* Todos os slides ficam montados e trocam por opacidade: remontar a
             <Image> a cada avanço deixava o banner branco enquanto carregava. */}
         {slides.map((sl, k) => {
@@ -55,7 +75,7 @@ export function HomeBanner({ slides }: { slides: BannerSlide[] }) {
                   src={mobile}
                   alt={sl.title ?? "Uzzo Store"}
                   fill
-                  sizes="100vw"
+                  sizes="(min-width: 1152px) 1152px, 100vw"
                   priority={k === 0}
                   className="object-cover sm:hidden"
                 />
@@ -65,7 +85,7 @@ export function HomeBanner({ slides }: { slides: BannerSlide[] }) {
                   src={desktop}
                   alt={sl.title ?? "Uzzo Store"}
                   fill
-                  sizes="100vw"
+                  sizes="(min-width: 1152px) 1152px, 100vw"
                   priority={k === 0}
                   className="hidden object-cover sm:block"
                 />
@@ -121,17 +141,17 @@ export function HomeBanner({ slides }: { slides: BannerSlide[] }) {
               onClick={() =>
                 setI((p) => (p - 1 + slides.length) % slides.length)
               }
-              className="absolute left-3 top-1/2 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full border border-white/40 bg-black/30 text-white backdrop-blur transition hover:bg-black/50 active:scale-90"
+              className={`${bannerArrow} left-4`}
             >
-              ‹
+              <Chevron dir="left" px={20} />
             </button>
             <button
               type="button"
               aria-label="Próximo banner"
               onClick={() => setI((p) => (p + 1) % slides.length)}
-              className="absolute right-3 top-1/2 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full border border-white/40 bg-black/30 text-white backdrop-blur transition hover:bg-black/50 active:scale-90"
+              className={`${bannerArrow} right-4`}
             >
-              ›
+              <Chevron dir="right" px={20} />
             </button>
             <div className="absolute bottom-3 left-1/2 flex -translate-x-1/2 gap-2">
               {slides.map((_, k) => (
@@ -141,8 +161,8 @@ export function HomeBanner({ slides }: { slides: BannerSlide[] }) {
                   aria-label={`Ir para o banner ${k + 1}`}
                   aria-current={k === i ? "true" : undefined}
                   onClick={() => setI(k)}
-                  className={`h-2 w-2 rounded-full transition ${
-                    k === i ? "w-5 bg-white" : "bg-white/50 hover:bg-white/80"
+                  className={`h-2 rounded-full transition ${
+                    k === i ? "w-5 bg-white" : "w-2 bg-white/50 hover:bg-white/80"
                   }`}
                 />
               ))}
