@@ -934,6 +934,7 @@ export type Database = {
           id: string
           last_synced_at: string
           qty_available: number
+          reservado_ate: string | null
           source_timestamp: number | null
           variant_id: string
         }
@@ -942,6 +943,7 @@ export type Database = {
           id?: string
           last_synced_at?: string
           qty_available?: number
+          reservado_ate?: string | null
           source_timestamp?: number | null
           variant_id: string
         }
@@ -950,6 +952,7 @@ export type Database = {
           id?: string
           last_synced_at?: string
           qty_available?: number
+          reservado_ate?: string | null
           source_timestamp?: number | null
           variant_id?: string
         }

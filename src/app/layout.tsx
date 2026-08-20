@@ -302,9 +302,14 @@ export default async function RootLayout({
                   © 2026 Uzzo Store · UZZO COMERCIO LTDA · CNPJ
                   67.134.725/0001-43
                 </p>
+                {/* Rua 3650 e Av. Brasil são a mesma esquina e o cartão CNPJ
+                  traz a segunda, mas o site inteiro (retirada, e-mails, frete)
+                  usa a primeira — e o CEP 88330-218 é o dela, confirmado, o
+                  mesmo que origina as postagens. Endereço divergente entre
+                  rodapé e e-mail de retirada é cliente rodando quarteirão. */}
                 <p>
-                  Av. Brasil, 3573 — Sala 02, Centro, Balneário Camboriú/SC ·
-                  CEP 88330-063
+                  Rua 3650, nº 3573 — Sala 2, Centro, Balneário Camboriú/SC ·
+                  CEP 88330-218
                 </p>
               </div>
               <span>Pix · Cartão em até 3x</span>

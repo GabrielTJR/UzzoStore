@@ -158,7 +158,9 @@ export function ProductView({
       : canAdd
         ? "Adicionar à sacola"
         : selectedEsgotado
-          ? "Esgotado"
+          ? selectedVariant?.reservado
+            ? "Reservado no momento"
+            : "Esgotado"
           : hasSizes
             ? "Selecione um tamanho"
             : "Selecione uma cor";
@@ -373,6 +375,18 @@ export function ProductView({
             {selectedVariant.qty === 1
               ? "Última unidade!"
               : `Últimas ${selectedVariant.qty} unidades`}
+          </p>
+        )}
+
+        {/* Saldo zero por reserva não é fim de estoque: alguém está pagando
+          agora e a peça volta em minutos se o pagamento não sair. Dizer
+          "esgotado" aqui seria mentira, e mentira que faz o cliente desistir
+          de uma peça que talvez ainda seja dele. */}
+        {selectedEsgotado && selectedVariant?.reservado && (
+          <p className="mt-4 rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm text-amber-700 dark:text-amber-400">
+            Última peça <strong>em processo de compra</strong> por outro
+            cliente. Se o pagamento não for concluído, ela volta a ficar
+            disponível em alguns minutos — vale tentar de novo mais tarde.
           </p>
         )}
 

@@ -1,11 +1,13 @@
 "use server";
 
 import { headers } from "next/headers";
+import { updateTag } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { logAudit } from "@/lib/audit";
 import { getSessionUser } from "@/lib/session";
 import { getAdminUser } from "@/lib/admin";
 import { reservarParaPedido, liberarReserva } from "@/lib/stock";
+import { CACHE_TAGS } from "@/lib/products";
 import { sendNewOrderAdminEmail } from "@/lib/email";
 import {
   createPaymentLink,
@@ -260,7 +262,10 @@ export async function startOnlinePaymentAction(
 
     // Sem devolver, a peça ficaria presa até a expiração por um pedido que
     // já nasceu morto — e a vitrine mostraria "esgotado" sem ninguém comprando.
-    if (cancelado) await liberarReserva(admin, cancelado.id);
+    if (cancelado) {
+      await liberarReserva(admin, cancelado.id);
+      updateTag(CACHE_TAGS.catalogo); // a peça voltou para a prateleira
+    }
 
     // Para o admin, mostra a resposta crua da InfinitePay — sem isso a tela só
     // diz "erro" e não dá para descobrir o que o provedor recusou.
@@ -589,6 +594,11 @@ export async function createOrderAction(
         error: `Estoque insuficiente — ${falta.join("; ")}.`,
       };
     }
+    // A peça saiu do estoque agora: sem derrubar a etiqueta, a vitrine
+    // continuaria oferecendo por minutos e um segundo cliente só descobriria
+    // na recusa do checkout. Invalidar aqui é barato — começar checkout é
+    // evento de conversão, não de navegação.
+    updateTag(CACHE_TAGS.catalogo);
   }
 
   // Alimenta a contagem do freio por IP acima (e deixa rastro em /admin/logs

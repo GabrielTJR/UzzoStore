@@ -1174,6 +1174,7 @@ export async function updateFulfillmentAction(
   // mostraria "esgotado" por um pedido que a própria loja acabou de matar.
   if (status === "canceled" && pedido.payment_status !== "paid") {
     await liberarReserva(admin, id);
+    updateTag(CACHE_TAGS.catalogo);
   }
 
   const { error } = await admin
@@ -1276,6 +1277,7 @@ export async function updatePaymentStatusAction(
   } else if (eraPago && !viraPago) {
     await devolverEstoque(admin, await itensDoPedido(admin, id));
   }
+  if (viraPago !== eraPago) updateTag(CACHE_TAGS.catalogo);
 
   await admin
     .from("orders")

@@ -1,10 +1,11 @@
 "use server";
 
 import { redirect } from "next/navigation";
-import { revalidatePath } from "next/cache";
+import { revalidatePath, updateTag } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { liberarReserva } from "@/lib/stock";
+import { CACHE_TAGS } from "@/lib/products";
 import { getCurrentUser } from "@/lib/customer";
 
 export type ActionResult = { ok: boolean; error?: string };
@@ -169,6 +170,7 @@ export async function cancelOrderAction(formData: FormData): Promise<void> {
   // Devolve a peça reservada antes de cancelar: o cliente desistiu, então ela
   // volta para a vitrine na hora em vez de esperar a expiração.
   await liberarReserva(admin, id);
+  updateTag(CACHE_TAGS.catalogo); // a peça volta para a vitrine na hora
 
   await admin
     .from("orders")

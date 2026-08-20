@@ -108,6 +108,11 @@ export async function reservarParaPedido(
       expires_at: expiresAt,
     })),
   );
+
+  // Marca de EXIBIÇÃO na linha de estoque que a vitrine já lê: sem isto o
+  // tamanho apareceria como "esgotado", que é mentira enquanto alguém está
+  // pagando por ele. A verdade da reserva continua em `reservations`.
+  await marcarReserva(admin, itens, expiresAt);
   return [];
 }
 
@@ -119,7 +124,17 @@ export async function consumirReserva(
   admin: Admin,
   orderId: string,
 ): Promise<void> {
+  const { data: reservas } = await admin
+    .from("reservations")
+    .select("variant_id")
+    .eq("order_id", orderId);
   await admin.from("reservations").delete().eq("order_id", orderId);
+  // Vendida de vez: não está mais "em processo de compra".
+  await marcarReserva(
+    admin,
+    (reservas ?? []).map((r) => ({ variant_id: r.variant_id, qty: 0 })),
+    null,
+  );
 }
 
 /**
@@ -141,4 +156,22 @@ export async function liberarReserva(
 
   await devolverEstoque(admin, reservas as ItemEstoque[]);
   await admin.from("reservations").delete().eq("order_id", orderId);
+  await marcarReserva(admin, reservas as ItemEstoque[], null);
+}
+
+/** Liga/desliga o aviso de compra em curso na linha de estoque. */
+async function marcarReserva(
+  admin: Admin,
+  itens: { variant_id: string }[],
+  ate: string | null,
+): Promise<void> {
+  if (itens.length === 0) return;
+  await admin
+    .from("stock_cache")
+    .update({ reservado_ate: ate })
+    .eq("deposito_id", "loja")
+    .in(
+      "variant_id",
+      itens.map((i) => i.variant_id),
+    );
 }

@@ -36,6 +36,12 @@ export type ProductVariant = {
   id: string;
   size: string | null;
   qty: number;
+  /**
+   * Saldo zero por RESERVA de outra compra em curso, não por fim de estoque.
+   * Existe para a página dizer "em processo de compra" em vez de "esgotado" —
+   * a peça pode voltar em minutos, e "esgotado" faria o cliente desistir.
+   */
+  reservado: boolean;
 };
 
 /** Uma cor do produto: tem galeria própria e sua própria grade de tamanhos. */
@@ -115,7 +121,10 @@ type DetailRow = {
       product_variants: {
         id: string;
         size: string | null;
-        stock_cache: { qty_available: number }[];
+        stock_cache: {
+          qty_available: number;
+          reservado_ate: string | null;
+        }[];
       }[];
     }[];
   };
@@ -401,7 +410,7 @@ async function queryProductBySlug(slug: string): Promise<ProductDetail | null> {
          product_colors ( id, sort_order, gallery,
            colors ( name, hex ),
            product_variants!product_variants_product_color_id_fkey (
-             id, size, stock_cache ( qty_available ) ) ) )`,
+             id, size, stock_cache ( qty_available, reservado_ate ) ) ) )`,
     )
     .eq("slug", slug)
     .eq("products.active_ecommerce", true)
@@ -410,6 +419,7 @@ async function queryProductBySlug(slug: string): Promise<ProductDetail | null> {
   if (error || !data) return null;
 
   const row = data as unknown as DetailRow;
+  const agora = new Date().toISOString();
 
   const colors: ProductColor[] = (row.products.product_colors ?? [])
     .slice()
@@ -426,6 +436,10 @@ async function queryProductBySlug(slug: string): Promise<ProductDetail | null> {
           qty: (v.stock_cache ?? []).reduce(
             (sum, s) => sum + (s.qty_available ?? 0),
             0,
+          ),
+          // Vem no MESMO embed do estoque: nenhuma consulta a mais.
+          reservado: (v.stock_cache ?? []).some(
+            (st) => st.reservado_ate != null && st.reservado_ate > agora,
           ),
         }))
         .sort((a, b) => compareSizes(a.size, b.size)),
