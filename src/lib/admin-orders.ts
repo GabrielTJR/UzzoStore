@@ -109,14 +109,16 @@ export function situacaoCliente(
   if (paymentStatus === "expired") return "Expirado por falta de pagamento";
   if (paymentStatus === "refunded") return "Estornado";
   if (paymentStatus !== "paid") return "Aguardando pagamento";
-  return {
-    pending: "Pagamento confirmado",
-    preparing: "Separando seu pedido",
-    ready: "Pronto para retirada",
-    shipped: "Enviado",
-    done: "Concluído",
-    canceled: "Cancelado",
-  }[fulfillmentStatus as FulfillmentStatus] ?? "Pagamento confirmado";
+  return (
+    {
+      pending: "Pagamento confirmado",
+      preparing: "Separando seu pedido",
+      ready: "Pronto para retirada",
+      shipped: "Enviado",
+      done: "Concluído",
+      canceled: "Cancelado",
+    }[fulfillmentStatus as FulfillmentStatus] ?? "Pagamento confirmado"
+  );
 }
 
 export type AdminOrderItem = {
@@ -241,4 +243,44 @@ export async function countNewOrders(): Promise<number> {
     .select("id", { count: "exact", head: true })
     .is("seen_at", null);
   return count ?? 0;
+}
+
+/**
+ * Colunas do quadro, na ordem em que o trabalho anda de verdade na loja.
+ *
+ * A primeira coluna é de pagamento e as outras são de atendimento: juntas
+ * formam a fila real de quem opera. Sem "aguardando pagamento" no quadro, o
+ * pedido que ainda não pode ser separado sumiria da vista — e é justamente o
+ * que a loja precisa vigiar para cobrar ou deixar expirar.
+ */
+export const KANBAN_COLUNAS = [
+  { key: "aguardando_pagamento", label: "Aguardando pagamento" },
+  { key: "a_separar", label: "A separar" },
+  { key: "preparing", label: "Separando" },
+  { key: "ready", label: "Pronto p/ retirada" },
+  { key: "shipped", label: "Enviado" },
+  { key: "done", label: "Concluído" },
+] as const;
+
+export type KanbanColuna = (typeof KANBAN_COLUNAS)[number]["key"];
+
+/**
+ * Em que coluna o pedido aparece. `null` = fora do quadro (cancelado ou
+ * expirado): pedido morto na fila de trabalho vira ruído, e quem procura por
+ * ele usa a lista.
+ */
+export function colunaKanban(
+  paymentStatus: string,
+  fulfillmentStatus: string,
+): KanbanColuna | null {
+  if (
+    fulfillmentStatus === "canceled" ||
+    paymentStatus === "canceled" ||
+    paymentStatus === "expired" ||
+    paymentStatus === "refunded"
+  )
+    return null;
+  if (paymentStatus !== "paid") return "aguardando_pagamento";
+  if (fulfillmentStatus === "pending") return "a_separar";
+  return fulfillmentStatus as KanbanColuna;
 }
