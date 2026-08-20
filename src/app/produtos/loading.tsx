@@ -5,7 +5,7 @@
  */
 export default function LoadingProdutos() {
   return (
-    <section className="mx-auto max-w-6xl px-6 pb-12 pt-6">
+    <section className="mx-auto w-full sm:w-[80%] px-6 pb-12 pt-6">
       <div className="mb-6 space-y-3">
         <div className="h-9 w-44 animate-pulse rounded-md bg-border/60" />
         <div className="h-4 w-28 animate-pulse rounded bg-border/60" />

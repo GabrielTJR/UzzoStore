@@ -65,7 +65,7 @@ export default async function ProdutoPage({
 
   return (
     <>
-      <article className="mx-auto max-w-6xl px-6 py-8 md:py-12">
+      <article className="mx-auto w-full sm:w-[80%] px-6 py-8 md:py-12">
         <nav
           aria-label="Você está em"
           className="mb-6 text-sm text-muted md:mb-8"

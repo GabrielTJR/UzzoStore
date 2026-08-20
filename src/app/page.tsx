@@ -12,7 +12,7 @@ import type { ProductListItem } from "@/lib/products";
 /** Hero padrão — usado enquanto a decoração não tiver nenhum banner ativo. */
 function DefaultHero() {
   return (
-    <section className="mx-auto flex min-h-[68vh] max-w-6xl flex-col justify-center px-6 py-20">
+    <section className="mx-auto flex min-h-[68vh] w-full sm:w-[80%] flex-col justify-center px-6 py-20">
       <p className="text-xs font-medium uppercase tracking-[0.35em] text-muted">
         Moda masculina · Balneário Camboriú
       </p>
@@ -53,7 +53,7 @@ function ProductRow({
 }) {
   if (products.length === 0) return null;
   return (
-    <section className="mx-auto max-w-6xl px-6 py-16">
+    <section className="mx-auto w-full sm:w-[80%] px-6 py-16">
       <div className="mb-8 flex items-end justify-between">
         <h2 className="font-serif text-3xl font-semibold tracking-tight">
           {title}
@@ -150,7 +150,7 @@ export default async function Home() {
       const cards = (s.data.cards ?? []).filter((c) => c.image || c.label);
       if (cards.length === 0) return null;
       return (
-        <section key={s.id} className="mx-auto max-w-6xl px-6 py-16">
+        <section key={s.id} className="mx-auto w-full sm:w-[80%] px-6 py-16">
           {s.data.title && (
             <h2 className="mb-8 font-serif text-3xl font-semibold tracking-tight">
               {s.data.title}

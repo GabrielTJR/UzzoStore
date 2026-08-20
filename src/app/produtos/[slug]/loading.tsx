@@ -2,7 +2,7 @@
  * feedback imediato enquanto o servidor responde. */
 export default function LoadingProduto() {
   return (
-    <article className="mx-auto max-w-6xl px-6 py-8 md:py-12">
+    <article className="mx-auto w-full sm:w-[80%] px-6 py-8 md:py-12">
       <div className="mb-6 h-4 w-40 animate-pulse rounded bg-border/60 md:mb-8" />
       <div className="grid gap-10 md:grid-cols-[minmax(0,22rem)_1fr] lg:grid-cols-[minmax(0,26rem)_1fr]">
         <div className="aspect-[3/4] animate-pulse rounded-lg bg-border/60" />

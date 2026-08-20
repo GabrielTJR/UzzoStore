@@ -110,7 +110,7 @@ export default async function RootLayout({
           </div>
         )}
         <header className="sticky top-0 z-40 border-b border-border bg-background/80 backdrop-blur">
-          <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-3">
+          <div className="mx-auto flex w-full sm:w-[80%] items-center justify-between px-6 py-3">
             <Link href="/" aria-label="Uzzo Store — início">
               <Logo height={27} priority />
             </Link>
@@ -146,7 +146,7 @@ export default async function RootLayout({
             </div>
           </div>
           <nav className="border-t border-border">
-            <div className="mx-auto flex max-w-6xl items-center gap-6 px-6 py-3 text-sm">
+            <div className="mx-auto flex w-full sm:w-[80%] items-center gap-6 px-6 py-3 text-sm">
               <Link href="/" className="text-muted hover:text-foreground">
                 Home
               </Link>
@@ -184,7 +184,7 @@ export default async function RootLayout({
         <WhatsappFab />
 
         <footer className="border-t border-border">
-          <div className="mx-auto grid max-w-6xl gap-8 px-6 py-12 sm:grid-cols-2 lg:grid-cols-5">
+          <div className="mx-auto grid w-full sm:w-[80%] gap-8 px-6 py-12 sm:grid-cols-2 lg:grid-cols-5">
             <div className="space-y-3">
               <Logo height={30} />
               <p className="max-w-xs text-sm text-muted">
@@ -293,7 +293,7 @@ export default async function RootLayout({
           </div>
 
           <div className="border-t border-border">
-            <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-2 px-6 py-4 text-xs text-muted">
+            <div className="mx-auto flex w-full sm:w-[80%] flex-wrap items-center justify-between gap-2 px-6 py-4 text-xs text-muted">
               {/* Identificação da empresa: o Decreto 7.962/2013 exige razão
                 social, CNPJ e endereço físico em local de fácil visualização
                 em qualquer site que venda. Não é enfeite de rodapé. */}

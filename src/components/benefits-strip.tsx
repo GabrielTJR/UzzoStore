@@ -36,7 +36,7 @@ const BENEFICIOS = [
 export function BenefitsStrip() {
   return (
     <section aria-label="Vantagens da loja" className="border-y border-border">
-      <div className="scrollbar-hide mx-auto flex max-w-6xl snap-x snap-mandatory gap-8 overflow-x-auto px-6 py-5 sm:grid sm:snap-none sm:grid-cols-4 sm:gap-6">
+      <div className="scrollbar-hide mx-auto flex w-full sm:w-[80%] snap-x snap-mandatory gap-8 overflow-x-auto px-6 py-5 sm:grid sm:snap-none sm:grid-cols-4 sm:gap-6">
         {BENEFICIOS.map((b) => (
           <div
             key={b.titulo}
