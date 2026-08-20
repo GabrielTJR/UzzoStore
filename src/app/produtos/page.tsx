@@ -15,6 +15,7 @@ import { FilterDisclosure } from "@/components/filter-disclosure";
 import { FilterSection } from "@/components/filter-section";
 import { FilterCheckItem as CheckItem } from "@/components/filter-check-item";
 import { categorySlug } from "@/lib/categories";
+import { displayColor } from "@/lib/color-name";
 import { getAdminUser } from "@/lib/admin";
 import { getSessionUser } from "@/lib/session";
 import { getWishlistIds } from "@/lib/wishlist";
@@ -45,16 +46,6 @@ function buildHref(
   if (pagina > 1) params.set("pagina", String(pagina));
   const qs = params.toString();
   return qs ? `/produtos?${qs}` : "/produtos";
-}
-
-/** Exibição do nome da cor (o cadastro tem caixa inconsistente: "BEGE", "Cinza"). */
-function displayColor(name: string): string {
-  return name
-    .toLocaleLowerCase("pt-BR")
-    .replace(
-      /(^|\s|-)([\p{L}])/gu,
-      (_, sep, ch) => sep + ch.toLocaleUpperCase("pt-BR"),
-    );
 }
 
 function csv(value: string | string[] | undefined): string[] {
@@ -94,7 +85,9 @@ export default async function ProdutosPage({
   const sp = await searchParams;
   // `categoria` (singular) mantido por compatibilidade com links antigos.
   const catParams = [...csv(sp.categorias), ...csv(sp.categoria)];
-  const colorParams = csv(sp.cores);
+  // Normaliza o que vem na URL com a MESMA regra do cadastro: link antigo
+  // com ?cores=BEGE segue casando depois da padronização dos nomes.
+  const colorParams = csv(sp.cores).map(displayColor);
   const busca =
     (Array.isArray(sp.busca) ? sp.busca[0] : sp.busca)?.trim() ?? "";
   const ordemParam = Array.isArray(sp.ordem) ? sp.ordem[0] : sp.ordem;

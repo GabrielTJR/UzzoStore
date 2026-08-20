@@ -5,6 +5,7 @@ import Link from "next/link";
 import { SlideTrack } from "./slide-track";
 import { CarouselArrows } from "./carousel-arrows";
 import type { ProductListItem } from "@/lib/products";
+import { displayColor } from "@/lib/color-name";
 
 export function CardColorMedia({
   product,
@@ -76,8 +77,8 @@ export function CardColorMedia({
                 key={`${c.name}-${i}`}
                 type="button"
                 onClick={() => selectColor(i)}
-                title={c.name}
-                aria-label={`Ver cor ${c.name}`}
+                title={displayColor(c.name)}
+                aria-label={`Ver cor ${displayColor(c.name)}`}
                 aria-pressed={isSelected}
                 className={`h-5 w-5 rounded-full border transition duration-150 ease-out ${
                   isSelected

@@ -12,6 +12,7 @@ import { CarouselArrows } from "@/components/carousel-arrows";
 import { AdminProductOverlay } from "@/components/admin-product-overlay";
 import { MeasurementTable } from "@/components/measurement-table";
 import { WishlistHeart } from "@/components/wishlist-heart";
+import { displayColor } from "@/lib/color-name";
 import type { ProductColor, ProductVariant } from "@/lib/products";
 import type { MeasurementChart } from "@/lib/measurements";
 
@@ -66,6 +67,7 @@ export function ProductView({
   isFavorite?: boolean;
 }) {
   const addItem = useCart((s) => s.addItem);
+  const itensNaSacola = useCart((s) => s.items);
   const openCart = useCartUi((s) => s.openCart);
 
   // Cor inicial: comprável E com foto — nessa ordem. O card da vitrine abre na
@@ -89,7 +91,6 @@ export function ProductView({
   const [imageIndex, setImageIndex] = useState(0);
   const [added, setAdded] = useState(false);
   const [qtyText, setQtyText] = useState("1");
-  const qty = Math.max(1, parseInt(qtyText, 10) || 1);
 
   const color = colors.find((c) => c.id === selectedColorId) ?? null;
   const gallery = color?.gallery ?? [];
@@ -151,6 +152,29 @@ export function ProductView({
 
   const selectedEsgotado =
     !!selectedVariant && !variantBuyable(selectedVariant, price);
+
+  /**
+   * Teto da quantidade: o estoque da variante MENOS o que já está na sacola.
+   *
+   * Sem isso dava para pedir 4 de uma peça com estoque 1 — e a tela ainda
+   * mostrava "Última unidade!" logo abaixo, se contradizendo. O cliente só
+   * descobriria na recusa do checkout, que é o pior momento para ouvir não.
+   * Descontar a sacola importa porque somar 1 duas vezes chega ao mesmo lugar.
+   *
+   * É um limite de INTERFACE, não a garantia: o estoque muda entre carregar a
+   * página e clicar (ainda mais com reserva), e quem decide continua sendo o
+   * servidor, dentro do UPDATE.
+   */
+  const jaNaSacola =
+    itensNaSacola.find((i) => i.variantId === selectedVariant?.id)?.qty ?? 0;
+  const maxQty = selectedVariant
+    ? Math.max(0, selectedVariant.qty - jaNaSacola)
+    : 0;
+  const qty = Math.min(
+    Math.max(1, parseInt(qtyText, 10) || 1),
+    Math.max(1, maxQty),
+  );
+  const noTeto = maxQty > 0 && qty >= maxQty;
   const addLabel = added
     ? "Adicionado à sacola ✓"
     : !anyBuyable
@@ -265,7 +289,7 @@ export function ProductView({
         {colors.length > 0 && (
           <div className="mt-8">
             <p className="text-sm font-medium">
-              Cor{color ? `: ${color.name}` : ""}
+              Cor{color ? `: ${displayColor(color.name)}` : ""}
             </p>
             <div className="mt-3 flex flex-wrap gap-2">
               {colors.map((c) => {
@@ -277,7 +301,7 @@ export function ProductView({
                     type="button"
                     disabled={disabled}
                     onClick={() => selectColor(c.id)}
-                    title={c.name}
+                    title={displayColor(c.name)}
                     className={`flex h-10 items-center gap-2 rounded-full border px-3 text-sm transition-colors ${
                       isSelected
                         ? "border-foreground"
@@ -289,7 +313,7 @@ export function ProductView({
                       className="inline-block h-4 w-4 rounded-full border border-border"
                       style={c.hex ? { backgroundColor: c.hex } : undefined}
                     />
-                    {c.name}
+                    {displayColor(c.name)}
                   </button>
                 );
               })}
@@ -352,20 +376,26 @@ export function ProductView({
                 aria-label="Quantidade"
                 value={qtyText}
                 onChange={(e) => setQtyText(e.target.value.replace(/\D/g, ""))}
-                onBlur={() =>
-                  setQtyText(String(Math.max(1, parseInt(qtyText, 10) || 1)))
-                }
+                onBlur={() => setQtyText(String(qty))}
                 className="h-11 w-14 border-x border-border bg-transparent text-center text-sm outline-none"
               />
               <button
                 type="button"
                 aria-label="Aumentar quantidade"
-                onClick={() => setQtyText(String(qty + 1))}
-                className="flex h-11 w-11 items-center justify-center text-lg text-muted transition-colors hover:text-foreground"
+                onClick={() => setQtyText(String(Math.min(qty + 1, maxQty)))}
+                disabled={noTeto}
+                className="flex h-11 w-11 items-center justify-center text-lg text-muted transition-colors hover:text-foreground disabled:cursor-not-allowed disabled:opacity-40"
               >
                 +
               </button>
             </div>
+            {noTeto && maxQty > 0 && (
+              <p className="mt-2 text-xs text-muted">
+                {jaNaSacola > 0
+                  ? `Você já tem ${jaNaSacola} na sacola — é tudo o que temos desta peça.`
+                  : `Máximo disponível: ${maxQty}.`}
+              </p>
+            )}
           </div>
         )}
 

@@ -8,6 +8,7 @@ import { getAdminUser, slugify } from "@/lib/admin";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { logAudit } from "@/lib/audit";
+import { displayColor } from "@/lib/color-name";
 import { isHomeSectionKind, KIND_LABEL } from "@/lib/home-sections";
 import {
   isFulfillmentStatus,
@@ -108,7 +109,10 @@ async function resolveColorId(
   name: string,
   hex?: string | null,
 ): Promise<string | null> {
-  const clean = name.trim();
+  // Padroniza a caixa NA ENTRADA: o cadastro nasceu com "BEGE" ao lado de
+  // "Cinza", e caixa alta na vitrine parece grito. Normalizar aqui é o que
+  // impede a bagunça de voltar pelo caminho do "criar cor na hora".
+  const clean = displayColor(name.trim());
   if (!clean) return null;
   const { data: existing } = await admin
     .from("colors")
@@ -784,7 +788,7 @@ export async function createColorAction(
   if (serviceRoleMissing())
     return { ok: false, error: "Falta SUPABASE_SERVICE_ROLE_KEY no servidor." };
 
-  const name = String(formData.get("name") ?? "").trim();
+  const name = displayColor(String(formData.get("name") ?? "").trim());
   const hex = String(formData.get("hex") ?? "").trim() || null;
   if (!name) return { ok: false, error: "Informe o nome da cor." };
 
@@ -819,7 +823,7 @@ export async function updateColorAction(
     return { ok: false, error: "Falta SUPABASE_SERVICE_ROLE_KEY no servidor." };
 
   const id = String(formData.get("colorId") ?? "");
-  const name = String(formData.get("name") ?? "").trim();
+  const name = displayColor(String(formData.get("name") ?? "").trim());
   const hex = String(formData.get("hex") ?? "").trim() || null;
   if (!id) return { ok: false, error: "Cor inválida." };
   if (!name) return { ok: false, error: "Informe o nome da cor." };
