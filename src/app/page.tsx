@@ -68,7 +68,7 @@ function ProductRow({
       {/* Celular: fileira que desliza com o dedo (snap) — padrão das lojas
           modernas e mostra mais produtos sem empilhar uma página quilométrica.
           Desktop: grade. */}
-      <div className="scrollbar-hide -mx-6 flex snap-x snap-mandatory gap-4 overflow-x-auto px-6 sm:mx-0 sm:grid sm:snap-none sm:grid-cols-3 sm:gap-x-6 sm:gap-y-10 sm:px-0 lg:grid-cols-4">
+      <div className="scrollbar-hide -mx-6 flex snap-x snap-mandatory gap-4 overflow-x-auto sm:overflow-visible px-6 sm:mx-0 sm:grid sm:snap-none sm:grid-cols-3 sm:gap-x-6 sm:gap-y-10 sm:px-0 lg:grid-cols-4">
         {products.map((p) => (
           <div key={p.slug} className="min-w-[62%] snap-start sm:min-w-0">
             <ProductCard product={p} isAdmin={isAdmin} />
