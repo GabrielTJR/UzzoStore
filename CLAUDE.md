@@ -102,7 +102,7 @@ As categorias do menu/filtro vêm do **banco** (`getCategories`, tabela `categor
 
 - **Parcelamento exibido** (`src/lib/installments.ts`, módulo neutro): regra da casa, até 3x com parcela mínima de R$ 100. É SÓ exibição ("em até 3x de R$ X", **sem prometer "sem juros"**): a API da InfinitePay não aceita parâmetro de parcelas — quem manda é a configuração da conta. Não escreva "sem juros" sem o dono confirmar a conta.
 - **Selo de desconto −N%** no card e na página (só a partir de 5%, para não sair "−1%").
-- **Card**: 2ª foto no hover (`peek` em `card-color-media.tsx` — o peek DESLIGA no 1º clique de seta via `navigated`, e as setas partem do índice EXIBIDO; sem isso as setas morrem em galeria de 2 fotos).
+- **Card — NÃO troque a foto no hover.** Existiu uma "espiada" (`peek` em `card-color-media.tsx`: passar o mouse mostrava a 2ª foto) e ela foi **removida em 20/08/2026 a pedido do dono da loja** — é decisão dele, não descuido; não reintroduza por achar que melhora. Saíram junto o `navigated` e o `shownIdx`, que existiam só para o peek não deixar as setas "mortas" numa galeria de 2 fotos. Hoje a foto do card só muda por seta ou bolinha de cor.
 - **Barra de compra do celular** (`product-view.tsx`): **sticky no fim da grade**, não `fixed` — fixed cobria permanentemente o fim do rodapé. O botão desktop é `hidden md:inline-flex`; o mobile vive na barra.
 - **Relacionados** (`related-products.tsx`): mesma categoria via `getProducts` cacheado (1 consulta por categoria por janela). SEMPRE repasse `isLogged`/`favorites`/`backTo` — sem eles o coração expulsa cliente logado para /conta.
 - **Chips de filtros ativos** em `/produtos`; vitrines da home e relacionados com **snap horizontal no mobile** (`scrollbar-hide` + `snap-x`, cards `min-w-[62%]`).
