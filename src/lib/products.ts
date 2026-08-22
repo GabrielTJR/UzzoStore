@@ -338,65 +338,102 @@ export function getProducts(opts: ProductQuery = {}): Promise<ProductPage> {
 }
 
 /**
+ * Falha de leitura NUNCA pode entrar no `unstable_cache`.
+ *
+ * Em 21/08/2026 o projeto do Supabase foi bloqueado por estourar a cota de
+ * egress e TODA consulta passou a responder 402. Estas funções devolviam `[]` no
+ * erro, então o cache guardou "não há decoração nenhuma" — e quando o serviço
+ * voltou, a home continuou no layout padrão, sem banner e sem vitrine, presa até
+ * a janela de 1h expirar. O mesmo valeria para o menu de categorias e o filtro
+ * de cores.
+ *
+ * O conserto tem duas metades e as duas importam: a função cacheada LANÇA (nada
+ * é gravado quando o banco falha) e o chamador CAPTURA (a página degrada em vez
+ * de quebrar — sem isso, um soluço do Supabase derrubaria o site inteiro, já que
+ * o menu vem daqui). É o mesmo desenho que `lib/shipping.ts` já usa na cotação.
+ */
+async function semCachearFalha<T>(
+  ler: () => Promise<T>,
+  vazio: T,
+  o_que: string,
+): Promise<T> {
+  try {
+    return await ler();
+  } catch (e) {
+    console.error(`[catalogo] leitura de ${o_que} falhou`, e);
+    return vazio;
+  }
+}
+
+/**
  * Blocos ATIVOS da decoração da home, na ordem — leitura pública.
  * Memoizado por requisição: o layout (faixa de aviso) e a home chamam os dois.
  */
+const homeSectionsCache = unstable_cache(
+  async (): Promise<HomeSection[]> => {
+    const supabase = createPublicClient();
+    const { data, error } = await supabase
+      .from("home_sections")
+      .select("id, kind, active, sort_order, data")
+      .eq("active", true)
+      // `created_at` desempata: sem ele, blocos com a mesma posição saem em
+      // ordem indefinida e a loja pode discordar da lista do admin.
+      .order("sort_order")
+      .order("created_at");
+    if (error) throw new Error(`home_sections: ${error.message}`);
+    return (data ?? [])
+      .map((r) => toHomeSection(r))
+      .filter((s): s is HomeSection => !!s && sectionHasContent(s));
+  },
+  ["home-sections"],
+  { revalidate: CACHE_CADASTROS, tags: [CACHE_TAGS.decoracao] },
+);
+
 export const getHomeSections = cache(
-  unstable_cache(
-    async (): Promise<HomeSection[]> => {
-      const supabase = createPublicClient();
-      const { data, error } = await supabase
-        .from("home_sections")
-        .select("id, kind, active, sort_order, data")
-        .eq("active", true)
-        // `created_at` desempata: sem ele, blocos com a mesma posição saem em
-        // ordem indefinida e a loja pode discordar da lista do admin.
-        .order("sort_order")
-        .order("created_at");
-      if (error || !data) return [];
-      return data
-        .map((r) => toHomeSection(r))
-        .filter((s): s is HomeSection => !!s && sectionHasContent(s));
-    },
-    ["home-sections"],
-    { revalidate: CACHE_CADASTROS, tags: [CACHE_TAGS.decoracao] },
-  ),
+  (): Promise<HomeSection[]> =>
+    semCachearFalha(homeSectionsCache, [], "decoração da home"),
 );
 
 /** Cores do cadastro global — lista do filtro (não depende do catálogo). */
+const storeColorsCache = unstable_cache(
+  async (): Promise<{ name: string; hex: string | null }[]> => {
+    const supabase = createPublicClient();
+    const { data, error } = await supabase.from("colors").select("name, hex");
+    if (error) throw new Error(`colors: ${error.message}`);
+    return (data ?? [])
+      .map((c) => ({ name: c.name, hex: c.hex }))
+      .sort((a, b) =>
+        a.name.localeCompare(b.name, "pt-BR", { sensitivity: "base" }),
+      );
+  },
+  ["store-colors"],
+  { revalidate: CACHE_CADASTROS, tags: [CACHE_TAGS.cores] },
+);
+
 export const getStoreColors = cache(
-  unstable_cache(
-    async (): Promise<{ name: string; hex: string | null }[]> => {
-      const supabase = createPublicClient();
-      const { data, error } = await supabase.from("colors").select("name, hex");
-      if (error || !data) return [];
-      return data
-        .map((c) => ({ name: c.name, hex: c.hex }))
-        .sort((a, b) =>
-          a.name.localeCompare(b.name, "pt-BR", { sensitivity: "base" }),
-        );
-    },
-    ["store-colors"],
-    { revalidate: CACHE_CADASTROS, tags: [CACHE_TAGS.cores] },
-  ),
+  (): Promise<{ name: string; hex: string | null }[]> =>
+    semCachearFalha(storeColorsCache, [], "cores da loja"),
 );
 
 /** Categorias (setores) para o menu/filtro da vitrine — lidas do banco. */
+const categoriesCache = unstable_cache(
+  async (): Promise<StoreCategory[]> => {
+    const supabase = createPublicClient();
+    const { data, error } = await supabase
+      .from("categories")
+      .select("id, name")
+      .eq("kind", "setor")
+      .order("name");
+    if (error) throw new Error(`categories: ${error.message}`);
+    return (data ?? []).map((c) => ({ id: c.id, name: c.name }));
+  },
+  ["categories"],
+  { revalidate: CACHE_CADASTROS, tags: [CACHE_TAGS.categorias] },
+);
+
 export const getCategories = cache(
-  unstable_cache(
-    async (): Promise<StoreCategory[]> => {
-      const supabase = createPublicClient();
-      const { data, error } = await supabase
-        .from("categories")
-        .select("id, name")
-        .eq("kind", "setor")
-        .order("name");
-      if (error || !data) return [];
-      return data.map((c) => ({ id: c.id, name: c.name }));
-    },
-    ["categories"],
-    { revalidate: CACHE_CADASTROS, tags: [CACHE_TAGS.categorias] },
-  ),
+  (): Promise<StoreCategory[]> =>
+    semCachearFalha(categoriesCache, [], "categorias"),
 );
 
 async function queryProductBySlug(slug: string): Promise<ProductDetail | null> {
