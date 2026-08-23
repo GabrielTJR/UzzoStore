@@ -1,6 +1,5 @@
 import type { Metadata, Viewport } from "next";
 import Link from "next/link";
-import Image from "next/image";
 import { Geist, Geist_Mono, Playfair_Display } from "next/font/google";
 import { Analytics } from "@vercel/analytics/next";
 import { CartButton } from "@/components/cart-button";
@@ -79,21 +78,16 @@ export const viewport: Viewport = {
 const LOGO_W = 1815;
 const LOGO_H = 524;
 
-function Logo({
-  height = 44,
-  priority = false,
-}: {
-  height?: number;
-  priority?: boolean;
-}) {
+function Logo({ height = 44 }: { height?: number }) {
   return (
-    <Image
-      src="/logo.png"
-      alt="Uzzo Store"
-      width={Math.round((height * LOGO_W) / LOGO_H)}
-      height={height}
-      priority={priority}
-      className="w-auto dark:invert"
+    <span
+      role="img"
+      aria-label="Uzzo Store"
+      className="logo-marca inline-block shrink-0"
+      style={{
+        width: Math.round((height * LOGO_W) / LOGO_H),
+        height,
+      }}
     />
   );
 }
@@ -129,7 +123,7 @@ export default async function RootLayout({
         <header className="sticky top-0 z-40 border-b border-border bg-background/80 backdrop-blur">
           <div className="mx-auto flex w-full sm:w-[80%] items-center justify-between px-6 py-3">
             <Link href="/" aria-label="Uzzo Store — início">
-              <Logo height={27} priority />
+              <Logo height={27} />
             </Link>
             <div className="flex items-center gap-5">
               <a
