@@ -1,7 +1,10 @@
 @import "tailwindcss";
 
 :root {
-  color-scheme: light;
+  /* "light dark" (e não "light") avisa o navegador que o site trata os dois
+     temas. Declarar só "light" liga o escurecimento automático do navegador,
+     que mexe no fundo mas não na imagem — a logo preta sumia no escuro. */
+  color-scheme: light dark;
   --background: #ffffff;
   --foreground: #0a0a0a;
   --muted: #71717a; /* zinc-500 */
@@ -20,7 +23,6 @@
 
 @media (prefers-color-scheme: dark) {
   :root {
-    color-scheme: dark;
     --background: #0a0a0a;
     --foreground: #f5f5f5;
     --muted: #a1a1aa; /* zinc-400 */

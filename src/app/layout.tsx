@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import Link from "next/link";
 import Image from "next/image";
 import { Geist, Geist_Mono, Playfair_Display } from "next/font/google";
@@ -56,6 +56,23 @@ export const metadata: Metadata = {
   description:
     "Moda masculina da Uzzo Store: tecnologia aplicada ao vestir — conforto, praticidade e elegância. Balneário Camboriú, com envio para todo o Brasil.",
   openGraph: { type: "website", locale: "pt_BR", siteName: "Uzzo Store" },
+};
+
+/**
+ * Declara que o site trata os DOIS temas.
+ *
+ * Sem isto o navegador entende que a página é só clara e liga o escurecimento
+ * automático dele (o "modo escuro para sites" do Chrome/Samsung Internet). Esse
+ * recurso escurece fundos mas NÃO mexe em imagens — então a logo, que é um PNG
+ * preto, ficava preta sobre fundo preto, quase invisível. E como o navegador
+ * nem informa `prefers-color-scheme: dark` nesse modo, o `dark:invert` da logo
+ * nunca disparava.
+ *
+ * Com `light dark` o navegador para de forçar e deixa o site cuidar do tema,
+ * que é o que ele já sabia fazer.
+ */
+export const viewport: Viewport = {
+  colorScheme: "light dark",
 };
 
 // Proporção real do arquivo public/logo.png (recortado ao conteúdo).
