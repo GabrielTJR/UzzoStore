@@ -31,7 +31,53 @@ export type ShippingOption = {
   price: number; // reais, já com o frete grátis aplicado quando for o caso
   days: number; // prazo em dias úteis
   free: boolean;
+  /**
+   * Por que esta opção está na lista. A vitrine mostra ISTO no lugar do nome do
+   * serviço: ".Package Centralizado · Jadlog" não diz nada para quem compra
+   * camisa, "Mais barato · até 8 dias úteis" diz tudo.
+   */
+  tag: "barato" | "rapido" | "ambos" | null;
 };
+
+/**
+ * Escolhe até 3 opções para mostrar, garantindo que a MAIS BARATA e a MAIS
+ * RÁPIDA estejam entre elas.
+ *
+ * Antes eram simplesmente as 3 mais baratas, e isso escondia o prazo curto onde
+ * ele mais importa: para Manaus as três mais baratas levam ~20 dias, então o
+ * cliente disposto a pagar por rapidez nunca via a opção de 6 dias e ia embora.
+ * O inverso também acontece — medido em 21/08/2026, o SEDEX para São Paulo custa
+ * R$ 35,86 contra R$ 15,14 da Loggi, e para Salvador R$ 73,95 contra R$ 17,65.
+ * Mostrar os dois extremos deixa o cliente decidir com a informação na mão.
+ */
+function escolheOpcoes(todas: ShippingOption[]): ShippingOption[] {
+  if (todas.length === 0) return [];
+  // Desempates explícitos: preço igual → o mais rápido primeiro, e vice-versa.
+  const porPreco = [...todas].sort(
+    (a, b) => a.price - b.price || a.days - b.days,
+  );
+  const porPrazo = [...todas].sort(
+    (a, b) => a.days - b.days || a.price - b.price,
+  );
+  const barato = porPreco[0];
+  const rapido = porPrazo[0];
+
+  const escolhidas: ShippingOption[] = [];
+  if (barato.serviceId === rapido.serviceId) {
+    // Rota curta: o mesmo serviço é o mais barato E o mais rápido.
+    escolhidas.push({ ...barato, tag: "ambos" });
+  } else {
+    escolhidas.push({ ...barato, tag: "barato" }, { ...rapido, tag: "rapido" });
+  }
+  // Completa com a próxima mais barata que ainda não entrou.
+  for (const o of porPreco) {
+    if (escolhidas.length >= 3) break;
+    if (!escolhidas.some((e) => e.serviceId === o.serviceId)) {
+      escolhidas.push({ ...o, tag: null });
+    }
+  }
+  return escolhidas.sort((a, b) => a.price - b.price);
+}
 
 export type QuoteInput = {
   cepDestino: string;
@@ -114,7 +160,7 @@ async function fetchQuote(
       throw new Error(`quote ${res.status}`);
     }
     const data = (await res.json()) as MEService[];
-    const opts = data
+    const todas = data
       .filter((s) => !s.error && (s.custom_price ?? s.price))
       .map((s) => ({
         serviceId: s.id,
@@ -123,10 +169,10 @@ async function fetchQuote(
         price: Number(s.custom_price ?? s.price),
         days: s.delivery_range?.max ?? s.delivery_time ?? 0,
         free: false,
+        tag: null as ShippingOption["tag"],
       }))
-      .filter((o) => Number.isFinite(o.price) && o.price > 0)
-      .sort((a, b) => a.price - b.price)
-      .slice(0, 3); // as 3 melhores bastam; lista longa só confunde
+      .filter((o) => Number.isFinite(o.price) && o.price > 0);
+    const opts = escolheOpcoes(todas);
     if (!opts.length) throw new Error("quote vazia");
     return opts;
   } catch (err) {

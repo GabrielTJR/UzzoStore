@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCart, cartSubtotal } from "@/lib/cart-store";
 import { formatBRL } from "@/lib/format";
+import { ShippingOptions } from "@/components/shipping-options";
 import { startOnlinePaymentAction } from "@/app/sacola/actions";
 import {
   quoteShippingAction,
@@ -356,41 +357,11 @@ export function CheckoutFlow({
                     </div>
                   )}
                   {quote?.ok && (
-                    <div
-                      className="mt-2 space-y-2"
-                      role="radiogroup"
-                      aria-label="Opções de frete"
-                    >
-                      {quote.options.map((o) => (
-                        <label
-                          key={o.serviceId}
-                          className={`flex cursor-pointer items-center justify-between gap-3 rounded-md border px-3 py-2.5 text-sm transition-colors ${
-                            freightServiceId === o.serviceId
-                              ? "border-foreground"
-                              : "border-border hover:border-foreground"
-                          }`}
-                        >
-                          <span className="flex items-center gap-2">
-                            <input
-                              type="radio"
-                              name="frete"
-                              checked={freightServiceId === o.serviceId}
-                              onChange={() => setFreightServiceId(o.serviceId)}
-                            />
-                            {o.name}
-                            {o.company ? ` · ${o.company}` : ""}
-                            {o.days > 0 && (
-                              <span className="text-xs text-muted">
-                                até {o.days} dias úteis
-                              </span>
-                            )}
-                          </span>
-                          <strong>
-                            {o.free ? "Grátis 🎉" : formatBRL(o.price)}
-                          </strong>
-                        </label>
-                      ))}
-                    </div>
+                    <ShippingOptions
+                      options={quote.options}
+                      selectedServiceId={freightServiceId}
+                      onSelect={(o) => setFreightServiceId(o.serviceId)}
+                    />
                   )}
                 </div>
               )}

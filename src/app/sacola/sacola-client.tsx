@@ -10,6 +10,8 @@ import {
 } from "@/lib/cart-store";
 import { formatBRL } from "@/lib/format";
 import { FreeShippingBar } from "@/components/free-shipping-bar";
+import { ShippingOptions } from "@/components/shipping-options";
+import type { ShippingOption } from "@/lib/shipping";
 import { createOrderAction, type CheckoutResult } from "./actions";
 import {
   quoteShippingAction,
@@ -18,6 +20,20 @@ import {
 } from "./shipping-actions";
 
 const WHATSAPP_NUMBER = "5547991744865";
+
+/**
+ * Opção de frete -> o que fica guardado na sacola. O `name` mantém serviço e
+ * transportadora (não o rótulo de benefício): é ele que aparece no e-mail do
+ * pedido e no WhatsApp, onde "Mais barato" não ajudaria ninguém a despachar.
+ */
+function escolhaDeFrete(cep: string, o: ShippingOption): CartShipping {
+  return {
+    cep: cep.replace(/\D/g, ""),
+    serviceId: o.serviceId,
+    name: `${o.name}${o.company ? ` (${o.company})` : ""}`,
+    price: o.price,
+  };
+}
 
 /** Mensagem do pedido — monta com os totais CONFIRMADOS pelo servidor. */
 function buildWhatsappMessage(
@@ -178,6 +194,13 @@ export function SacolaClient({
       );
       setQuote(res);
       if (!res.ok) setShipping(null);
+      // Já deixa a recomendada marcada. Sem isso o cliente tem que escolher
+      // entre rádios vazios para seguir, no passo em que ele está mais perto de
+      // desistir. `options[0]` é a mais barata (e é nela que o frete grátis
+      // cai), então é também a escolha mais segura para o bolso dele.
+      else if (res.options.length > 0) {
+        setShipping(escolhaDeFrete(limpo, res.options[0]));
+      }
     } catch {
       setQuote({ ok: false, error: "Não conseguimos cotar agora." });
     } finally {
@@ -403,51 +426,11 @@ export function SacolaClient({
               )}
 
               {quote?.ok && (
-                <div
-                  className="mt-3 space-y-2"
-                  role="radiogroup"
-                  aria-label="Opções de frete"
-                >
-                  {quote.options.map((o) => {
-                    const selected = shipping?.serviceId === o.serviceId;
-                    return (
-                      <label
-                        key={o.serviceId}
-                        className={`flex cursor-pointer items-center justify-between gap-3 rounded-md border px-3 py-2.5 text-sm transition-colors ${
-                          selected
-                            ? "border-foreground"
-                            : "border-border hover:border-foreground"
-                        }`}
-                      >
-                        <span className="flex items-center gap-2">
-                          <input
-                            type="radio"
-                            name="frete"
-                            checked={selected}
-                            onChange={() =>
-                              setShipping({
-                                cep: cep.replace(/\D/g, ""),
-                                serviceId: o.serviceId,
-                                name: `${o.name}${o.company ? ` (${o.company})` : ""}`,
-                                price: o.price,
-                              } satisfies CartShipping)
-                            }
-                          />
-                          {o.name}
-                          {o.company ? ` · ${o.company}` : ""}
-                          {o.days > 0 && (
-                            <span className="text-xs text-muted">
-                              até {o.days} dias úteis
-                            </span>
-                          )}
-                        </span>
-                        <strong>
-                          {o.free ? "Grátis 🎉" : formatBRL(o.price)}
-                        </strong>
-                      </label>
-                    );
-                  })}
-                </div>
+                <ShippingOptions
+                  options={quote.options}
+                  selectedServiceId={shipping?.serviceId ?? null}
+                  onSelect={(o) => setShipping(escolhaDeFrete(cep, o))}
+                />
               )}
             </div>
           )}
