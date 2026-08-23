@@ -36,6 +36,19 @@ export function toCents(value: number): number {
 
 export type LinkItem = { quantity: number; price: number; description: string };
 
+/**
+ * Endereço de entrega repassado ao checkout deles. Os nomes são os da API da
+ * InfinitePay: o `neighborhood` é o que chamamos de `district` (bairro), e não
+ * existe campo de cidade/estado — eles derivam do CEP.
+ */
+export type LinkAddress = {
+  cep: string;
+  street?: string | null;
+  neighborhood?: string | null;
+  number?: string | null;
+  complement?: string | null;
+};
+
 /** Cria o link de pagamento e devolve a URL para onde mandar o cliente. */
 export async function createPaymentLink(params: {
   items: LinkItem[];
@@ -47,6 +60,12 @@ export async function createPaymentLink(params: {
     email?: string | null;
     phone?: string | null;
   };
+  /**
+   * Só na ENTREGA (na retirada não há endereço). Mandar isto poupa o cliente de
+   * redigitar, no passo "Entrega" do checkout deles, um endereço que ele já deu
+   * para a loja cotar o frete — atrito no ponto de maior desistência.
+   */
+  address?: LinkAddress | null;
 }): Promise<{ ok: boolean; url?: string; error?: string; detail?: string }> {
   const handle = infinitepayHandle();
   if (!handle) return { ok: false, error: "Pagamento online indisponível." };
@@ -63,6 +82,17 @@ export async function createPaymentLink(params: {
       name: params.customer?.name ?? undefined,
       email: params.customer?.email ?? undefined,
       phone_number: params.customer?.phone ?? undefined,
+    };
+  }
+  // Sem CEP não há o que pré-preencher, e mandar objeto pela metade só arrisca
+  // uma recusa da API — que aqui responde 422 genérico e derruba o checkout.
+  if (params.address?.cep) {
+    body.address = {
+      cep: params.address.cep,
+      street: params.address.street ?? undefined,
+      neighborhood: params.address.neighborhood ?? undefined,
+      number: params.address.number ?? undefined,
+      complement: params.address.complement ?? undefined,
     };
   }
 

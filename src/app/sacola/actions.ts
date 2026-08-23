@@ -242,6 +242,18 @@ export async function startOnlinePaymentAction(
       email: user.email,
       phone: profile?.phone,
     },
+    // Na entrega, repassa o endereço que o cliente já escolheu: sem isto ele
+    // redigita CEP e rua no checkout deles, logo depois de tê-los informado
+    // aqui para cotar o frete. Na retirada não existe endereço.
+    address: shippingAddress?.cep
+      ? {
+          cep: String(shippingAddress.cep),
+          street: (shippingAddress.street as string | null) ?? null,
+          neighborhood: (shippingAddress.district as string | null) ?? null,
+          number: (shippingAddress.number as string | null) ?? null,
+          complement: (shippingAddress.complement as string | null) ?? null,
+        }
+      : null,
   });
   if (!link.ok || !link.url) {
     // O pedido já está gravado, mas sem link não há como pagar. Deixá-lo
