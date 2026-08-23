@@ -33,7 +33,7 @@ export function NewsletterForm() {
   if (state === "done")
     return (
       <p className="text-sm text-muted">
-        Pronto! Você vai receber as novidades primeiro. 🎉
+        Pronto! Você vai receber as novidades primeiro.
       </p>
     );
 

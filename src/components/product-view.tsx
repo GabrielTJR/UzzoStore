@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Image from "next/image";
 import { useCart } from "@/lib/cart-store";
 import { useCartUi } from "@/lib/cart-ui";
@@ -175,8 +175,26 @@ export function ProductView({
     Math.max(1, maxQty),
   );
   const noTeto = maxQty > 0 && qty >= maxQty;
+
+  /**
+   * Reajusta o CAMPO quando o teto muda (trocou de tamanho ou de cor, ou o
+   * item entrou na sacola).
+   *
+   * O `qty` acima já vinha limitado, mas o campo mostra o texto digitado: quem
+   * escolhia 2 num tamanho com estoque e trocava para um com 1 continuava
+   * vendo "2" na tela, ao lado de "Última unidade!". O cálculo estava certo e
+   * a tela mentia — que é pior, porque é nela que o cliente confia.
+   *
+   * Limita em vez de zerar para 1: trocar de M para G com estoque de sobra
+   * preserva a quantidade escolhida.
+   */
+  useEffect(() => {
+    setQtyText((t) =>
+      String(Math.min(Math.max(1, parseInt(t, 10) || 1), Math.max(1, maxQty))),
+    );
+  }, [maxQty]);
   const addLabel = added
-    ? "Adicionado à sacola ✓"
+    ? "Adicionado à sacola"
     : !anyBuyable
       ? "Indisponível"
       : canAdd

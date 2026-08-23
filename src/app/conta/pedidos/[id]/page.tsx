@@ -192,7 +192,7 @@ export default async function PedidoDetalhePage({
             );
             return (
               <p className="mb-3 rounded-md border border-border px-3 py-2">
-                📦 Rastreio:{" "}
+                Rastreio:{" "}
                 {url ? (
                   <>
                     <a

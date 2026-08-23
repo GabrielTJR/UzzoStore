@@ -94,7 +94,7 @@ export function ShippingOptions({
                 )}
               </span>
             </span>
-            <strong>{o.free ? "Grátis 🎉" : formatBRL(o.price)}</strong>
+            <strong>{o.free ? "Grátis" : formatBRL(o.price)}</strong>
           </label>
         );
       })}

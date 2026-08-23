@@ -25,7 +25,7 @@ export function FreeShippingBar({ subtotal }: { subtotal: number }) {
           </>
         ) : (
           <strong className="text-foreground">
-            🎉 Você ganhou frete grátis!
+            Você ganhou frete grátis!
           </strong>
         )}
       </p>

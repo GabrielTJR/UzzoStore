@@ -159,12 +159,12 @@ export default async function PedidosAdminPage({
                 {/* Entrega: sem isso não dá para saber se retira ou para onde enviar */}
                 {o.shippingMethod === "pickup" && (
                   <p className="mt-3 rounded-md border border-border px-3 py-2 text-sm">
-                    🏬 <span className="font-medium">Retirada na loja</span>
+                    <span className="font-medium">Retirada na loja</span>
                   </p>
                 )}
                 {o.shippingMethod === "delivery" && o.shippingAddress && (
                   <p className="mt-3 rounded-md border border-border px-3 py-2 text-sm">
-                    🚚 <span className="font-medium">Entrega</span>
+                    <span className="font-medium">Entrega</span>
                     <span className="block text-muted">
                       {o.shippingAddress.street}
                       {o.shippingAddress.number

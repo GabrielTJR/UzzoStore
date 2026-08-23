@@ -256,7 +256,7 @@ export function SacolaClient({
         return;
       }
 
-      showToast("Pedido criado com sucesso! Redirecionando... ✅");
+      showToast("Pedido criado com sucesso! Redirecionando...");
 
       const url = `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(
         buildWhatsappMessage(items, res.totals, res.orderNumber),
@@ -385,7 +385,7 @@ export function SacolaClient({
         <div className="space-y-6">
           {!shippingEnabled && (
             <p className="text-sm text-muted">
-              🚚 O frete é combinado pelo WhatsApp depois do pedido.
+              O frete é combinado pelo WhatsApp depois do pedido.
             </p>
           )}
           {shippingEnabled && (

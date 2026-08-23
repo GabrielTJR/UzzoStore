@@ -42,7 +42,7 @@ export default async function PedidoConfirmadoPage({
       {paid && <ClearCart />}
 
       <h1 className="font-serif text-3xl font-semibold tracking-tight">
-        {paid ? "Pagamento confirmado 🎉" : "Estamos confirmando seu pagamento"}
+        {paid ? "Pagamento confirmado" : "Estamos confirmando seu pagamento"}
       </h1>
 
       <p className="mt-4 text-sm leading-relaxed text-muted">
