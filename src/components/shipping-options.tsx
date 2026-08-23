@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import type { ShippingOption } from "@/lib/shipping";
+import { nomeServicoFrete } from "@/lib/shipping-config";
 import { formatBRL } from "@/lib/format";
 
 /**
@@ -58,12 +59,13 @@ export function ShippingOptions({
       {visiveis.map((o) => {
         const selected = selectedServiceId === o.serviceId;
         const rotulo = o.tag ? ROTULO[o.tag] : null;
-        const titulo = rotulo
-          ? rotulo.titulo
-          : `${o.name}${o.company ? ` · ${o.company}` : ""}`;
+        // Nunca o nome cru da API: ".Package Centralizado", ".Com" e "Standard"
+        // são jargão de transportadora, não linguagem de loja.
+        const servico = nomeServicoFrete(o.serviceId, o.name, o.company);
+        const titulo = rotulo ? rotulo.titulo : servico;
         const detalhe = [
           o.days > 0 ? `até ${o.days} dias úteis` : null,
-          rotulo && o.company ? o.company : null,
+          rotulo ? servico : null,
           rotulo?.nota || null,
         ]
           .filter(Boolean)

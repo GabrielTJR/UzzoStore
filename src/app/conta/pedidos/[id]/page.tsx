@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { requireCustomer } from "@/lib/customer";
 import { createClient } from "@/lib/supabase/server";
 import { formatBRL } from "@/lib/format";
+import { linkRastreio } from "@/lib/shipping-config";
 import {
   PAYMENT_STATUS,
   FULFILLMENT_STATUS,
@@ -181,25 +182,44 @@ export default async function PedidoDetalhePage({
         <h2 className="mb-3 text-sm font-medium uppercase tracking-[0.15em] text-muted">
           Entrega
         </h2>
-        {o.tracking_code && (
-          <p className="mb-3 rounded-md border border-border px-3 py-2">
-            📦 Rastreio:{" "}
-            {/^[A-Z]{2}\d{9}BR$/.test(o.tracking_code) ? (
-              <a
-                href={`https://rastreamento.correios.com.br/app/index.php?objeto=${encodeURIComponent(o.tracking_code)}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="font-mono font-medium underline underline-offset-4"
-              >
-                {o.tracking_code}
-              </a>
-            ) : (
-              <span className="font-mono font-medium">
-                {o.tracking_code} (acompanhe no site da transportadora)
-              </span>
-            )}
-          </p>
-        )}
+        {o.tracking_code &&
+          (() => {
+            // O destino depende da transportadora, não só do formato do código:
+            // a maioria dos envios para fora da região não vai de Correios.
+            const { url, transportadora } = linkRastreio(
+              o.tracking_code,
+              o.shipping_service,
+            );
+            return (
+              <p className="mb-3 rounded-md border border-border px-3 py-2">
+                📦 Rastreio:{" "}
+                {url ? (
+                  <>
+                    <a
+                      href={url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="font-mono font-medium underline underline-offset-4"
+                    >
+                      {o.tracking_code}
+                    </a>
+                    {transportadora && (
+                      <span className="text-muted"> · {transportadora}</span>
+                    )}
+                  </>
+                ) : (
+                  <span className="font-mono font-medium">
+                    {o.tracking_code}
+                    <span className="font-sans font-normal text-muted">
+                      {transportadora
+                        ? ` — acompanhe no site da ${transportadora}`
+                        : " — acompanhe no site da transportadora"}
+                    </span>
+                  </span>
+                )}
+              </p>
+            );
+          })()}
         {o.shipping_method === "pickup" && (
           <p>
             <span className="font-medium">Retirada na loja</span>

@@ -1163,7 +1163,7 @@ export async function updateFulfillmentAction(
   const admin = createAdminClient();
   const { data: pedido } = await admin
     .from("orders")
-    .select("number, customer_id, tracking_code, payment_status")
+    .select("number, customer_id, tracking_code, payment_status, shipping_service")
     .eq("id", id)
     .maybeSingle();
   if (!pedido) return;
@@ -1213,6 +1213,7 @@ export async function updateFulfillmentAction(
           orderNumber: pedido.number,
           status,
           trackingCode: pedido.tracking_code ?? null,
+          shippingService: pedido.shipping_service ?? null,
         });
     }
   }

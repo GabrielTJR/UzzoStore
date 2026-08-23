@@ -1,5 +1,6 @@
 import "server-only";
 import { logAudit } from "@/lib/audit";
+import { linkRastreio } from "@/lib/shipping-config";
 
 /**
  * E-mails transacionais (pedido pago, pedido enviado) pela API do Resend.
@@ -271,6 +272,8 @@ export async function sendOrderStatusEmail(params: {
   status: "ready" | "shipped" | "done";
   /** Código de rastreio — vira link no e-mail de "enviado". */
   trackingCode?: string | null;
+  /** "SEDEX (Correios)" — decide PARA ONDE o link de rastreio aponta. */
+  shippingService?: string | null;
 }): Promise<boolean> {
   const copy = {
     ready: {
@@ -281,17 +284,23 @@ export async function sendOrderStatusEmail(params: {
     shipped: {
       subject: `Pedido nº ${params.orderNumber} enviado`,
       title: "Seu pedido saiu para entrega 🚚",
-      body: params.trackingCode
-        ? /^[A-Z]{2}\d{9}BR$/.test(params.trackingCode)
-          ? `Seu pedido já está a caminho! Acompanhe pelo código <strong>${esc(
-              params.trackingCode,
-            )}</strong>: <a href="https://rastreamento.correios.com.br/app/index.php?objeto=${encodeURIComponent(
-              params.trackingCode,
-            )}">rastrear encomenda</a>. Qualquer dúvida, é só chamar no WhatsApp.`
-          : `Seu pedido já está a caminho! Código de rastreio: <strong>${esc(
-              params.trackingCode,
-            )}</strong> — acompanhe no site da transportadora. Qualquer dúvida, é só chamar no WhatsApp.`
-        : "Seu pedido já está a caminho. Qualquer dúvida sobre a entrega, é só chamar no WhatsApp.",
+      body: (() => {
+        if (!params.trackingCode)
+          return "Seu pedido já está a caminho. Qualquer dúvida sobre a entrega, é só chamar no WhatsApp.";
+        // O destino sai da transportadora do pedido, não do formato do código:
+        // a maior parte dos envios para fora da região não é Correios.
+        const { url, transportadora } = linkRastreio(
+          params.trackingCode,
+          params.shippingService,
+        );
+        const cod = `<strong>${esc(params.trackingCode)}</strong>`;
+        const via = transportadora ? ` (${esc(transportadora)})` : "";
+        return url
+          ? `Seu pedido já está a caminho! Acompanhe pelo código ${cod}${via}: <a href="${url}">rastrear encomenda</a>. Qualquer dúvida, é só chamar no WhatsApp.`
+          : `Seu pedido já está a caminho! Código de rastreio: ${cod} — acompanhe no site da ${
+              transportadora ? esc(transportadora) : "transportadora"
+            }. Qualquer dúvida, é só chamar no WhatsApp.`;
+      })(),
     },
     done: {
       subject: `Pedido nº ${params.orderNumber} concluído`,
