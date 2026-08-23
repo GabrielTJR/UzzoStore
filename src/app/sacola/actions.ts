@@ -3,6 +3,7 @@
 import { headers } from "next/headers";
 import { updateTag } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { createPublicClient } from "@/lib/supabase/public";
 import { logAudit } from "@/lib/audit";
 import { getSessionUser } from "@/lib/session";
 import { getAdminUser } from "@/lib/admin";
@@ -301,6 +302,56 @@ export async function startOnlinePaymentAction(
  * impedir. Curto porque o PIX confirma em minutos.
  */
 const JANELA_PAGAMENTO_MIN = 20;
+
+/**
+ * Saldo atual das variantes que estão na sacola.
+ *
+ * A sacola vive no localStorage do cliente e pode ficar dias parada: a peça
+ * pode ter esgotado, ou estar reservada por outra compra em curso. Sem isto o
+ * cliente só descobre a falta ao CLICAR em pagar — depois de calcular frete e
+ * aplicar cupom, que é o pior momento para ouvir não.
+ *
+ * Client PÚBLICO de propósito: `stock_cache` tem leitura liberada (policy
+ * `catalog_read_stock`) e é o mesmo número que a página do produto já mostra.
+ * Assim funciona sem a service_role e não vaza nada.
+ *
+ * Sem freio por IP: contar no `audit_log` custaria uma leitura e uma escrita
+ * para proteger uma consulta mais barata que elas, e o dado já é público. O
+ * teto de itens é o que evita um `IN` gigante.
+ */
+export type SaldoSacola = { qty: number; reservado: boolean };
+
+export async function cartStockAction(
+  variantIds: string[],
+): Promise<Record<string, SaldoSacola>> {
+  const ids = (Array.isArray(variantIds) ? variantIds : [])
+    .filter((v): v is string => typeof v === "string" && v.length > 0)
+    .slice(0, 50);
+  if (ids.length === 0) return {};
+
+  const supabase = createPublicClient();
+  const { data, error } = await supabase
+    .from("stock_cache")
+    .select("variant_id, qty_available, reservado_ate")
+    .in("variant_id", ids)
+    .eq("deposito_id", "loja");
+  if (error || !data) return {};
+
+  const agora = Date.now();
+  const saldo: Record<string, SaldoSacola> = {};
+  for (const l of data)
+    saldo[l.variant_id] = {
+      qty: l.qty_available ?? 0,
+      // Vem na MESMA consulta: saldo zero por reserva não é fim de estoque, e
+      // dizer "esgotado" para peça que volta em minutos é a mesma mentira que
+      // já corrigimos na página do produto.
+      reservado: l.reservado_ate != null && Date.parse(l.reservado_ate) > agora,
+    };
+  // Variante sem linha de estoque = sem saldo, não "saldo desconhecido".
+  for (const id of ids)
+    if (!(id in saldo)) saldo[id] = { qty: 0, reservado: false };
+  return saldo;
+}
 
 /** Quantos pedidos o mesmo IP pode abrir na janela abaixo. */
 const LIMITE_PEDIDOS = 8;

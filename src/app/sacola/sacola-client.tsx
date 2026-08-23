@@ -12,7 +12,12 @@ import { formatBRL } from "@/lib/format";
 import { FreeShippingBar } from "@/components/free-shipping-bar";
 import { ShippingOptions } from "@/components/shipping-options";
 import type { ShippingOption } from "@/lib/shipping";
-import { createOrderAction, type CheckoutResult } from "./actions";
+import {
+  createOrderAction,
+  cartStockAction,
+  type CheckoutResult,
+  type SaldoSacola,
+} from "./actions";
 import {
   quoteShippingAction,
   checkCouponAction,
@@ -123,6 +128,9 @@ export function SacolaClient({
   const [couponMsg, setCouponMsg] = useState<string | null>(null);
   const [couponDiscount, setCouponDiscount] = useState(0);
 
+  // Saldo real das peças da sacola (null = ainda não consultado).
+  const [saldo, setSaldo] = useState<Record<string, SaldoSacola> | null>(null);
+
   useEffect(() => setMounted(true), []);
   useEffect(() => {
     if (shipping?.cep) setCep(shipping.cep);
@@ -136,6 +144,42 @@ export function SacolaClient({
   // cart-store já zera `shipping`; aqui derrubamos a lista para ninguém
   // clicar num preço órfão.
   const composicao = items.map((i) => `${i.variantId}:${i.qty}`).join("|");
+
+  /**
+   * Confere o estoque assim que a sacola abre, e a cada mudança dela.
+   *
+   * A sacola vive no navegador e pode ficar dias parada; a peça pode ter
+   * esgotado ou estar reservada por outra compra. Avisar aqui evita que a
+   * pessoa preencha CEP e cupom para só então ouvir não no clique de pagar.
+   *
+   * Falha ABERTO: se a consulta não responder, não bloqueamos a compra — o
+   * servidor recusa de novo na criação do pedido, que é a garantia de verdade.
+   */
+  useEffect(() => {
+    const ids = items.map((i) => i.variantId);
+    if (ids.length === 0) {
+      setSaldo({});
+      return;
+    }
+    let vivo = true;
+    cartStockAction(ids)
+      .then((r) => {
+        if (vivo) setSaldo(r);
+      })
+      .catch(() => {
+        if (vivo) setSaldo(null);
+      });
+    return () => {
+      vivo = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [composicao]);
+
+  /** Peças cuja quantidade na sacola passou do que existe. */
+  const semSaldo = saldo
+    ? items.filter((i) => (saldo[i.variantId]?.qty ?? 0) < i.qty)
+    : [];
+  const temFalta = semSaldo.length > 0;
   useEffect(() => {
     setQuote(null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -340,6 +384,18 @@ export function SacolaClient({
               )}
 
               <p className="mt-1 text-sm text-muted">{formatBRL(item.price)}</p>
+
+              {saldo && (saldo[item.variantId]?.qty ?? 0) < item.qty && (
+                <p className="mt-1 text-xs font-medium text-red-600 dark:text-red-400">
+                  {(saldo[item.variantId]?.qty ?? 0) === 0
+                    ? saldo[item.variantId]?.reservado
+                      ? "Em processo de compra por outro cliente — remova para seguir"
+                      : "Esgotado — remova para seguir"
+                    : (saldo[item.variantId]?.qty ?? 0) === 1
+                      ? "Só resta 1 — ajuste a quantidade"
+                      : `Só restam ${saldo[item.variantId]?.qty} — ajuste a quantidade`}
+                </p>
+              )}
             </div>
 
             <div className="flex items-center rounded-md border border-border">
@@ -503,10 +559,16 @@ export function SacolaClient({
             </div>
           </dl>
 
+          {temFalta && (
+            <p className="text-sm text-red-600 dark:text-red-400">
+              Ajuste as quantidades marcadas acima para seguir com a compra.
+            </p>
+          )}
+
           {error && <p className="text-sm text-red-600">{error}</p>}
 
           <div className="flex w-full flex-col gap-3 md:items-end">
-            {!error && !busy ? (
+            {!error && !busy && !temFalta ? (
               <Link
                 href="/checkout"
                 className="inline-flex h-12 w-full items-center justify-center rounded-full border border-border px-8 text-sm font-medium hover:border-foreground md:w-auto"
@@ -522,7 +584,7 @@ export function SacolaClient({
             <button
               type="button"
               onClick={handleWhatsapp}
-              disabled={busy || !!error}
+              disabled={busy || !!error || temFalta}
               className="inline-flex h-12 w-full items-center justify-center rounded-full bg-foreground px-8 text-sm font-medium text-background hover:opacity-90 disabled:opacity-60 md:w-auto"
             >
               {busy ? "Registrando pedido…" : "Finalizar no WhatsApp"}
