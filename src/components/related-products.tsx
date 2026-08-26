@@ -49,7 +49,9 @@ export async function RelatedProducts({
       <h2 className="mb-6 font-serif text-2xl font-semibold tracking-tight">
         Você também pode gostar
       </h2>
-      <div className="scrollbar-hide -mx-6 flex snap-x snap-mandatory gap-4 overflow-x-auto sm:overflow-visible px-6 sm:mx-0 sm:grid sm:snap-none sm:grid-cols-3 sm:gap-6 sm:px-0 lg:grid-cols-4">
+      {/* `scroll-pl-6` casa com o `px-6` — sem ele o snap encosta o primeiro
+          card na borda da tela (mesmo motivo comentado em app/page.tsx). */}
+      <div className="scrollbar-hide -mx-6 flex snap-x snap-mandatory scroll-pl-6 gap-4 overflow-x-auto sm:overflow-visible px-6 sm:mx-0 sm:grid sm:snap-none sm:grid-cols-3 sm:gap-6 sm:px-0 lg:grid-cols-4">
         {related.map((p) => (
           <div key={p.slug} className="min-w-[62%] snap-start sm:min-w-0">
             <ProductCard

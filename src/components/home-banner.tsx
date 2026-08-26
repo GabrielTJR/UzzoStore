@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { Chevron } from "@/components/carousel-arrows";
+import { useArrastoHorizontal } from "@/lib/use-arrasto";
 import type { BannerSlide } from "@/lib/home-sections";
 
 /**
@@ -27,9 +28,6 @@ const ALIGN: Record<BannerSlide["align"], string> = {
   right: "items-end text-right",
 };
 
-/** Arrasto que confirma a troca: 12% da largura, nunca menos que 40px. */
-const limiar = (largura: number) => Math.max(40, largura * 0.12);
-
 /**
  * Banner do topo da home. Com mais de um slide vira carrossel (avança sozinho a
  * cada 6s, com bolinhas). A imagem de mobile é opcional: sem ela, usa a de
@@ -51,14 +49,7 @@ const limiar = (largura: number) => Math.max(40, largura * 0.12);
  */
 export function HomeBanner({ slides }: { slides: BannerSlide[] }) {
   const [i, setI] = useState(0);
-  const [arrasto, setArrasto] = useState(0); // px do gesto em andamento
   const [reinicio, setReinicio] = useState(0);
-  const gesto = useRef<{
-    x: number;
-    y: number;
-    largura: number;
-    horizontal: boolean;
-  } | null>(null);
   const many = slides.length > 1;
 
   // setTimeout reagendado a cada `i`, não setInterval: assim QUALQUER troca
@@ -75,57 +66,36 @@ export function HomeBanner({ slides }: { slides: BannerSlide[] }) {
     return () => window.clearTimeout(t);
   }, [i, reinicio, many, slides.length]);
 
-  if (slides.length === 0) return null;
-
   const vai = (passo: number) =>
     setI((p) => (p + passo + slides.length) % slides.length);
 
-  // Só toque: no mouse o arrasto atrapalharia o clique no botão do banner.
-  function aoPressionar(e: React.PointerEvent) {
-    if (!many || e.pointerType !== "touch") return;
-    setReinicio((r) => r + 1);
-    gesto.current = {
-      x: e.clientX,
-      y: e.clientY,
-      largura: e.currentTarget.clientWidth,
-      horizontal: false,
-    };
-  }
+  // ⚠️ ANTES do `return null` de lista vazia: hook não pode ficar atrás de saída
+  // antecipada, senão a ordem muda entre renderizações.
+  //
+  // Mesma lógica de arrasto das fotos do produto — mora em lib/use-arrasto.ts
+  // para os dois carrosséis não divergirem com o tempo.
+  const { arrasto, handlers } = useArrastoHorizontal({
+    ativo: many,
+    indice: i,
+    total: slides.length,
+    aoTrocar: vai,
+  });
 
-  function aoMover(e: React.PointerEvent) {
-    const g = gesto.current;
-    if (!g) return;
-    const dx = e.clientX - g.x;
-    const dy = e.clientY - g.y;
-    // Enquanto o gesto não se declarar horizontal, não sequestra a rolagem da
-    // página: quem tentava descer a home ficaria preso no banner.
-    if (!g.horizontal) {
-      if (Math.abs(dx) < 10 || Math.abs(dx) <= Math.abs(dy)) return;
-      g.horizontal = true;
-    }
-    // Nas pontas o arrasto fica pesado (o clássico elástico). Sem isso, puxar
-    // para trás no primeiro slide descobre o fundo cinza da caixa.
-    const naPonta = (dx > 0 && i === 0) || (dx < 0 && i === slides.length - 1);
-    setArrasto(naPonta ? dx * 0.35 : dx);
-  }
+  // Encostar o dedo reinicia o relógio: senão o slide fugiria da mão no meio do
+  // gesto. Vai no `onPointerDown` ANTES do handler do hook.
+  const aoEncostar = (e: React.PointerEvent<Element>) => {
+    if (many && e.pointerType === "touch") setReinicio((r) => r + 1);
+    handlers.onPointerDown(e);
+  };
 
-  function aoSoltar() {
-    const g = gesto.current;
-    gesto.current = null;
-    if (g?.horizontal && Math.abs(arrasto) > limiar(g.largura)) {
-      vai(arrasto < 0 ? 1 : -1);
-    }
-    setArrasto(0);
-  }
+  if (slides.length === 0) return null;
 
   return (
-    <section className="relative mx-auto mt-6 w-full sm:mt-8 sm:w-[80%]">
+    <section className="relative mx-auto w-full sm:mt-8 sm:w-[80%]">
       <div
         className="relative aspect-[4/5] w-full touch-pan-y overflow-hidden bg-zinc-200 dark:bg-zinc-800 sm:aspect-[16/9] sm:rounded-lg"
-        onPointerDown={aoPressionar}
-        onPointerMove={aoMover}
-        onPointerUp={aoSoltar}
-        onPointerCancel={aoSoltar}
+        {...handlers}
+        onPointerDown={aoEncostar}
       >
         <div
           className="flex h-full w-full transition-transform duration-300 ease-out"

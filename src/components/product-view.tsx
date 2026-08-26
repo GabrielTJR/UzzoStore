@@ -11,6 +11,7 @@ import { SlideTrack } from "@/components/slide-track";
 import { CarouselArrows } from "@/components/carousel-arrows";
 import { AdminProductOverlay } from "@/components/admin-product-overlay";
 import { MeasurementTable } from "@/components/measurement-table";
+import { ProductShipping } from "@/components/product-shipping";
 import { WishlistHeart } from "@/components/wishlist-heart";
 import { displayColor } from "@/lib/color-name";
 import type { ProductColor, ProductVariant } from "@/lib/products";
@@ -111,6 +112,13 @@ export function ProductView({
 
   const canAdd = !!selectedVariant && variantBuyable(selectedVariant, price);
   const anyBuyable = colors.some((c) => colorBuyable(c, price));
+
+  // Serve só para cotar frete antes de o cliente escolher tamanho: o peso é do
+  // PRODUTO, então qualquer variante vendável devolve o mesmo valor.
+  const primeiraVarianteCotavel =
+    colors
+      .flatMap((c) => c.variants)
+      .find((v) => variantBuyable(v, price))?.id ?? null;
 
   function selectColor(id: string) {
     setSelectedColorId(id);
@@ -219,6 +227,13 @@ export function ProductView({
             alt={color ? `${name} — ${color.name}` : name}
             sizes="(max-width: 768px) 100vw, 50vw"
             priority
+            // No celular a foto passa com o dedo. As setas continuam para quem
+            // está no desktop, onde não há gesto.
+            onArrastar={(passo) =>
+              setImageIndex(
+                (i) => (i + passo + gallery.length) % gallery.length,
+              )
+            }
           />
           {gallery.length > 1 && (
             <CarouselArrows
@@ -373,6 +388,16 @@ export function ProductView({
           <div className="mt-6">
             <MeasurementTable chart={measurement} />
           </div>
+        )}
+
+        {/* Frete antes do botão: o cliente decide com o custo total na mão, não
+            depois de já ter investido em escolher tamanho e ir para a sacola.
+            Qualquer variante do produto serve para cotar (o peso é do produto),
+            então a caixa aparece mesmo sem tamanho escolhido. */}
+        {anyBuyable && (
+          <ProductShipping
+            variantId={selectedVariant?.id ?? primeiraVarianteCotavel}
+          />
         )}
 
         {/* Quantidade */}

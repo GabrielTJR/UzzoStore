@@ -2,7 +2,8 @@ import type { Metadata, Viewport } from "next";
 import Link from "next/link";
 import { Geist, Geist_Mono, Playfair_Display } from "next/font/google";
 import { Analytics } from "@vercel/analytics/next";
-import { CartButton } from "@/components/cart-button";
+import { Logo } from "@/components/logo";
+import { SiteHeader } from "@/components/site-header";
 import { CartDrawer } from "@/components/cart-drawer";
 import { WhatsappFab } from "@/components/whatsapp-fab";
 import { ToastProvider } from "@/components/toast";
@@ -63,34 +64,18 @@ export const metadata: Metadata = {
  * Sem isto o navegador entende que a página é só clara e liga o escurecimento
  * automático dele (o "modo escuro para sites" do Chrome/Samsung Internet). Esse
  * recurso escurece fundos mas NÃO mexe em imagens — então a logo, que é um PNG
- * preto, ficava preta sobre fundo preto, quase invisível. E como o navegador
- * nem informa `prefers-color-scheme: dark` nesse modo, o `dark:invert` da logo
- * nunca disparava.
+ * preto, ficava preta sobre fundo preto, quase invisível.
  *
  * Com `light dark` o navegador para de forçar e deixa o site cuidar do tema,
- * que é o que ele já sabia fazer.
+ * que é o que ele já sabia fazer. (A logo ganhou defesa própria depois disso —
+ * ver `components/logo.tsx`.)
  */
 export const viewport: Viewport = {
   colorScheme: "light dark",
 };
 
-// Proporção real do arquivo public/logo.png (recortado ao conteúdo).
-const LOGO_W = 1815;
-const LOGO_H = 524;
-
-function Logo({ height = 44 }: { height?: number }) {
-  return (
-    <span
-      role="img"
-      aria-label="Uzzo Store"
-      className="logo-marca inline-block shrink-0"
-      style={{
-        width: Math.round((height * LOGO_W) / LOGO_H),
-        height,
-      }}
-    />
-  );
-}
+// O `Logo` mora em `components/logo.tsx` desde que o cabeçalho virou client
+// component (ele precisa de estado de rolagem para flutuar sobre o banner).
 
 export default async function RootLayout({
   children,
@@ -120,70 +105,11 @@ export default async function RootLayout({
             )}
           </div>
         )}
-        <header className="sticky top-0 z-40 border-b border-border bg-background/80 backdrop-blur">
-          <div className="mx-auto flex w-full sm:w-[80%] items-center justify-between px-6 py-3">
-            <Link href="/" aria-label="Uzzo Store — início">
-              <Logo height={27} />
-            </Link>
-            <div className="flex items-center gap-5">
-              <a
-                href={WHATSAPP_URL}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="hidden text-xs font-medium uppercase tracking-[0.2em] text-muted transition-colors hover:text-foreground sm:inline"
-              >
-                WhatsApp
-              </a>
-              <Link
-                href="/produtos"
-                aria-label="Buscar produtos"
-                className="-m-2 inline-flex items-center p-2 text-muted transition-colors hover:text-foreground"
-              >
-                <svg
-                  width="19"
-                  height="19"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="1.8"
-                  strokeLinecap="round"
-                  aria-hidden
-                >
-                  <circle cx="11" cy="11" r="7" />
-                  <path d="M20 20l-3.5-3.5" />
-                </svg>
-              </Link>
-              <CartButton />
-            </div>
-          </div>
-          <nav className="border-t border-border">
-            <div className="mx-auto flex w-full sm:w-[80%] items-center gap-6 px-6 py-3 text-sm">
-              <Link href="/" className="text-muted hover:text-foreground">
-                Home
-              </Link>
-              <Link
-                href="/produtos"
-                className="text-muted hover:text-foreground"
-              >
-                Produtos
-              </Link>
-              <Link
-                href={isLogged ? "/conta" : "/entrar"}
-                className={`text-muted hover:text-foreground ${isAdmin ? "" : "ml-auto"}`}
-              >
-                {isLogged ? "Minha conta" : "Entrar"}
-              </Link>
-              {isAdmin && (
-                <Link
-                  href="/admin"
-                  className="ml-auto font-medium text-foreground underline-offset-4 hover:underline"
-                >
-                  Admin
-                </Link>
-              )}
-            </div>
-          </nav>
-        </header>
+        <SiteHeader
+          isLogged={isLogged}
+          isAdmin={isAdmin}
+          whatsappUrl={WHATSAPP_URL}
+        />
 
         <main className="flex-1">
           <ToastProvider>{children}</ToastProvider>
@@ -195,10 +121,18 @@ export default async function RootLayout({
         <WhatsappFab />
 
         <footer className="border-t border-border">
-          <div className="mx-auto grid w-full sm:w-[80%] gap-8 px-6 py-12 sm:grid-cols-2 lg:grid-cols-5">
-            <div className="space-y-3">
-              <Logo height={30} />
-              <p className="max-w-xs text-sm text-muted">
+          {/* No celular o rodapé tinha 984px — 1,2 tela só de rodapé, com os 5
+              blocos empilhados um sob o outro. Duas colunas cortam isso quase
+              pela metade sem esconder nada; no `lg` seguem as 5 de sempre. */}
+          <div className="mx-auto grid w-full grid-cols-2 gap-x-6 gap-y-7 px-6 py-8 sm:w-[80%] sm:grid-cols-2 sm:gap-8 sm:py-12 lg:grid-cols-5">
+            <div className="col-span-2 space-y-3 sm:col-span-1">
+              {/* Menor no celular: sozinho numa linha de largura inteira, o
+                  mesmo logo do cabeçalho (que ali é ladeado por ícones) lê como
+                  grande demais. É problema de isolamento, não de pixels. */}
+              <Logo height={30} className="h-6 sm:h-[30px]" />
+              {/* A tagline repete o que o banner já diz e, no fim de uma página
+                  longa, é texto apagado que ninguém lê. Só desktop. */}
+              <p className="hidden max-w-xs text-sm text-muted sm:block">
                 Tecnologia aplicada ao vestir — conforto, praticidade e
                 elegância.
               </p>
@@ -209,12 +143,16 @@ export default async function RootLayout({
               aria-label="Navegação do rodapé"
             >
               <h3 className="font-medium text-foreground">Loja</h3>
-              <p>
+              {/* Estes quatro já estão a UM toque no cabeçalho: catálogo e
+                  promoções pela lupa, conta e pedidos pelo ícone de conta.
+                  Repeti-los no rodapé do celular custa 4 linhas e não adiciona
+                  caminho nenhum. No desktop ficam, porque lá cabem. */}
+              <p className="hidden sm:block">
                 <Link href="/produtos" className="hover:text-foreground">
                   Todos os produtos
                 </Link>
               </p>
-              <p>
+              <p className="hidden sm:block">
                 <Link
                   href="/produtos?promo=1"
                   className="hover:text-foreground"
@@ -222,12 +160,12 @@ export default async function RootLayout({
                   Promoções
                 </Link>
               </p>
-              <p>
+              <p className="hidden sm:block">
                 <Link href="/conta" className="hover:text-foreground">
                   Minha conta
                 </Link>
               </p>
-              <p>
+              <p className="hidden sm:block">
                 <Link href="/conta/pedidos" className="hover:text-foreground">
                   Meus pedidos
                 </Link>
@@ -251,12 +189,14 @@ export default async function RootLayout({
 
             <div className="space-y-2 text-sm text-muted">
               <h3 className="font-medium text-foreground">Contato</h3>
+              {/* O WhatsApp é o canal de venda da loja — no celular ele ganha
+                  peso de texto em vez de virar mais uma linha apagada. */}
               <p>
                 <a
                   href={WHATSAPP_URL}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="hover:text-foreground"
+                  className="font-medium text-foreground hover:underline sm:font-normal sm:text-muted sm:hover:text-foreground sm:no-underline"
                 >
                   WhatsApp (47) 99174-4865
                 </a>
@@ -294,12 +234,16 @@ export default async function RootLayout({
                 </a>
               </p>
               <p>Envio para todo o Brasil</p>
-              <div className="pt-2">
-                <h3 className="mb-2 font-medium text-foreground">
-                  Fique por dentro
-                </h3>
-                <NewsletterForm />
-              </div>
+            </div>
+
+            {/* Newsletter sai da coluna "Redes" e ocupa a largura toda no
+                celular: espremida em meia coluna, o campo de e-mail e o botão
+                ficavam pequenos demais para o polegar. */}
+            <div className="col-span-2 text-sm text-muted sm:col-span-1">
+              <h3 className="mb-2 font-medium text-foreground">
+                Fique por dentro
+              </h3>
+              <NewsletterForm />
             </div>
           </div>
 

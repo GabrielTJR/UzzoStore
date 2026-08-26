@@ -53,7 +53,7 @@ function ProductRow({
 }) {
   if (products.length === 0) return null;
   return (
-    <section className="mx-auto w-full sm:w-[80%] px-6 py-16">
+    <section className="mx-auto w-full sm:w-[80%] px-6 py-9 sm:py-16">
       <div className="mb-8 flex items-end justify-between">
         <h2 className="font-serif text-3xl font-semibold tracking-tight">
           {title}
@@ -68,7 +68,11 @@ function ProductRow({
       {/* Celular: fileira que desliza com o dedo (snap) — padrão das lojas
           modernas e mostra mais produtos sem empilhar uma página quilométrica.
           Desktop: grade. */}
-      <div className="scrollbar-hide -mx-6 flex snap-x snap-mandatory gap-4 overflow-x-auto sm:overflow-visible px-6 sm:mx-0 sm:grid sm:snap-none sm:grid-cols-3 sm:gap-x-6 sm:gap-y-10 sm:px-0 lg:grid-cols-4">
+      {/* `scroll-pl-6` casa com o `px-6`. Sem ele o `snap-mandatory` encosta o
+          primeiro card na borda da tela: o navegador alinha o item ao início da
+          área de rolagem e, para isso, rola exatamente o valor do padding
+          (medido: scrollLeft = 24). O respiro existia no CSS e sumia na prática. */}
+      <div className="scrollbar-hide -mx-6 flex snap-x snap-mandatory scroll-pl-6 gap-4 overflow-x-auto sm:overflow-visible px-6 sm:mx-0 sm:grid sm:snap-none sm:grid-cols-3 sm:gap-x-6 sm:gap-y-10 sm:px-0 lg:grid-cols-4">
         {products.map((p) => (
           <div key={p.slug} className="min-w-[62%] snap-start sm:min-w-0">
             <ProductCard product={p} isAdmin={isAdmin} />
@@ -125,9 +129,32 @@ export default async function Home() {
     fallbackFeatured = items;
   }
 
-  // A faixa de benefícios entra logo depois do 1º banner (ou do hero padrão):
-  // é o "por que comprar aqui" na primeira dobra, como nas lojas grandes.
+  // A faixa de benefícios vem depois do PRIMEIRO BLOCO DE CONTEÚDO (a vitrine),
+  // não colada no banner.
+  //
+  // Ela ficava logo abaixo do banner, e no celular isso empurrava o produto para
+  // fora da primeira tela: num aparelho de 375x812, cabeçalho (~100px) + banner
+  // (469px) já somam 569px, e os ~240px que sobravam eram ocupados por ela. A
+  // pessoa que vinha do Instagram via banner e "por que comprar aqui" — nenhuma
+  // roupa — e 96% do tráfego é celular. Benefício convence quem já se
+  // interessou; primeiro mostre a peça.
+  //
+  // Sem vitrine configurada, cai no banner como antes (a faixa não some).
   const firstBannerId = sections.find((s) => s.kind === "banner")?.id;
+  const primeiroConteudoId = sections.find(
+    (s) => s.kind !== "banner" && s.kind !== "aviso",
+  )?.id;
+  const beneficiosDepoisDe = primeiroConteudoId ?? firstBannerId;
+
+  /** A faixa, quando este é o bloco que ela deve seguir. */
+  function beneficiosApos(id: string) {
+    if (id !== beneficiosDepoisDe) return null;
+    return (
+      <div className="mt-8 sm:mt-10">
+        <BenefitsStrip />
+      </div>
+    );
+  }
 
   function renderSection(s: HomeSection, index: number) {
     if (s.kind === "banner") {
@@ -137,11 +164,7 @@ export default async function Home() {
       return (
         <div key={s.id} className={afterBanner ? "mt-8 sm:mt-10" : undefined}>
           <HomeBanner slides={s.data.slides ?? []} />
-          {s.id === firstBannerId && (
-            <div className="mt-8 sm:mt-10">
-              <BenefitsStrip />
-            </div>
-          )}
+          {beneficiosApos(s.id)}
         </div>
       );
     }
@@ -150,7 +173,7 @@ export default async function Home() {
       const cards = (s.data.cards ?? []).filter((c) => c.image || c.label);
       if (cards.length === 0) return null;
       return (
-        <section key={s.id} className="mx-auto w-full sm:w-[80%] px-6 py-16">
+        <section key={s.id} className="mx-auto w-full sm:w-[80%] px-6 py-9 sm:py-16">
           {s.data.title && (
             <h2 className="mb-8 font-serif text-3xl font-semibold tracking-tight">
               {s.data.title}
