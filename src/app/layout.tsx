@@ -236,11 +236,14 @@ export default async function RootLayout({
               <p>Envio para todo o Brasil</p>
             </div>
 
-            {/* Newsletter sai da coluna "Redes" e ocupa a largura toda no
-                celular: espremida em meia coluna, o campo de e-mail e o botão
-                ficavam pequenos demais para o polegar. */}
-            <div className="col-span-2 text-sm text-muted sm:col-span-1">
-              <h3 className="mb-2 font-medium text-foreground">
+            {/* Newsletter como FAIXA de largura inteira, não como mais uma
+                coluna. Ela saiu de dentro de "Redes" porque no celular, espremida
+                em meia coluna, o campo e o botão ficavam pequenos para o polegar
+                — mas virar o 6º bloco de uma grade de 5 colunas a jogava sozinha
+                numa segunda linha, com cara de sobra. Ocupando a largura toda e
+                separada por uma borda, lê como seção, não como resto. */}
+            <div className="col-span-2 border-t border-border pt-6 lg:col-span-5 lg:flex lg:items-center lg:justify-between lg:gap-8 lg:pt-8">
+              <h3 className="mb-2 font-medium text-foreground lg:mb-0">
                 Fique por dentro
               </h3>
               <NewsletterForm />
