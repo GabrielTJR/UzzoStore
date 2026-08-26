@@ -18,18 +18,25 @@ const primary =
  * Checar o prefixo não basta: `/\evil.com` começa com "/" e não com "//", mas
  * o parser de URL resolve para `https://evil.com/`. Por isso normalizamos de
  * verdade contra a origem atual e só aceitamos o que continua nela.
+ *
+ * Sem `?next=`, o destino é a HOME. Era `/conta`, que largava o cliente na tela
+ * de dados cadastrais — ele entrou para comprar, não para conferir o próprio
+ * CPF. O `next` continua mandando quando existe: quem clicou no coração ou foi
+ * barrado no checkout volta exatamente para onde estava.
  */
+const DESTINO_PADRAO = "/";
+
 function safeNext(v: string | null): string {
-  if (!v) return "/conta";
+  if (!v) return DESTINO_PADRAO;
   try {
     // Base fictícia: este componente também renderiza no servidor, onde
     // `window` não existe. Se o valor escapar dessa base, é externo.
     const base = "http://interno.invalid";
     const url = new URL(v, base);
-    if (url.origin !== base) return "/conta";
+    if (url.origin !== base) return DESTINO_PADRAO;
     return `${url.pathname}${url.search}${url.hash}`;
   } catch {
-    return "/conta";
+    return DESTINO_PADRAO;
   }
 }
 
