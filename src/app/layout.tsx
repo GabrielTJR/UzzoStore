@@ -276,7 +276,7 @@ export default async function RootLayout({
                 a loja entrega — e mudar lá não deveria exigir deploy aqui.
                 (Débito não entra: o Checkout Integrado só faz Pix e crédito;
                 débito é exclusivo da maquininha presencial.) */}
-              <span>Pix · Cartão de crédito</span>
+              <span>Pix · Cartão de crédito em até 3x sem juros</span>
             </div>
           </div>
         </footer>

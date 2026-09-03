@@ -307,9 +307,12 @@ export function ProductView({
               )}
             </div>
             {parcelas && (
-              <p className="mt-1 text-sm text-muted">
-                ou em até {parcelas.count}x de {formatBRL(parcelas.value)} no
-                cartão
+              <p className="mt-1.5 text-sm">
+                <span className="font-medium text-foreground">
+                  {parcelas.count}x de {formatBRL(parcelas.value)}
+                  {parcelas.semJuros ? " sem juros" : ""}
+                </span>
+                <span className="text-muted"> no cartão de crédito</span>
               </p>
             )}
           </div>
@@ -509,7 +512,8 @@ export function ProductView({
             )}
             {parcelas && (
               <p className="truncate text-[0.7rem] text-muted">
-                até {parcelas.count}x de {formatBRL(parcelas.value)}
+                {parcelas.count}x de {formatBRL(parcelas.value)}
+                {parcelas.semJuros ? " sem juros" : ""}
               </p>
             )}
           </div>

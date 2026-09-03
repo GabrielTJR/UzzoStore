@@ -216,6 +216,7 @@ export function CartDrawer({
                   {parcelas && (
                     <p className="text-xs text-muted">
                       em até {parcelas.count}x de {formatBRL(parcelas.value)}
+                      {parcelas.semJuros ? " sem juros" : ""}
                     </p>
                   )}
                 </div>
