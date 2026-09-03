@@ -10,7 +10,7 @@ export const metadata: Metadata = {
 const FAQS: { q: string; a: React.ReactNode }[] = [
   {
     q: "Quais são as formas de pagamento?",
-    a: "Pix ou cartão de crédito em até 3x, num ambiente de pagamento seguro (InfinitePay). Também dá para fechar o pedido direto pelo WhatsApp.",
+    a: "Pix ou cartão de crédito, num ambiente de pagamento seguro (InfinitePay). Em até 3x sem juros; acima disso o parcelamento vai até 12x com juros, e o valor exato de cada parcela aparece na tela de pagamento antes de você confirmar. Também dá para fechar o pedido direto pelo WhatsApp.",
   },
   {
     q: "Vocês entregam na minha cidade?",

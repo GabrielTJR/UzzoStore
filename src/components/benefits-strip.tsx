@@ -21,7 +21,7 @@ const BENEFICIOS = [
   },
   {
     titulo: "Pix ou cartão",
-    detalhe: "pagamento seguro em até 3x",
+    detalhe: "3x sem juros ou até 12x",
     icone: <path d="M2 7h20v11H2zM2 10h20M6 15h4" />,
   },
   {
