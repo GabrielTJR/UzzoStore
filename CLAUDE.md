@@ -67,6 +67,15 @@ O ERP da loja, o **Linx Microvix, é a fonte de verdade _pretendida_** para prod
 - `sync_state`/`sync_runs`, `microvix_id` (em `categories`/`products`/`product_variants`/`customers`), `orders.microvix_order_id` e `stock_cache.source_timestamp` **já existem desde a migração 0001** — o schema foi desenhado para esta API. Mas `microvix_id` está poluída (`manual-<uuid>` em todos os 28 produtos) e é `unique not null`: a ligação com o ERP precisa de tabela de-para própria, não dela.
 - Plano completo, mapeamento campo a campo e a lista do que configurar no ERP: <https://claude.ai/code/artifact/b78c6ca3-bb5f-4c6e-8439-9933ae7c094f>
 
+#### Medido contra a API ao vivo em 04/09/2026 (não reinvestigue)
+
+- **Credenciais que funcionam**: URL `https://webapi.microvix.com.br/1.0/api/integracao` (**com** o `/1.0` — a V64 grafa sem, e é a grafia sem que está errada aqui), portal **25158**, CNPJ `67134725000143`, empresa **1**. O portal fica no cabeçalho do ERP, ao lado de dois números fáceis de confundir: o `ID:` é do usuário logado e o número antes do nome da loja é o código da empresa.
+- **O envelope de resposta NÃO está na documentação.** É tabular e enxuto: `<Microvix><ResponseData><C><D>coluna</D>…</C><R><D>valor</D>…</R></ResponseData><ResponseResult><ResponseSuccess>True|False</ResponseSuccess></ResponseResult></Microvix>`. Os nomes das colunas vêm **uma vez** em `<C>`; cada `<R>` traz os valores **na mesma ordem**, e vazio vem como `<D />`. **Posição é o único vínculo** entre nome e valor — descartar um `<D />` desloca todas as colunas seguintes. Contar tags `<D>` NÃO conta registros; registro é `<R>`.
+- **Recusa vem com HTTP 200.** Quem olhar só o código HTTP acha que deu certo. O que vale é `<ResponseSuccess>`; a razão vem em `<ResponseError><Message>`.
+- **"O parametro é inválido." = parâmetro que o método não conhece**, e derruba a chamada inteira. Cada método aceita a sua lista: `B2CConsultaCNPJsChave` aceita só `chave`, `portal` e `id_classificacao` — mandar `cnpjEmp` ou `timestamp` nele é recusa certa.
+- **`legenda_grade1` = "Tamanho" e `legenda_grade2` = "Cores"** nesta loja, confirmado por `B2CConsultaLegendasCadastrosAuxiliares`. O mapeamento do PDF vale aqui.
+- ⚠️ **O módulo B2C está DESLIGADO no portal** (`b2c = False`, e `oms`/`b2c_marketplace` também). Consequência traiçoeira: os métodos respondem `ResponseSuccess True` com **zero linhas** — `B2CConsultaProdutos` devolve as 36 colunas e nenhum produto. Isso se lê como "a base está vazia" e não é. Quem libera é o **time de GGC/Adesão da Linx**, não o cadastro da loja. **Nada de fase 1 antes disso.**
+
 ## Backend: Supabase (três clients — não misture)
 
 - `src/lib/supabase/client.ts` — navegador, anon key. Client Components.

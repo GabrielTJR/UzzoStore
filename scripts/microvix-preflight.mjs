@@ -119,16 +119,26 @@ const escapar = (v) =>
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;");
 
-/** Monta o envelope de CONSULTA (métodos de saída). */
-function montarConsulta(metodo, parametros) {
+/**
+ * Monta o envelope de CONSULTA (métodos de saída).
+ *
+ * `portal` pode vir nulo: no arranque a gente ainda não sabe o IdPortal, e é o
+ * próprio WebService que vai contar qual é (ver `descobrirPortal`). Nesse caso
+ * o elemento sai fora do envelope em vez de ir vazio — mandar `<IdPortal></IdPortal>`
+ * é pedir para o servidor tentar converter "" em INT.
+ */
+function montarConsulta(metodo, parametros, portal = PORTAL) {
   const linhas = Object.entries(parametros)
+    .filter(([, v]) => v !== undefined && v !== null && v !== "")
     .map(([id, v]) => `    <Parameter id="${escapar(id)}">${escapar(v)}</Parameter>`)
     .join("\n");
+  const linhaPortal = portal
+    ? `\n  <IdPortal>${escapar(portal)}</IdPortal>`
+    : "";
   return `<?xml version="1.0" encoding="utf-8"?>
 <LinxMicrovix>
   <Authentication user="${escapar(USUARIO)}" password="${escapar(SENHA)}"/>
-  <ResponseFormat>xml</ResponseFormat>
-  <IdPortal>${escapar(PORTAL)}</IdPortal>
+  <ResponseFormat>xml</ResponseFormat>${linhaPortal}
   <Command>
     <Name>${escapar(metodo)}</Name>
     <Parameters>
@@ -138,12 +148,17 @@ ${linhas}
 </LinxMicrovix>`;
 }
 
-async function consultar(url, metodo, extras = {}) {
-  const corpo = montarConsulta(metodo, {
-    chave: CHAVE,
-    cnpjEmp: CNPJ,
-    ...extras,
-  });
+async function consultar(url, metodo, extras = {}, opts = {}) {
+  const corpo = montarConsulta(
+    metodo,
+    // O servidor recusa a chamada INTEIRA com "O parametro é inválido." quando
+    // recebe um parâmetro que o método não conhece — e responde isso com HTTP
+    // 200. `B2CConsultaCNPJsChave` não aceita `cnpjEmp` (só chave, portal e
+    // id_classificacao), e mandar assim mesmo custou a primeira chamada de
+    // fumaça, em 04/09/2026.
+    { chave: CHAVE, ...(opts.semCnpj ? {} : { cnpjEmp: CNPJ }), ...extras },
+    opts.portal ?? PORTAL,
+  );
   const t0 = Date.now();
   try {
     const res = await fetch(url, {
@@ -184,39 +199,119 @@ const dormir = (ms) => new Promise((r) => setTimeout(r, ms));
 // XML cru e só medimos o que dá para medir sem assumir esquema.
 // ---------------------------------------------------------------------------
 
+/**
+ * O envelope de resposta, confirmado contra o servidor em 04/09/2026 (a
+ * especificação não o documenta — só mostra o envelope de ENVIO):
+ *
+ *   <Microvix>
+ *     <ResponseData> …registros, ou vazio como <ResponseData /> … </ResponseData>
+ *     <ResponseResult>
+ *       <ResponseSuccess>True|False</ResponseSuccess>
+ *       <ResponseError><Message>…</Message></ResponseError>
+ *     </ResponseResult>
+ *   </Microvix>
+ *
+ * Repare que uma recusa vem com HTTP 200 e `ResponseSuccess` False. Quem olhar
+ * só o código HTTP vai achar que deu certo.
+ */
+/**
+ * Extrai a tabela do `ResponseData`. O formato é enxuto e não estava
+ * documentado: os nomes das colunas vêm UMA vez em `<C>`, e cada linha é um
+ * `<R>` com os valores na MESMA ordem. Valor vazio vem como `<D />`.
+ *
+ *   <ResponseData>
+ *     <C><D>codigoproduto</D><D>referencia</D>…</C>
+ *     <R><D>12837</D><D>1403EF</D>…</R>
+ *   </ResponseData>
+ *
+ * Posição é o único vínculo entre nome e valor — não há chave no `<R>`. Por
+ * isso o alinhamento tem de ser preservado, e um `<D />` no meio não pode ser
+ * descartado, ou todas as colunas seguintes deslizam uma casa.
+ */
+function lerTabela(xml) {
+  const bloco = /<ResponseData\s*\/>/i.test(xml)
+    ? ""
+    : (xml.match(/<ResponseData[^>]*>([\s\S]*?)<\/ResponseData>/i)?.[1] ?? "");
+
+  const celulas = (trecho) =>
+    [...trecho.matchAll(/<D\s*\/>|<D>([\s\S]*?)<\/D>/g)].map((m) =>
+      (m[1] ?? "").trim(),
+    );
+
+  const colunas = celulas(bloco.match(/<C>([\s\S]*?)<\/C>/i)?.[1] ?? "");
+  const linhas = [...bloco.matchAll(/<R>([\s\S]*?)<\/R>/g)].map((m) =>
+    celulas(m[1]),
+  );
+  return { colunas, linhas };
+}
+
+/** Uma linha vira objeto, casando pela posição das colunas. */
+function registro(colunas, linha) {
+  return Object.fromEntries(colunas.map((c, i) => [c, linha[i] ?? ""]));
+}
+
 function farejar(xml) {
   if (!xml.trim()) return { vazio: true, registros: 0, campos: [] };
 
-  // Erro costuma vir como texto solto ou como <Erro>/<Message>.
-  const erro = xml.match(/<(?:Erro|Error|Message|Mensagem)>([^<]{0,200})</i);
+  const recusado = /<ResponseSuccess>\s*False\s*<\/ResponseSuccess>/i.test(xml);
+  const erro = recusado
+    ? xml.match(/<Message>([^<]{0,300})</i)
+    : null;
 
-  // O nome da tag repetida com mais ocorrências é, quase sempre, o registro.
-  const contagem = new Map();
-  for (const m of xml.matchAll(/<([A-Za-z_][\w.-]*)[\s>]/g)) {
-    const tag = m[1];
-    contagem.set(tag, (contagem.get(tag) ?? 0) + 1);
-  }
-  const ordenadas = [...contagem.entries()].sort((a, b) => b[1] - a[1]);
-  const registros = ordenadas.length ? ordenadas[0][1] : 0;
+  const { colunas, linhas } = lerTabela(xml);
 
-  // Maior timestamp presente: é o cursor da próxima chamada incremental.
+  // O cursor da próxima chamada incremental é o maior valor da COLUNA
+  // timestamp — não "o maior número que parece um timestamp no XML". Achar por
+  // posição de coluna é exato; procurar por regex no texto todo pegaria um
+  // código de produto e mandaria a sincronização para um cursor errado.
   let maiorTimestamp = null;
-  for (const m of xml.matchAll(/timestamp["'>\s]*[:=]?\s*["']?(\d{6,})/gi)) {
-    const v = BigInt(m[1]);
-    if (maiorTimestamp === null || v > maiorTimestamp) maiorTimestamp = v;
+  const iTs = colunas.indexOf("timestamp");
+  if (iTs >= 0) {
+    for (const linha of linhas) {
+      const bruto = linha[iTs];
+      if (!/^\d+$/.test(bruto ?? "")) continue;
+      const v = BigInt(bruto);
+      if (maiorTimestamp === null || v > maiorTimestamp) maiorTimestamp = v;
+    }
   }
 
   return {
-    vazio: false,
+    vazio: linhas.length === 0,
     erro: erro?.[1]?.trim() || null,
-    registros,
-    tagRegistro: ordenadas.length ? ordenadas[0][0] : null,
-    campos: ordenadas.slice(0, 24).map(([t, n]) => `${t}×${n}`),
+    registros: linhas.length,
+    colunas,
+    linhas,
+    campos: colunas.slice(0, 24),
     maiorTimestamp: maiorTimestamp?.toString() ?? null,
   };
 }
 
 const kb = (b) => (b < 1024 ? `${b} B` : `${(b / 1024).toFixed(1)} kB`);
+
+/**
+ * Lê o retorno de `B2CConsultaCNPJsChave`, que é o cartão de visita da chave:
+ * diz quais portais e CNPJs ela cobre e se o módulo B2C está de fato ligado.
+ *
+ * Vale mais do que parece. O `IdPortal` a gente digita à mão a partir do
+ * cabeçalho do ERP, onde ele aparece ao lado de dois outros números fáceis de
+ * confundir (o id do usuário e o código da empresa). Conferir o que a chave
+ * responde é a única forma barata de saber que digitamos o certo.
+ */
+function resumoChave(xml) {
+  const { colunas, linhas } = lerTabela(xml);
+  const regs = linhas.map((l) => registro(colunas, l));
+  const unicos = (campo) => [
+    ...new Set(regs.map((r) => r[campo]).filter(Boolean)),
+  ];
+  return {
+    portais: unicos("portal"),
+    nomes: unicos("nome_portal"),
+    cnpjs: unicos("CNPJ"),
+    empresas: unicos("nome_empresa"),
+    // "True"/"False" como texto — não booleano, não 0/1.
+    b2c: regs.map((r) => r.b2c),
+  };
+}
 
 function salvar(nome, conteudo) {
   mkdirSync(DESTINO, { recursive: true });
@@ -240,7 +335,10 @@ const BATERIA = [
     // Em aceitação a Linx exige esta classificação, senão volta vazio e parece
     // chave inválida quando não é.
     extras: ACEITACAO ? { id_classificacao: "6" } : {},
+    // Este método NÃO aceita cnpjEmp nem timestamp. Mandar qualquer um dos dois
+    // faz o servidor recusar a chamada inteira com "O parametro é inválido.".
     semTimestamp: true,
+    semCnpj: true,
   },
   {
     metodo: "B2CConsultaLegendasCadastrosAuxiliares",
@@ -293,10 +391,15 @@ async function descobrirUrl() {
   const candidatas = urlsCandidatas();
   for (const url of candidatas) {
     process.stdout.write(`  testando ${url} … `);
-    const r = await consultar(url, "B2CConsultaCNPJsChave", {
-      timestamp: TIMESTAMP_INICIAL,
-      ...(ACEITACAO ? { id_classificacao: "6" } : {}),
-    });
+    // Sem `timestamp`: os parâmetros deste método são só chave, portal e
+    // id_classificacao. Mandar um parâmetro que ele não conhece é convite a
+    // uma recusa que a gente leria como "URL errada".
+    const r = await consultar(
+      url,
+      "B2CConsultaCNPJsChave",
+      { ...(ACEITACAO ? { id_classificacao: "6" } : {}) },
+      { semCnpj: true },
+    );
     if (r.erro) {
       console.log(`falhou (${r.erro})`);
     } else if (r.status === 404) {
@@ -408,7 +511,9 @@ async function main() {
   for (const item of lista) {
     const extras = { ...(item.extras ?? {}) };
     if (!item.semTimestamp) extras.timestamp = TIMESTAMP_INICIAL;
-    const r = await consultar(url, item.metodo, extras);
+    const r = await consultar(url, item.metodo, extras, {
+      semCnpj: item.semCnpj === true,
+    });
     const f = farejar(r.texto);
     if (r.texto) salvar(item.metodo, r.texto);
 
@@ -422,6 +527,45 @@ async function main() {
 
     console.log(`${marca} ${item.metodo.padEnd(38)} ${situacao}`);
     console.log(`   ↳ ${item.porque}`);
+
+    // A resposta da chave merece leitura própria: é ela que confirma se o
+    // IdPortal digitado é o certo e se o módulo B2C está mesmo ligado.
+    if (item.metodo === "B2CConsultaCNPJsChave" && !f.vazio && !f.erro) {
+      const c = resumoChave(r.texto);
+      const bate = c.portais.includes(String(PORTAL));
+      console.log(
+        `   ↳ portal(is) da chave: ${c.portais.join(", ") || "—"}` +
+          (c.portais.length
+            ? bate
+              ? "   ✅ confere com MICROVIX_PORTAL"
+              : `   ⚠ NÃO confere com MICROVIX_PORTAL=${PORTAL}`
+            : ""),
+      );
+      if (c.nomes.length) console.log(`   ↳ nome do portal    : ${c.nomes.join(", ")}`);
+      if (c.cnpjs.length) {
+        const cnpjBate = c.cnpjs.some((v) => v.replace(/\D/g, "") === CNPJ);
+        console.log(
+          `   ↳ CNPJ(s)           : ${c.cnpjs.join(", ")}` +
+            (cnpjBate ? "   ✅ confere" : `   ⚠ NÃO confere com ${CNPJ}`),
+        );
+      }
+      if (c.empresas.length) console.log(`   ↳ empresa(s)        : ${c.empresas.join(", ")}`);
+      if (c.b2c.length) {
+        // O campo vem como texto "True"/"False".
+        const ligado = c.b2c.some((v) => /^(true|1|s|sim)$/i.test(v));
+        console.log(
+          `   ↳ módulo B2C        : ${ligado ? "LIGADO ✅" : "DESLIGADO ⚠"}`,
+        );
+        if (!ligado) {
+          console.log("      A chave é válida e o portal responde, mas o módulo B2C não está");
+          console.log("      liberado. Pelo Manual de Configuração, quem libera é o time de");
+          console.log("      GGC/Adesão da Linx — não é algo que se resolva no cadastro da loja.");
+          console.log("      Enquanto estiver assim, os métodos respondem com sucesso e ZERO");
+          console.log("      linhas, o que é fácil confundir com 'a base está vazia'.");
+        }
+      }
+    }
+
     if (f.campos?.length && !f.vazio && !f.erro)
       console.log(`   ↳ tags: ${f.campos.slice(0, 12).join(" ")}`);
     console.log("");
