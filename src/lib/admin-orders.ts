@@ -104,6 +104,11 @@ export function situacaoCliente(
   paymentStatus: string,
   fulfillmentStatus: string,
 ): string {
+  // Pago com atendimento cancelado é a marca do pagamento que chegou depois do
+  // prazo sem peça sobrando (`confirmPayment`). Quem pagou não pode ler
+  // "Cancelado" — a loja ainda vai resolver, com estorno ou reposição.
+  if (paymentStatus === "paid" && fulfillmentStatus === "canceled")
+    return "Pagamento confirmado — em revisão pela loja";
   if (fulfillmentStatus === "canceled" || paymentStatus === "canceled")
     return "Cancelado";
   if (paymentStatus === "expired") return "Expirado por falta de pagamento";
@@ -273,6 +278,11 @@ export function colunaKanban(
   paymentStatus: string,
   fulfillmentStatus: string,
 ): KanbanColuna | null {
+  // Pedido PAGO nunca some do quadro, nem com o atendimento cancelado: é
+  // exatamente o caso que precisa de alguém olhando (pagamento fora do prazo
+  // sem peça sobrando). Sumir daqui é o mesmo que perder a venda de vista.
+  if (paymentStatus === "paid" && fulfillmentStatus === "canceled")
+    return "a_separar";
   if (
     fulfillmentStatus === "canceled" ||
     paymentStatus === "canceled" ||

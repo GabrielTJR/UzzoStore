@@ -2,7 +2,7 @@ import "server-only";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { sendOrderPaidEmail, sendNewOrderAdminEmail } from "@/lib/email";
 import { logAudit } from "@/lib/audit";
-import { consumirReserva } from "@/lib/stock";
+import { consumirReserva, baixarEstoque, itensDoPedido } from "@/lib/stock";
 import { consumeCoupon } from "@/lib/coupons";
 
 /**
@@ -246,6 +246,20 @@ export async function confirmPayment(params: {
     .maybeSingle();
   if (!order) return { paid: false, reason: "pedido" };
 
+  // Estornado NÃO volta a ser pago por uma confirmação atrasada: o dinheiro já
+  // saiu de volta, e remarcar como pago recolocaria o pedido na fila de
+  // faturamento com o caixa a menos.
+  if (order.payment_status === "refunded") {
+    await logAudit(null, {
+      action: "payment.pos_estorno",
+      entityType: "order",
+      entityId: order.id,
+      entityLabel: `nº ${order.number}`,
+      metadata: { transacao: params.transactionNsu },
+    });
+    return { paid: false, orderNumber: order.number, reason: "estornado" };
+  }
+
   // O valor pago precisa cobrir o pedido (tudo em centavos).
   const paidCents = Number(check.paid_amount ?? check.amount ?? 0);
   if (paidCents + 1 < toCents(Number(order.total)))
@@ -261,14 +275,65 @@ export async function confirmPayment(params: {
     raw: { ...check, slug: params.slug },
   });
   if (payErr) {
-    // Já processado antes (unique provider+provider_id): nada a fazer.
+    // Só a violação do unique (provider+provider_id) significa "já processado".
+    // Qualquer outro erro — timeout, indisponibilidade — NÃO pode responder
+    // "pago": o webhook receberia 200, a InfinitePay nunca reenviaria, e o
+    // pedido ficaria parado com o dinheiro dentro. E, pior, este return também
+    // pula a separação de peça logo abaixo.
+    if (payErr.code !== "23505") {
+      console.error("[infinitepay] falha ao gravar o pagamento", payErr);
+      return { paid: false, orderNumber: order.number, reason: "erro" };
+    }
     return { paid: true, orderNumber: order.number, reason: "ja_processado" };
+  }
+
+  // ⚠️ O pedido pode ter EXPIRADO antes de o dinheiro chegar. O link da
+  // InfinitePay não expira junto com a nossa janela de 20 min — não mandamos
+  // prazo para eles. Nesse caso o `pg_cron` já devolveu a peça à prateleira e
+  // apagou a reserva, então `consumirReserva` não acha nada e o pedido ficaria
+  // "pago" sem estoque separado (possivelmente já vendido a outra pessoa).
+  //
+  // Recusar não é opção: o dinheiro entrou. Então tentamos separar a peça de
+  // novo. Se der, o pedido ressuscita e volta para a fila de atendimento; se
+  // não der, ele fica pago com o atendimento cancelado — a contradição é
+  // proposital, é o que faz a loja olhar e resolver (estorno ou reposição).
+  //
+  // ⚠️ INCOMPLETO por enquanto: `order.payment_status` foi lido lá em cima, e o
+  // pg_cron cabe entre a leitura e esta decisão. O caso comum está coberto (o
+  // cron rodou minutos antes), mas na corrida exata o pedido é marcado pago sem
+  // que a peça seja separada de novo. Fechar isso exige `marcar_pedido_pago`
+  // (migração 0021), que lê e escreve a situação no MESMO comando — falta
+  // aplicar a migração e regenerar os tipos.
+  const expirou =
+    order.payment_status === "expired" || order.payment_status === "canceled";
+  let semSaldo: string[] = [];
+  if (expirou) {
+    semSaldo = await baixarEstoque(admin, await itensDoPedido(admin, order.id));
+    await logAudit(null, {
+      action: semSaldo.length ? "stock.shortage" : "payment.fora_do_prazo",
+      entityType: "order",
+      entityId: order.id,
+      entityLabel: `nº ${order.number}`,
+      metadata: {
+        situacao_anterior: order.payment_status,
+        // "encerrado" e não "vencido": `canceled` também vem do cliente
+        // cancelando pela conta, não só da expiração pelo pg_cron.
+        aviso: semSaldo.length
+          ? `pagamento chegou depois de o pedido ser encerrado (${order.payment_status}) e não há mais saldo — precisa de estorno ou reposição`
+          : `pagamento chegou depois de o pedido ser encerrado (${order.payment_status}); a peça foi separada de novo`,
+        ...(semSaldo.length ? { itens: semSaldo } : {}),
+      },
+    });
   }
 
   await admin
     .from("orders")
     .update({
       payment_status: "paid",
+      // Só devolve o atendimento à fila quando há peça de verdade para entregar.
+      ...(expirou && semSaldo.length === 0
+        ? { fulfillment_status: "pending" }
+        : {}),
       updated_at: new Date().toISOString(),
     })
     .eq("id", order.id);
@@ -279,6 +344,14 @@ export async function confirmPayment(params: {
 
   // A peça JÁ saiu do estoque na criação do pedido (reserva, migração 0018).
   // Aqui só se apaga a reserva: baixar de novo venderia a mesma peça duas vezes.
+  // (No caminho do `expirou` acima não há reserva para consumir — o cron já a
+  // apagou —, e por isso a baixa de lá é a que vale.)
+  // (Não invalida o cache do catálogo aqui: esta função também roda dentro do
+  // render de /pedido/confirmado, e revalidar durante um render é proibido.
+  // Quem invalida é a rota do webhook, que chama revalidateTag sempre que vê
+  // `paid` — inclusive no ramo `expirou` acima, que é o único onde o estoque
+  // se move aqui dentro. Se só o retorno do cliente chegar, a vitrine se
+  // acerta na janela de fallback de 5-10 min.)
   await consumirReserva(admin, order.id);
   await notifyPaid(order.id, order.number);
   return { paid: true, orderNumber: order.number };

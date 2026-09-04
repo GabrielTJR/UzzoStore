@@ -36,7 +36,17 @@ export async function POST(request: NextRequest) {
 
   // Não confirmado: 400 para a InfinitePay reenviar (pode ser corrida com o
   // processamento do pagamento do lado deles).
-  if (!result.paid && result.reason !== "valor")
+  //
+  // Mas só quando reenviar tem chance de mudar alguma coisa. Recusa por valor,
+  // por pedido inexistente ou por pedido já estornado é definitiva: pedir
+  // reenvio faz a InfinitePay bater aqui em laço, e cada tentativa gasta uma
+  // chamada externa ao `payment_check` e enche o /admin/logs de linha repetida.
+  // 200 aqui significa "recebi e não vou processar", não "está pago".
+  const definitivo =
+    result.reason === "valor" ||
+    result.reason === "estornado" ||
+    result.reason === "pedido";
+  if (!result.paid && !definitivo)
     return NextResponse.json({ ok: false }, { status: 400 });
 
   // Pagamento confirmado baixou estoque: derruba o cache do catálogo para a
