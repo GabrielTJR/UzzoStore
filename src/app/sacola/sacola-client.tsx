@@ -99,6 +99,30 @@ function SkeletonItem() {
   );
 }
 
+/**
+ * Qual opção já vem marcada.
+ *
+ * Sem frete grátis: a MAIS BARATA. Marcar uma paga por padrão cobraria do
+ * cliente uma escolha que ele não fez.
+ *
+ * Com frete grátis: a loja cobre até a opção recomendada, então várias saem por
+ * R$ 0 — entre elas, a que chega ANTES é estritamente melhor para quem compra e
+ * não custa nada a mais para a loja. As pagas ("Outros fretes") nunca vêm
+ * marcadas: cobrar por velocidade tem que ser escolha ativa.
+ */
+function freteRecomendado(
+  options: ShippingOption[],
+  tudoGratis: boolean,
+): ShippingOption | null {
+  if (options.length === 0) return null;
+  if (tudoGratis) {
+    const livres = options.filter((o) => o.free);
+    if (livres.length > 0)
+      return livres.reduce((a, b) => (b.days < a.days ? b : a));
+  }
+  return options[0]; // a lista já vem com a mais barata primeiro
+}
+
 export function SacolaClient({
   shippingEnabled,
 }: {
@@ -239,11 +263,11 @@ export function SacolaClient({
       setQuote(res);
       if (!res.ok) setShipping(null);
       // Já deixa a recomendada marcada. Sem isso o cliente tem que escolher
-      // entre rádios vazios para seguir, no passo em que ele está mais perto de
-      // desistir. `options[0]` é a mais barata (e é nela que o frete grátis
-      // cai), então é também a escolha mais segura para o bolso dele.
-      else if (res.options.length > 0) {
-        setShipping(escolhaDeFrete(limpo, res.options[0]));
+      // entre rádios vazios para seguir, no passo em que ele está mais perto
+      // de desistir.
+      else {
+        const rec = freteRecomendado(res.options, res.freeApplied);
+        if (rec) setShipping(escolhaDeFrete(limpo, rec));
       }
     } catch {
       setQuote({ ok: false, error: "Não conseguimos cotar agora." });

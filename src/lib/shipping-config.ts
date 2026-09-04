@@ -9,6 +9,31 @@
 export const FRETE_GRATIS_MIN: number | null = 299;
 
 /**
+ * Manoplas do frete grátis "com cobertura".
+ *
+ * Alcançado o mínimo, a loja NÃO paga qualquer frete: ela cobre até a opção de
+ * EQUILÍBRIO, e as mais rápidas que ela aparecem em "Outros fretes" cobrando só
+ * a diferença. Assim o custo da loja fica travado no valor do equilíbrio,
+ * escolha o cliente o que escolher, e quem quiser correr ainda paga pouco.
+ *
+ * O equilíbrio é achado subindo do frete mais barato para o mais rápido, um
+ * DEGRAU por vez, enquanto cada degrau valer a pena:
+ *
+ *   custo por dia = (preço do degrau − preço atual) ÷ (dias atuais − dias do degrau)
+ *
+ * Subir em degraus (em vez de comparar tudo com a mais barata) é o que enxerga
+ * que os últimos dias são sempre os mais caros. Medido em 23/08/2026, saindo de
+ * Balneário Camboriú para Manaus: de 20 para 7 dias custa R$ 0,93/dia — vale
+ * muito; de 7 para 4 dias custa R$ 26,23/dia — não vale. Comparado direto com a
+ * mais barata, o pulo para 4 dias daria R$ 5,67/dia e passaria despercebido,
+ * custando R$ 90 à loja.
+ *
+ * Subir estes números = mais velocidade coberta, mais custo por pedido.
+ */
+export const FRETE_CUSTO_POR_DIA_MAX = 5;
+export const FRETE_EXTRA_MAX = 25;
+
+/**
  * Peso padrão por categoria (em GRAMAS) quando o produto não tem
  * `weight_grams` cadastrado. Chutes conservadores para roupa embalada —
  * peso a MENOS gera cobrança por divergência depois (a reclamação nº 1

@@ -4,6 +4,8 @@ import {
   pesoPadraoGramas,
   caixaParaPecas,
   FRETE_GRATIS_MIN,
+  FRETE_CUSTO_POR_DIA_MAX,
+  FRETE_EXTRA_MAX,
 } from "@/lib/shipping-config";
 
 /**
@@ -36,7 +38,7 @@ export type ShippingOption = {
    * serviço: ".Package Centralizado · Jadlog" não diz nada para quem compra
    * camisa, "Mais barato · até 8 dias úteis" diz tudo.
    */
-  tag: "barato" | "rapido" | "ambos" | null;
+  tag: "barato" | "rapido" | "ambos" | "equilibrio" | null;
 };
 
 /**
@@ -50,6 +52,39 @@ export type ShippingOption = {
  * R$ 35,86 contra R$ 15,14 da Loggi, e para Salvador R$ 73,95 contra R$ 17,65.
  * Mostrar os dois extremos deixa o cliente decidir com a informação na mão.
  */
+/**
+ * A opção de EQUILÍBRIO: sobe do frete mais barato para o mais rápido, um
+ * degrau por vez, enquanto cada degrau custar pouco por dia economizado.
+ *
+ * Em degraus, e não comparando tudo com a mais barata, porque os últimos dias
+ * são sempre os mais caros — ver o comentário das constantes em
+ * `shipping-config.ts`, com os números reais de Manaus.
+ *
+ * Quando o frete mais barato já é o mais rápido, ela é ele mesmo.
+ */
+function opcaoEquilibrio(todas: ShippingOption[]): ShippingOption {
+  const base = [...todas].sort((a, b) => a.price - b.price || a.days - b.days)[0];
+  let atual = base;
+  for (;;) {
+    const degraus = todas
+      .filter((o) => o.days < atual.days)
+      .map((o) => ({
+        o,
+        porDia: (o.price - atual.price) / (atual.days - o.days),
+        extra: o.price - base.price,
+      }))
+      .filter(
+        (d) =>
+          d.porDia > 0 &&
+          d.porDia <= FRETE_CUSTO_POR_DIA_MAX &&
+          d.extra <= FRETE_EXTRA_MAX,
+      )
+      .sort((a, b) => a.porDia - b.porDia);
+    if (degraus.length === 0) return atual;
+    atual = degraus[0].o;
+  }
+}
+
 function escolheOpcoes(todas: ShippingOption[]): ShippingOption[] {
   if (todas.length === 0) return [];
   // Desempates explícitos: preço igual → o mais rápido primeiro, e vice-versa.
@@ -69,12 +104,14 @@ function escolheOpcoes(todas: ShippingOption[]): ShippingOption[] {
   } else {
     escolhidas.push({ ...barato, tag: "barato" }, { ...rapido, tag: "rapido" });
   }
-  // Completa com a próxima mais barata que ainda não entrou.
-  for (const o of porPreco) {
-    if (escolhidas.length >= 3) break;
-    if (!escolhidas.some((e) => e.serviceId === o.serviceId)) {
-      escolhidas.push({ ...o, tag: null });
-    }
+
+  // O 3º lugar é o EQUILÍBRIO — antes era a "próxima mais barata", que podia
+  // ser inútil: para Manaus entrava o PAC de R$ 44,16 em 21 dias, mais caro E
+  // mais lento que a Jadlog de R$ 37,65 em 20, enquanto a LATAM (7 dias por
+  // R$ 49,72) ficava escondida.
+  const eq = opcaoEquilibrio(todas);
+  if (!escolhidas.some((e) => e.serviceId === eq.serviceId)) {
+    escolhidas.push({ ...eq, tag: "equilibrio" });
   }
   return escolhidas.sort((a, b) => a.price - b.price);
 }
@@ -212,11 +249,24 @@ export async function quoteShipping(
     return null; // falha momentânea: não cacheada, o próximo clique recota
   }
 
-  // Frete grátis: aplica na opção MAIS BARATA quando o subtotal alcança o
-  // mínimo. Servidor decide — o cliente não manda preço de frete nenhum.
+  // Frete grátis: quando o subtotal alcança o mínimo, TODAS as opções saem
+  // grátis — não só a mais barata. Zerar só a mais barata transformava o
+  // benefício numa escolha entre "grátis e devagar" ou "rápido e pago", que
+  // é o oposto de recompensar quem gastou mais. Servidor decide: o cliente
+  // não manda preço de frete nenhum.
   const freeApplied = FRETE_GRATIS_MIN != null && subtotal >= FRETE_GRATIS_MIN;
   if (freeApplied && options.length > 0) {
-    options[0] = { ...options[0], price: 0, free: true };
+    // A loja cobre até a opção de EQUILÍBRIO. Tudo até ali sai grátis; o que
+    // for mais rápido (e mais caro) cobra só a DIFERENÇA, e o cliente decide
+    // se quer pagar por velocidade. Assim o custo da loja fica travado no
+    // valor da cobertura, escolha ele o que escolher — zerar tudo faria a loja
+    // pagar R$ 128 num pedido de Manaus onde R$ 49 entregava em 7 dias.
+    const cobertura = opcaoEquilibrio(options).price;
+    options = options.map((o) =>
+      o.price <= cobertura
+        ? { ...o, price: 0, free: true }
+        : { ...o, price: o.price - cobertura, free: false },
+    );
   }
   return { options, freeApplied };
 }

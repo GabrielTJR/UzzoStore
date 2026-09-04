@@ -73,9 +73,23 @@ export function CheckoutFlow({
       .then((res) => {
         if (ignore) return;
         setQuote(res);
-        // Pré-seleciona a opção mais barata — um toque a menos no celular.
-        if (res.ok && res.options.length > 0)
-          setFreightServiceId(res.options[0].serviceId);
+        // Pré-seleciona — um toque a menos no celular. Normalmente a mais
+        // barata (marcar uma paga por padrão cobraria uma escolha que o
+        // cliente não fez); com o frete grátis todas custam zero, e aí a mais
+        // rápida é estritamente melhor para ele.
+        if (res.ok && res.options.length > 0) {
+          // Com frete grátis a loja cobre até a recomendada: entre as que saem
+          // por R$ 0, a que chega antes é a melhor para o cliente e não custa
+          // nada a mais para a loja. As pagas nunca vêm marcadas.
+          const livres = res.freeApplied
+            ? res.options.filter((o) => o.free)
+            : [];
+          const rec =
+            livres.length > 0
+              ? livres.reduce((a, b) => (b.days < a.days ? b : a))
+              : res.options[0];
+          setFreightServiceId(rec.serviceId);
+        }
       })
       .catch(() => {
         if (!ignore) setQuote({ ok: false, error: "Não conseguimos cotar." });

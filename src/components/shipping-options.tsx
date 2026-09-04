@@ -34,6 +34,7 @@ const ROTULO: Record<
   ambos: { titulo: "Melhor opção", nota: "mais rápida e mais barata" },
   barato: { titulo: "Mais barato", nota: "" },
   rapido: { titulo: "Mais rápido", nota: "" },
+  equilibrio: { titulo: "Recomendado", nota: "" },
 };
 
 export function ShippingOptions({
@@ -54,50 +55,94 @@ export function ShippingOptions({
     : options.filter((o) => o.tag || o.serviceId === selectedServiceId);
   const escondidas = options.length - visiveis.length;
 
-  return (
-    <div className="mt-3 space-y-2" role="radiogroup" aria-label="Opções de frete">
-      {visiveis.map((o) => {
-        const selected = selectedServiceId === o.serviceId;
-        const rotulo = o.tag ? ROTULO[o.tag] : null;
-        // Nunca o nome cru da API: ".Package Centralizado", ".Com" e "Standard"
-        // são jargão de transportadora, não linguagem de loja.
-        const servico = nomeServicoFrete(o.serviceId, o.name, o.company);
-        const titulo = rotulo ? rotulo.titulo : servico;
-        const detalhe = [
-          o.days > 0 ? `até ${o.days} dias úteis` : null,
-          rotulo ? servico : null,
-          rotulo?.nota || null,
-        ]
-          .filter(Boolean)
-          .join(" · ");
+  // Com frete grátis a loja cobre até a opção recomendada: as cobertas saem
+  // grátis e as mais rápidas viram "Outros fretes", cobrando só a diferença.
+  const gratis = options.filter((o) => o.free);
+  const pagos = options.filter((o) => !o.free);
+  const subsidiado = gratis.length > 0 && pagos.length > 0;
 
-        return (
-          <label
-            key={o.serviceId}
-            className={`flex cursor-pointer items-center justify-between gap-3 rounded-md border px-3 py-2.5 text-sm transition-colors ${
-              selected
-                ? "border-foreground"
-                : "border-border hover:border-foreground"
-            }`}
-          >
-            <span className="flex items-center gap-2">
-              <input
-                type="radio"
-                name="frete"
-                checked={selected}
-                onChange={() => onSelect(o)}
-              />
-              <span>
-                <span className="font-medium">{titulo}</span>
-                {detalhe && (
-                  <span className="block text-xs text-muted">{detalhe}</span>
-                )}
-              </span>
+  function Opcao({ o }: { o: ShippingOption }) {
+    const selected = selectedServiceId === o.serviceId;
+    // "Mais rápido" e "Melhor opção" são as duas formas de a opção ser a
+    // mais veloz da lista — as duas ganham o destaque.
+    const rapida = o.tag === "rapido" || o.tag === "ambos";
+    const rotulo = o.tag ? ROTULO[o.tag] : null;
+    // Nunca o nome cru da API: ".Package Centralizado", ".Com" e "Standard"
+    // são jargão de transportadora, não linguagem de loja.
+    const servico = nomeServicoFrete(o.serviceId, o.name, o.company);
+    const titulo = rotulo ? rotulo.titulo : servico;
+    const detalhe = [
+      o.days > 0 ? `até ${o.days} dias úteis` : null,
+      rotulo ? servico : null,
+      rotulo?.nota || null,
+    ]
+      .filter(Boolean)
+      .join(" · ");
+
+    return (
+      <label
+        key={o.serviceId}
+        className={`relative flex cursor-pointer items-center justify-between gap-3 rounded-md border px-3 py-2.5 text-sm transition-colors ${
+          selected
+            ? "border-foreground"
+            : rapida
+              ? "border-foreground/40 hover:border-foreground"
+              : "border-border hover:border-foreground"
+        }`}
+      >
+        <span className="flex items-center gap-2">
+          <input
+            type="radio"
+            name="frete"
+            checked={selected}
+            onChange={() => onSelect(o)}
+          />
+          <span>
+            <span className="font-medium">
+              {titulo}
+              {rapida && (
+                <span className="ml-2 rounded-full bg-foreground px-2 py-0.5 align-middle text-[0.65rem] font-medium text-background">
+                  chega antes
+                </span>
+              )}
             </span>
-            <strong>{o.free ? "Grátis" : formatBRL(o.price)}</strong>
-          </label>
-        );
-      })}
+            {detalhe && (
+              <span className="block text-xs text-muted">{detalhe}</span>
+            )}
+          </span>
+        </span>
+        <strong>{o.free ? "Grátis" : formatBRL(o.price)}</strong>
+      </label>
+    );
+  }
+
+  return (
+    <div
+      className="mt-3 space-y-2"
+      role="radiogroup"
+      aria-label="Opções de frete"
+    >
+      {gratis.length > 0 && (
+        <div className="space-y-2">
+          {gratis.map((o) => (
+            <Opcao key={o.serviceId} o={o} />
+          ))}
+        </div>
+      )}
+
+      {pagos.length > 0 && (
+        <div className="space-y-2">
+          {subsidiado && (
+            <p className="pt-1 text-xs text-muted">
+              <span className="font-medium text-foreground">Outros fretes</span>
+              {" — chegam antes, e você paga só a diferença."}
+            </p>
+          )}
+          {pagos.map((o) => (
+            <Opcao key={o.serviceId} o={o} />
+          ))}
+        </div>
+      )}
 
       {!verTodas && escondidas > 0 && (
         <button
