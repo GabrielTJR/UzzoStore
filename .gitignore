@@ -43,3 +43,7 @@ next-env.d.ts
 
 # arquivos temporarios do Supabase CLI (link/credenciais locais)
 supabase/.temp/
+
+# Respostas cruas do pré-voo do Microvix (scripts/microvix-preflight.mjs).
+# Contêm dados de negócio — custo, preço, cadastro. Nunca versionar.
+/.microvix-preflight/
