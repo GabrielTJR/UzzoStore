@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import Link from "next/link";
 import { Geist, Geist_Mono, Playfair_Display } from "next/font/google";
+import Script from "next/script";
 import { Analytics } from "@vercel/analytics/next";
 import { Logo } from "@/components/logo";
 import { SiteHeader } from "@/components/site-header";
@@ -28,6 +29,18 @@ const playfair = Playfair_Display({
 const WHATSAPP_URL = "https://wa.me/5547991744865";
 const MAPS_URL = "https://maps.app.goo.gl/bUxWeib7bJHjGp3K6";
 const INSTAGRAM_URL = "https://www.instagram.com/uzzostorebc/";
+
+/**
+ * Google Analytics 4 — ID de medição da conta da loja.
+ *
+ * Fica no código, e não numa env, de propósito: ele **não é segredo** (viaja no
+ * HTML de toda página, é assim que funciona), é estável, e env que ninguém
+ * lembra de cadastrar na Vercel já custou caro aqui — o checkout ficou 5 dias
+ * fora por causa de uma (`INFINITEPAY` no lugar de `INFINITEPAY_HANDLE`), e a
+ * `NEXT_PUBLIC_SITE_URL` vazia derrubou um build inteiro. Uma constante ao lado
+ * das outras do arquivo não tem esse modo de falhar.
+ */
+const GA_MEASUREMENT_ID = "G-8RY0N74PG7";
 
 /**
  * Base das URLs de metadados (OG/canonical). Precisa ser uma URL VÁLIDA já no
@@ -282,6 +295,35 @@ export default async function RootLayout({
         </footer>
         <Analytics />
       </body>
+
+      {/* Google Analytics (gtag.js).
+          O painel do Google manda colar o trecho "logo após o <head>", mas no
+          App Router não existe <head> para editar à mão — quem posiciona é o
+          `next/script`. Aqui fica no layout raiz, então carrega em todas as
+          rotas e o Next garante que carregue UMA vez por sessão, mesmo o
+          cliente navegando entre páginas.
+
+          `afterInteractive` (o padrão) carrega depois da hidratação: medição
+          não pode disputar a rede com a primeira foto do produto. O snippet do
+          Google usa `async` no <head>, que dá no mesmo para o GA4 — ele
+          enfileira os eventos e envia quando o script chega.
+
+          Custo para nós: zero de banda. O arquivo vem do CDN do Google, não
+          passa pela Vercel nem pelo Supabase. */}
+      <Script
+        src={`https://www.googletagmanager.com/gtag/js?id=${GA_MEASUREMENT_ID}`}
+        strategy="afterInteractive"
+      />
+      {/* O `id` é obrigatório em script inline — é por ele que o Next controla
+          para não injetar duas vezes na navegação client-side. */}
+      <Script id="google-analytics" strategy="afterInteractive">
+        {`
+          window.dataLayer = window.dataLayer || [];
+          function gtag(){dataLayer.push(arguments);}
+          gtag('js', new Date());
+          gtag('config', '${GA_MEASUREMENT_ID}');
+        `}
+      </Script>
     </html>
   );
 }
