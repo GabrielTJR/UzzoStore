@@ -1,7 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import Link from "next/link";
 import { Geist, Geist_Mono, Playfair_Display } from "next/font/google";
-import { Analytics } from "@vercel/analytics/next";
 import { CookieConsent } from "@/components/cookie-consent";
 import { Logo } from "@/components/logo";
 import { SiteHeader } from "@/components/site-header";
@@ -301,10 +300,11 @@ export default async function RootLayout({
             </div>
           </div>
         </footer>
-        {/* Analytics da Vercel: por desenho NÃO grava cookie, então não passa
-            pelo aviso. O Google Analytics passa — quem o carrega é o
-            `CookieConsent`, e só depois do "Aceitar". */}
-        <Analytics />
+        {/* Medição do site vive AQUI DENTRO, e só aqui: é o `CookieConsent`
+            que carrega o Google Analytics, e só depois do "Aceitar". Não mova
+            o gtag.js para fora deste componente — solto no layout ele passa a
+            rodar antes de o cliente escolher, e o aviso de cookies vira
+            fachada. */}
         <CookieConsent gaId={GA_MEASUREMENT_ID} />
       </body>
     </html>
