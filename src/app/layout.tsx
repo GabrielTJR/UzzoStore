@@ -1,8 +1,8 @@
 import type { Metadata, Viewport } from "next";
 import Link from "next/link";
 import { Geist, Geist_Mono, Playfair_Display } from "next/font/google";
-import Script from "next/script";
 import { Analytics } from "@vercel/analytics/next";
+import { CookieConsent } from "@/components/cookie-consent";
 import { Logo } from "@/components/logo";
 import { SiteHeader } from "@/components/site-header";
 import { CartDrawer } from "@/components/cart-drawer";
@@ -39,6 +39,9 @@ const INSTAGRAM_URL = "https://www.instagram.com/uzzostorebc/";
  * fora por causa de uma (`INFINITEPAY` no lugar de `INFINITEPAY_HANDLE`), e a
  * `NEXT_PUBLIC_SITE_URL` vazia derrubou um build inteiro. Uma constante ao lado
  * das outras do arquivo não tem esse modo de falhar.
+ *
+ * Quem carrega o gtag.js é o `CookieConsent`, não este arquivo: sem aceite, o
+ * script do Google nem entra na página.
  */
 const GA_MEASUREMENT_ID = "G-8RY0N74PG7";
 
@@ -198,6 +201,11 @@ export default async function RootLayout({
                   Sobre a loja
                 </Link>
               </p>
+              <p>
+                <Link href="/privacidade" className="hover:text-foreground">
+                  Privacidade e cookies
+                </Link>
+              </p>
             </nav>
 
             <div className="space-y-2 text-sm text-muted">
@@ -293,37 +301,12 @@ export default async function RootLayout({
             </div>
           </div>
         </footer>
+        {/* Analytics da Vercel: por desenho NÃO grava cookie, então não passa
+            pelo aviso. O Google Analytics passa — quem o carrega é o
+            `CookieConsent`, e só depois do "Aceitar". */}
         <Analytics />
+        <CookieConsent gaId={GA_MEASUREMENT_ID} />
       </body>
-
-      {/* Google Analytics (gtag.js).
-          O painel do Google manda colar o trecho "logo após o <head>", mas no
-          App Router não existe <head> para editar à mão — quem posiciona é o
-          `next/script`. Aqui fica no layout raiz, então carrega em todas as
-          rotas e o Next garante que carregue UMA vez por sessão, mesmo o
-          cliente navegando entre páginas.
-
-          `afterInteractive` (o padrão) carrega depois da hidratação: medição
-          não pode disputar a rede com a primeira foto do produto. O snippet do
-          Google usa `async` no <head>, que dá no mesmo para o GA4 — ele
-          enfileira os eventos e envia quando o script chega.
-
-          Custo para nós: zero de banda. O arquivo vem do CDN do Google, não
-          passa pela Vercel nem pelo Supabase. */}
-      <Script
-        src={`https://www.googletagmanager.com/gtag/js?id=${GA_MEASUREMENT_ID}`}
-        strategy="afterInteractive"
-      />
-      {/* O `id` é obrigatório em script inline — é por ele que o Next controla
-          para não injetar duas vezes na navegação client-side. */}
-      <Script id="google-analytics" strategy="afterInteractive">
-        {`
-          window.dataLayer = window.dataLayer || [];
-          function gtag(){dataLayer.push(arguments);}
-          gtag('js', new Date());
-          gtag('config', '${GA_MEASUREMENT_ID}');
-        `}
-      </Script>
     </html>
   );
 }
