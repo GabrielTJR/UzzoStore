@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import {
@@ -300,6 +301,10 @@ export function SacolaClient({
 
     setBusy(true);
     setError(null);
+    // Pedido já gravado e saída para o WhatsApp agendada: daqui em diante o
+    // botão NÃO volta a ficar clicável. Sem isto o `finally` o reabilitava
+    // durante a espera de 1,2 s e um segundo toque gravava outro pedido.
+    let saindo = false;
 
     try {
       const res = await createOrderAction(
@@ -320,11 +325,11 @@ export function SacolaClient({
 
       if (!res.ok || !res.totals) {
         setError(res.error || "Erro ao registrar pedido.");
-        showToast("Erro ao finalizar pedido ❌");
+        showToast("Não foi possível registrar o pedido");
         return;
       }
 
-      showToast("Pedido criado com sucesso! Redirecionando...");
+      showToast("Pedido registrado. Abrindo o WhatsApp…");
 
       const url = `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(
         buildWhatsappMessage(items, res.totals, res.orderNumber),
@@ -333,15 +338,16 @@ export function SacolaClient({
       // Esvaziar a sacola AQUI derrubaria a tela para "Sua sacola está vazia"
       // no mesmo render do toast — o cliente veria cara de erro justamente no
       // momento da conversão. Limpa só ao sair para o WhatsApp.
+      saindo = true;
       setTimeout(() => {
         clearCart();
         window.location.href = url;
       }, 1200);
     } catch {
       setError("Erro inesperado. Tente novamente.");
-      showToast("Erro inesperado ❌");
+      showToast("Erro inesperado. Tente novamente");
     } finally {
-      setBusy(false);
+      if (!saindo) setBusy(false);
     }
   }
 
@@ -383,31 +389,61 @@ export function SacolaClient({
     <section className="mx-auto max-w-4xl px-6 py-10">
       {toast && <Toast message={toast} />}
 
-      <h1 className="mb-6 text-xl font-medium">Sua sacola</h1>
+      <h1 className="mb-6 font-display text-2xl font-bold lg:text-3xl">
+        Sua sacola
+      </h1>
 
       <ul className="divide-y divide-border border-y border-border">
         {items.map((item) => (
-          <li key={item.variantId} className="flex items-center gap-4 py-5">
-            <div className="flex-1">
-              <Link
-                href={`/produtos/${item.productSlug}`}
-                className="text-sm font-medium hover:underline"
-              >
-                {item.productName}
-              </Link>
-
-              {(item.color || item.size) && (
-                <p className="text-xs text-muted">
-                  {[
-                    item.color ? `Cor: ${item.color}` : null,
-                    item.size ? `Tam.: ${item.size}` : null,
-                  ]
-                    .filter(Boolean)
-                    .join(" · ")}
-                </p>
+          // Foto à esquerda; à direita o nome com o remover no canto, e na
+          // base a quantidade e o total da linha. Antes eram quatro colunas
+          // lado a lado sem foto: num celular sobravam ~40px para o nome, que
+          // quebrava uma palavra por linha.
+          <li key={item.variantId} className="flex gap-4 py-5">
+            <Link
+              href={`/produtos/${item.productSlug}`}
+              tabIndex={-1}
+              aria-hidden
+              className="relative aspect-[2/3] w-20 shrink-0 overflow-hidden rounded-xs bg-surface sm:w-24"
+            >
+              {item.image && (
+                <Image
+                  src={item.image}
+                  alt=""
+                  fill
+                  sizes="128px"
+                  className="object-cover"
+                />
               )}
+            </Link>
 
-              <p className="mt-1 text-sm text-muted">{formatBRL(item.price)}</p>
+            <div className="flex min-w-0 flex-1 flex-col">
+              <div className="flex items-start justify-between gap-2">
+                <div className="min-w-0">
+                  <Link
+                    href={`/produtos/${item.productSlug}`}
+                    className="text-[0.95rem] font-medium leading-snug hover:underline"
+                  >
+                    {item.productName}
+                  </Link>
+
+                  {(item.color || item.size) && (
+                    <p className="mt-0.5 text-sm text-muted">
+                      {[item.color, item.size ? `tam. ${item.size}` : null]
+                        .filter(Boolean)
+                        .join(", ")}
+                    </p>
+                  )}
+                </div>
+                <button
+                  type="button"
+                  onClick={() => removeItem(item.variantId)}
+                  aria-label={`Remover ${item.productName} da sacola`}
+                  className="-mr-2 -mt-2 flex h-10 w-10 shrink-0 items-center justify-center text-muted hover:text-foreground"
+                >
+                  ✕
+                </button>
+              </div>
 
               {saldo && (saldo[item.variantId]?.qty ?? 0) < item.qty && (
                 <p className="mt-1 text-xs font-medium text-red-600 dark:text-red-400">
@@ -420,42 +456,42 @@ export function SacolaClient({
                       : `Só restam ${saldo[item.variantId]?.qty} — ajuste a quantidade`}
                 </p>
               )}
+
+              <div className="mt-auto flex items-end justify-between gap-3 pt-3">
+                <div className="flex items-center rounded-xs border border-border">
+                  <button
+                    type="button"
+                    onClick={() => setQty(item.variantId, item.qty - 1)}
+                    aria-label={`Diminuir quantidade de ${item.productName}`}
+                    className="flex h-10 w-10 items-center justify-center text-lg"
+                  >
+                    −
+                  </button>
+
+                  <span className="w-8 text-center text-sm">{item.qty}</span>
+
+                  <button
+                    type="button"
+                    onClick={() => setQty(item.variantId, item.qty + 1)}
+                    aria-label={`Aumentar quantidade de ${item.productName}`}
+                    className="flex h-10 w-10 items-center justify-center text-lg"
+                  >
+                    +
+                  </button>
+                </div>
+
+                <div className="text-right">
+                  <p className="text-[0.95rem] font-bold">
+                    {formatBRL(item.price * item.qty)}
+                  </p>
+                  {item.qty > 1 && (
+                    <p className="text-xs text-muted">
+                      {formatBRL(item.price)} cada
+                    </p>
+                  )}
+                </div>
+              </div>
             </div>
-
-            <div className="flex items-center rounded-xs border border-border">
-              <button
-                type="button"
-                onClick={() => setQty(item.variantId, item.qty - 1)}
-                aria-label={`Diminuir quantidade de ${item.productName}`}
-                className="flex h-9 w-9 items-center justify-center"
-              >
-                −
-              </button>
-
-              <span className="w-8 text-center text-sm">{item.qty}</span>
-
-              <button
-                type="button"
-                onClick={() => setQty(item.variantId, item.qty + 1)}
-                aria-label={`Aumentar quantidade de ${item.productName}`}
-                className="flex h-9 w-9 items-center justify-center"
-              >
-                +
-              </button>
-            </div>
-
-            <div className="w-24 text-right text-sm font-medium">
-              {formatBRL(item.price * item.qty)}
-            </div>
-
-            <button
-              type="button"
-              onClick={() => removeItem(item.variantId)}
-              aria-label={`Remover ${item.productName} da sacola`}
-              className="flex h-10 w-10 shrink-0 items-center justify-center text-muted hover:text-foreground"
-            >
-              ✕
-            </button>
           </li>
         ))}
       </ul>

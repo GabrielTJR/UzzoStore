@@ -49,8 +49,9 @@ export default async function PedidoConfirmadoPage({
         {paid ? (
           <>
             Recebemos seu pedido
-            {result.orderNumber ? ` nº ${result.orderNumber}` : ""}. Vamos
-            combinar a entrega pelo WhatsApp — o frete é acertado à parte.
+            {result.orderNumber ? ` nº ${result.orderNumber}` : ""}. Você
+            recebe um e-mail com os detalhes, e o andamento da entrega ou da
+            retirada fica em Meus pedidos.
           </>
         ) : (
           <>
