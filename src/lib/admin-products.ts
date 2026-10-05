@@ -155,7 +155,7 @@ export async function getAdminProduct(
   const { data, error } = await admin
     .from("products")
     .select(
-      `id, name, reference, active_ecommerce, category_id, price, promo_price, measurement_model_id,
+      `id, name, reference, active_ecommerce, category_id, price, promo_price, weight_grams, measurement_model_id,
        categories ( id, name ),
        product_content ( slug, rich_description, featured ),
        product_colors ( id, sort_order, gallery,
