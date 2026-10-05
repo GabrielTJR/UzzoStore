@@ -6,7 +6,7 @@ import { useCart } from "@/lib/cart-store";
 import { useCartUi } from "@/lib/cart-ui";
 import { formatBRL } from "@/lib/format";
 import { installmentsFor } from "@/lib/installments";
-import { createStockAlertAction } from "@/app/produtos/[slug]/alert-actions";
+import { createStockAlertAction } from "@/app/(loja)/produtos/[slug]/alert-actions";
 import { SlideTrack } from "@/components/slide-track";
 import { CarouselArrows } from "@/components/carousel-arrows";
 import { AdminProductOverlay } from "@/components/admin-product-overlay";
@@ -40,7 +40,6 @@ export function ProductView({
   productId,
   slug,
   name,
-  category,
   description,
   price,
   basePrice,
@@ -55,7 +54,6 @@ export function ProductView({
   productId: string;
   slug: string;
   name: string;
-  category: string | null;
   description: string | null;
   price: number | null;
   basePrice: number | null;
@@ -216,10 +214,15 @@ export function ProductView({
             : "Selecione uma cor";
 
   return (
-    <div className="grid gap-10 md:grid-cols-[minmax(0,22rem)_1fr] md:items-start lg:grid-cols-[minmax(0,26rem)_1fr]">
-      {/* Galeria (troca conforme a cor) */}
-      <div>
-        <div className="relative">
+    <div className="grid gap-6 md:grid-cols-[minmax(0,24rem)_minmax(0,1fr)] md:items-start md:gap-10 lg:grid-cols-[auto_minmax(0,1fr)] lg:gap-14">
+      {/* Galeria (troca conforme a cor).
+          Celular: foto de borda a borda, miniaturas numa fileira embaixo.
+          Desktop: miniaturas em coluna à esquerda e a foto com a LARGURA
+          derivada da altura da tela (2:3) — a peça aparece inteira, da gola à
+          barra, sem rolar. A galeria fica grudada enquanto a coluna de compra
+          rola. */}
+      <div className="md:sticky md:top-[calc(var(--header-h)+1.5rem)] lg:flex lg:flex-row-reverse lg:gap-3">
+        <div className="group relative -mx-[var(--page-px)] md:mx-0 lg:w-[clamp(20rem,calc((100svh-var(--header-h)-7rem)*2/3),38rem)]">
           <SlideTrack
             key={selectedColorId ?? "none"}
             images={gallery}
@@ -248,14 +251,18 @@ export function ProductView({
           )}
         </div>
         {gallery.length > 1 && (
-          <div className="mt-3 flex flex-wrap gap-2">
+          <div className="scrollbar-hide mt-3 flex gap-2 overflow-x-auto lg:mt-0 lg:max-h-[clamp(30rem,calc(100svh-var(--header-h)-7rem),57rem)] lg:w-16 lg:shrink-0 lg:flex-col lg:overflow-y-auto">
             {gallery.map((url, i) => (
               <button
                 key={url}
                 type="button"
                 onClick={() => setImageIndex(i)}
-                className={`relative h-16 w-16 overflow-hidden rounded-md border ${
-                  i === imageIndex ? "border-foreground" : "border-border"
+                aria-label={`Ver foto ${i + 1}`}
+                aria-pressed={i === imageIndex}
+                className={`relative aspect-[2/3] w-14 shrink-0 overflow-hidden rounded-xs border bg-surface lg:w-16 ${
+                  i === imageIndex
+                    ? "border-foreground"
+                    : "border-transparent opacity-70 hover:opacity-100"
                 }`}
               >
                 <Image
@@ -272,14 +279,9 @@ export function ProductView({
       </div>
 
       {/* Info + seleção */}
-      <div>
-        {category && (
-          <p className="text-xs font-medium uppercase tracking-[0.2em] text-muted">
-            {category}
-          </p>
-        )}
-        <div className="mt-2 flex items-start justify-between gap-4">
-          <h1 className="font-serif text-4xl font-semibold tracking-tight">
+      <div className="max-w-xl">
+        <div className="flex items-start justify-between gap-4">
+          <h1 className="font-display text-2xl font-bold leading-tight lg:text-4xl">
             {name}
           </h1>
           <WishlistHeart
@@ -294,14 +296,14 @@ export function ProductView({
         {price != null && (
           <div className="mt-4">
             <div className="flex flex-wrap items-baseline gap-3">
-              <span className="text-2xl">{formatBRL(price)}</span>
+              <span className="text-2xl font-bold">{formatBRL(price)}</span>
               {hasPromo && (
                 <span className="text-base text-muted line-through">
                   {formatBRL(basePrice as number)}
                 </span>
               )}
               {off != null && off >= 5 && (
-                <span className="rounded-full bg-foreground px-2 py-0.5 text-xs font-semibold text-background">
+                <span className="rounded-xs bg-accent px-1.5 py-1 text-xs font-bold leading-none text-accent-foreground">
                   −{off}%
                 </span>
               )}
@@ -338,15 +340,16 @@ export function ProductView({
                     disabled={disabled}
                     onClick={() => selectColor(c.id)}
                     title={displayColor(c.name)}
-                    className={`flex h-10 items-center gap-2 rounded-full border px-3 text-sm transition-colors ${
+                    aria-pressed={isSelected}
+                    className={`flex h-11 items-center gap-2 rounded-xs border px-3 text-sm transition-colors ${
                       isSelected
-                        ? "border-foreground"
+                        ? "border-foreground font-semibold ring-1 ring-foreground"
                         : "border-border hover:border-foreground"
                     } ${disabled ? "cursor-not-allowed opacity-40" : ""}`}
                   >
                     <span
                       aria-hidden
-                      className="inline-block h-4 w-4 rounded-full border border-border"
+                      className="inline-block h-4 w-4 rounded-full border border-foreground/25"
                       style={c.hex ? { backgroundColor: c.hex } : undefined}
                     />
                     {displayColor(c.name)}
@@ -373,7 +376,8 @@ export function ProductView({
                     // "avise-me quando chegar" — botão desabilitado mataria isso.
                     onClick={() => setSelectedSize(v.size)}
                     aria-label={`Tamanho ${v.size}${esgotado ? " — esgotado" : ""}`}
-                    className={`flex h-10 min-w-10 items-center justify-center rounded-md border px-3 text-sm transition-colors ${
+                    aria-pressed={isSelected}
+                    className={`flex h-11 min-w-12 items-center justify-center rounded-xs border px-3 text-sm font-medium transition-colors ${
                       isSelected
                         ? "border-foreground bg-foreground text-background"
                         : "border-border hover:border-foreground"
@@ -407,7 +411,7 @@ export function ProductView({
         {anyBuyable && (
           <div className="mt-6">
             <p className="text-sm font-medium">Quantidade</p>
-            <div className="mt-3 inline-flex items-center rounded-md border border-border">
+            <div className="mt-3 inline-flex items-center rounded-xs border border-border">
               <button
                 type="button"
                 aria-label="Diminuir quantidade"
@@ -459,7 +463,7 @@ export function ProductView({
           "esgotado" aqui seria mentira, e mentira que faz o cliente desistir
           de uma peça que talvez ainda seja dele. */}
         {selectedEsgotado && selectedVariant?.reservado && (
-          <p className="mt-4 rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm text-amber-700 dark:text-amber-400">
+          <p className="mt-4 rounded-xs border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm text-amber-700 dark:text-amber-400">
             Última peça <strong>em processo de compra</strong> por outro
             cliente. Se o pagamento não for concluído, ela volta a ficar
             disponível em alguns minutos — vale tentar de novo mais tarde.
@@ -481,7 +485,7 @@ export function ProductView({
           type="button"
           onClick={handleAdd}
           disabled={!canAdd}
-          className="mt-8 hidden h-12 items-center justify-center rounded-full bg-foreground px-8 text-sm font-medium text-background transition-opacity hover:opacity-90 disabled:opacity-40 md:inline-flex"
+          className="mt-8 hidden h-13 w-full max-w-sm items-center justify-center rounded-xs bg-foreground px-8 text-[0.95rem] font-semibold text-background transition-opacity hover:opacity-90 disabled:opacity-40 md:flex"
         >
           {addLabel}
         </button>
@@ -502,11 +506,11 @@ export function ProductView({
           gruda no rodapé da tela enquanto o produto está em vista e sai de
           cena junto com ele (não cobre relacionados nem o rodapé do site,
           que era o problema da versão `fixed`). */}
-      <div className="sticky bottom-0 z-30 -mx-6 border-t border-border bg-background/95 backdrop-blur md:hidden">
-        <div className="flex items-center gap-4 px-5 py-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))]">
+      <div className="sticky bottom-0 z-30 -mx-[var(--page-px)] border-t border-border bg-background/95 backdrop-blur md:hidden">
+        <div className="flex items-center gap-4 px-[var(--page-px)] py-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))]">
           <div className="min-w-0">
             {price != null && (
-              <p className="text-base font-medium leading-tight">
+              <p className="text-base font-bold leading-tight">
                 {formatBRL(price)}
               </p>
             )}
@@ -521,7 +525,7 @@ export function ProductView({
             type="button"
             onClick={handleAdd}
             disabled={!canAdd}
-            className="ml-auto inline-flex h-11 max-w-64 flex-1 items-center justify-center rounded-full bg-foreground px-6 text-sm font-medium text-background transition-opacity hover:opacity-90 disabled:opacity-40"
+            className="ml-auto inline-flex h-12 max-w-64 flex-1 items-center justify-center rounded-xs bg-foreground px-6 text-sm font-semibold text-background transition-opacity hover:opacity-90 disabled:opacity-40"
           >
             {addLabel}
           </button>
@@ -562,15 +566,15 @@ function BackInStockForm({ variantId }: { variantId: string | null }) {
 
   if (state === "done")
     return (
-      <p className="mt-4 rounded-md border border-border px-4 py-3 text-sm">
-        Pronto! Você será avisado por e-mail quando este item voltar. 📬
+      <p className="mt-4 rounded-xs border border-border px-4 py-3 text-sm">
+        E-mail anotado. Avisamos assim que este item voltar.
       </p>
     );
 
   return (
     <form
       onSubmit={submit}
-      className="mt-4 rounded-md border border-border p-4"
+      className="mt-4 rounded-xs border border-border p-4"
     >
       <p className="text-sm font-medium">Avise-me quando chegar</p>
       <p className="mt-0.5 text-xs text-muted">
@@ -584,12 +588,12 @@ function BackInStockForm({ variantId }: { variantId: string | null }) {
           onChange={(e) => setEmail(e.target.value)}
           placeholder="seu@email.com"
           aria-label="E-mail para aviso de estoque"
-          className="h-11 min-w-0 flex-1 rounded-md border border-border bg-transparent px-3 text-sm outline-none focus:border-foreground"
+          className="h-11 min-w-0 flex-1 rounded-xs border border-border bg-transparent px-3 text-sm outline-none focus:border-foreground"
         />
         <button
           type="submit"
           disabled={state === "busy"}
-          className="inline-flex h-11 shrink-0 items-center justify-center rounded-full border border-border px-4 text-sm font-medium transition-colors hover:border-foreground disabled:opacity-50"
+          className="inline-flex h-11 shrink-0 items-center justify-center rounded-xs border border-border px-4 text-sm font-medium transition-colors hover:border-foreground disabled:opacity-50"
         >
           {state === "busy" ? "Salvando…" : "Avisar"}
         </button>

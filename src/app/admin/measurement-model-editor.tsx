@@ -7,9 +7,9 @@ import { SubmitButton } from "@/components/submit-button";
 import type { MeasurementModel } from "@/lib/measurements";
 
 const field =
-  "rounded-md border border-border bg-transparent px-3 py-2 text-sm outline-none focus:border-foreground";
+  "rounded-xs border border-border bg-transparent px-3 py-2 text-sm outline-none focus:border-foreground";
 const cell =
-  "w-28 rounded-md border border-border bg-transparent px-2 py-1.5 text-sm outline-none focus:border-foreground";
+  "w-28 rounded-xs border border-border bg-transparent px-2 py-1.5 text-sm outline-none focus:border-foreground";
 
 export function MeasurementModelEditor({ model }: { model: MeasurementModel }) {
   const [name, setName] = useState(model.name);
@@ -128,7 +128,7 @@ export function MeasurementModelEditor({ model }: { model: MeasurementModel }) {
                   <button
                     type="button"
                     onClick={addColumn}
-                    className="rounded-full border border-dashed border-border px-3 py-1 text-xs hover:border-foreground"
+                    className="rounded-xs border border-dashed border-border px-3 py-1 text-xs hover:border-foreground"
                   >
                     + coluna
                   </button>
@@ -175,7 +175,7 @@ export function MeasurementModelEditor({ model }: { model: MeasurementModel }) {
         <button
           type="button"
           onClick={addRow}
-          className="mt-2 rounded-full border border-dashed border-border px-4 py-1.5 text-sm hover:border-foreground"
+          className="mt-2 rounded-xs border border-dashed border-border px-4 py-1.5 text-sm hover:border-foreground"
         >
           + tamanho
         </button>
@@ -197,7 +197,7 @@ export function MeasurementModelEditor({ model }: { model: MeasurementModel }) {
       <div className="flex items-center gap-4">
         <SubmitButton
           pendingText="Salvando…"
-          className="h-11 rounded-full bg-foreground px-8 text-sm font-medium text-background hover:opacity-90"
+          className="h-11 rounded-xs bg-foreground px-8 text-sm font-medium text-background hover:opacity-90"
         >
           Salvar tabela
         </SubmitButton>

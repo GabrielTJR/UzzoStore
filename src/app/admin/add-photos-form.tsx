@@ -82,12 +82,12 @@ export function AddPhotosForm({ productColorId }: { productColorId: string }) {
         multiple
         required
         disabled={busy}
-        className="text-sm text-muted file:mr-3 file:rounded-full file:border file:border-border file:bg-transparent file:px-4 file:py-2 file:text-sm file:text-foreground"
+        className="text-sm text-muted file:mr-3 file:rounded-xs file:border file:border-border file:bg-transparent file:px-4 file:py-2 file:text-sm file:text-foreground"
       />
       <button
         type="submit"
         disabled={busy}
-        className="h-10 rounded-full border border-border px-5 text-sm font-medium hover:border-foreground disabled:opacity-50"
+        className="h-10 rounded-xs border border-border px-5 text-sm font-medium hover:border-foreground disabled:opacity-50"
       >
         {busy ? "Enviando…" : "Enviar fotos"}
       </button>

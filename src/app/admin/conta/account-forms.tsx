@@ -7,7 +7,7 @@ import { SubmitButton } from "@/components/submit-button";
 import type { ActionResult } from "../actions";
 
 const field =
-  "w-full rounded-md border border-border bg-transparent px-4 py-2.5 text-sm outline-none focus:border-foreground";
+  "w-full rounded-xs border border-border bg-transparent px-4 py-2.5 text-sm outline-none focus:border-foreground";
 const label = "block text-sm font-medium";
 
 export function NameForm({ currentName }: { currentName: string | null }) {
@@ -38,7 +38,7 @@ export function NameForm({ currentName }: { currentName: string | null }) {
       {state?.error && <p className="text-sm text-red-600">{state.error}</p>}
       <SubmitButton
         pendingText="Salvando…"
-        className="h-11 rounded-full bg-foreground px-8 text-sm font-medium text-background hover:opacity-90"
+        className="h-11 rounded-xs bg-foreground px-8 text-sm font-medium text-background hover:opacity-90"
       >
         Salvar nome
       </SubmitButton>
@@ -80,7 +80,7 @@ export function PasswordForm() {
       {state?.error && <p className="text-sm text-red-600">{state.error}</p>}
       <SubmitButton
         pendingText="Alterando…"
-        className="h-11 rounded-full bg-foreground px-8 text-sm font-medium text-background hover:opacity-90"
+        className="h-11 rounded-xs bg-foreground px-8 text-sm font-medium text-background hover:opacity-90"
       >
         Alterar senha
       </SubmitButton>

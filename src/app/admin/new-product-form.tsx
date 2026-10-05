@@ -1,5 +1,10 @@
 "use client";
 
+import {
+  DEPARTMENT_COLUMN_READY,
+  DEPARTMENT_VALUES,
+  DEPARTMENT_VALUE_LABELS,
+} from "@/lib/departments";
 import { useActionState } from "react";
 import { createProductAction, type ActionResult } from "./actions";
 import type { StoreCategory } from "@/lib/categories";
@@ -8,7 +13,7 @@ import type { ColorOption } from "@/lib/admin-products";
 const initialState: ActionResult | null = null;
 
 const field =
-  "w-full rounded-md border border-border bg-transparent px-4 py-2.5 text-sm outline-none focus:border-foreground";
+  "w-full rounded-xs border border-border bg-transparent px-4 py-2.5 text-sm outline-none focus:border-foreground";
 const label = "block text-sm font-medium";
 
 export function NewProductForm({
@@ -53,6 +58,29 @@ export function NewProductForm({
             ))}
           </select>
         </div>
+        {/* Só aparece depois da migração 0022 (ver lib/departments.ts). */}
+        {DEPARTMENT_COLUMN_READY && (
+          <div className="space-y-1.5">
+            <label className={label} htmlFor="department">
+              Departamento
+            </label>
+            <select
+              id="department"
+              name="department"
+              defaultValue="masculino"
+              className={field}
+            >
+              {DEPARTMENT_VALUES.map((d) => (
+                <option key={d} value={d}>
+                  {DEPARTMENT_VALUE_LABELS[d]}
+                </option>
+              ))}
+            </select>
+            <p className="text-xs text-muted">
+              Em qual seção da loja a peça aparece. Unissex aparece nas duas.
+            </p>
+          </div>
+        )}
         <div className="space-y-1.5">
           <label className={label} htmlFor="reference">
             Referência / SKU
@@ -101,7 +129,7 @@ export function NewProductForm({
             {colors.map((c) => (
               <label
                 key={c.id}
-                className="flex items-center gap-2 rounded-md border border-border px-3 py-2 text-sm"
+                className="flex items-center gap-2 rounded-xs border border-border px-3 py-2 text-sm"
               >
                 <input type="checkbox" name="colorIds" value={c.id} />
                 <span
@@ -163,7 +191,7 @@ export function NewProductForm({
       <button
         type="submit"
         disabled={pending}
-        className="h-11 rounded-full bg-foreground px-8 text-sm font-medium text-background transition-opacity hover:opacity-90 disabled:opacity-50"
+        className="h-11 rounded-xs bg-foreground px-8 text-sm font-medium text-background transition-opacity hover:opacity-90 disabled:opacity-50"
       >
         {pending ? "Salvando…" : "Cadastrar produto"}
       </button>

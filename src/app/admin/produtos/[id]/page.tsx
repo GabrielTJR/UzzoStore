@@ -41,16 +41,10 @@ export default async function EditarProdutoPage({
   const availableColors = allColors.filter((c) => !usedColorIds.has(c.id));
 
   return (
-    <section className="mx-auto max-w-3xl space-y-12 px-6 py-12">
+    <section className="max-w-3xl space-y-12">
       <header className="flex items-start justify-between gap-4">
         <div>
-          <Link
-            href="/admin"
-            className="text-sm text-muted underline-offset-4 hover:text-foreground hover:underline"
-          >
-            ← Produtos
-          </Link>
-          <h1 className="mt-3 font-serif text-3xl font-semibold tracking-tight">
+          <h1 className="font-display text-2xl font-bold lg:text-3xl">
             {product.name}
           </h1>
           {product.slug && product.active && (
@@ -68,7 +62,7 @@ export default async function EditarProdutoPage({
 
       {/* Informações */}
       <div>
-        <h2 className="mb-4 text-sm font-medium uppercase tracking-[0.2em] text-muted">
+        <h2 className="mb-4 text-sm font-medium text-muted">
           Informações
         </h2>
         <ProductInfoForm
@@ -80,7 +74,7 @@ export default async function EditarProdutoPage({
 
       {/* Cores */}
       <div>
-        <h2 className="mb-1 text-sm font-medium uppercase tracking-[0.2em] text-muted">
+        <h2 className="mb-1 text-sm font-medium text-muted">
           Cores, fotos e estoque
         </h2>
         <p className="mb-6 text-xs text-muted">
@@ -90,7 +84,7 @@ export default async function EditarProdutoPage({
         </p>
 
         {product.colors.length === 0 && (
-          <p className="mb-6 rounded-md border border-dashed border-border p-4 text-sm text-muted">
+          <p className="mb-6 rounded-xs border border-dashed border-border p-4 text-sm text-muted">
             Nenhuma cor ainda. Adicione uma cor abaixo para poder cadastrar
             fotos e estoque.
           </p>
@@ -98,7 +92,7 @@ export default async function EditarProdutoPage({
 
         <div className="space-y-8">
           {product.colors.map((color) => (
-            <div key={color.id} className="rounded-lg border border-border p-5">
+            <div key={color.id} className="rounded-sm border border-border p-5">
               <div className="mb-4 flex items-center justify-between gap-3">
                 <div className="flex items-center gap-2">
                   <span
@@ -119,14 +113,14 @@ export default async function EditarProdutoPage({
 
               {/* Fotos da cor */}
               <div className="mb-5">
-                <p className="mb-2 text-xs font-medium uppercase tracking-wide text-muted">
+                <p className="mb-2 text-xs font-medium text-muted">
                   Fotos ({color.gallery.length})
                 </p>
                 {color.gallery.length > 0 && (
                   <div className="mb-4 grid grid-cols-3 gap-3 sm:grid-cols-4">
                     {color.gallery.map((url) => (
                       <div key={url}>
-                        <div className="relative aspect-[3/4] overflow-hidden rounded-md border border-border">
+                        <div className="relative aspect-[3/4] overflow-hidden rounded-xs border border-border">
                           <Image
                             src={url}
                             alt={`Foto ${color.name}`}
@@ -158,7 +152,7 @@ export default async function EditarProdutoPage({
 
               {/* Tamanhos e estoque da cor */}
               <div>
-                <p className="mb-2 text-xs font-medium uppercase tracking-wide text-muted">
+                <p className="mb-2 text-xs font-medium text-muted">
                   Tamanhos e estoque
                 </p>
                 <div className="space-y-2">
@@ -183,8 +177,8 @@ export default async function EditarProdutoPage({
         </div>
 
         {/* Adicionar cor */}
-        <div className="mt-8 rounded-lg border border-dashed border-border p-5">
-          <p className="mb-3 text-xs font-medium uppercase tracking-wide text-muted">
+        <div className="mt-8 rounded-sm border border-dashed border-border p-5">
+          <p className="mb-3 text-xs font-medium text-muted">
             Adicionar cor
           </p>
           <AddColorForm

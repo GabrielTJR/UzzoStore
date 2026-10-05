@@ -1,178 +1,383 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
-import { useSyncExternalStore } from "react";
+import { useState } from "react";
 import { Logo } from "@/components/logo";
 import { CartButton } from "@/components/cart-button";
+import {
+  IconChevronDown,
+  IconClose,
+  IconHeart,
+  IconMenu,
+  IconSearch,
+  IconUser,
+} from "@/components/icons";
+import { useModal } from "@/lib/use-modal";
 
-/**
- * Passou do limite de rolagem?
- *
- * `useSyncExternalStore` em vez de `useState` + `useEffect`: o lint do React
- * Compiler trata setState síncrono dentro de effect como erro, e este hook é o
- * padrão para estado que vem de fonte externa (o scroll do navegador). O
- * snapshot do servidor devolve `false`, o mesmo valor inicial do cliente — sem
- * divergência de hidratação.
- */
-function useRolou(limite = 24): boolean {
-  return useSyncExternalStore(
-    (avisa) => {
-      window.addEventListener("scroll", avisa, { passive: true });
-      return () => window.removeEventListener("scroll", avisa);
-    },
-    () => window.scrollY > limite,
-    () => false,
-  );
+export type NavCategory = { name: string; slug: string };
+
+/** Endereço do catálogo já filtrado por uma categoria do Masculino. */
+function categoriaHref(slug: string): string {
+  return `/produtos?departamento=masculino&categorias=${slug}`;
 }
 
+// Sem classe de display aqui: quem usa decide (`inline-flex` ou
+// `hidden lg:inline-flex`). Com `inline-flex` na base, o `hidden` de quem
+// some no celular perdia para ele na ordem do CSS e o ícone aparecia mesmo assim.
+const iconBtn =
+  "-m-2 items-center justify-center p-2 transition-opacity hover:opacity-60";
+
 /**
- * Cabeçalho do site. Na HOME e SÓ NO CELULAR ele flutua sobre o banner, que
- * passa a começar no topo da tela.
+ * Cabeçalho da loja: a barra do topo é SÓ navegação entre seções (Masculino,
+ * Feminino, Ofertas) + busca, conta e sacola. Filtro não mora aqui — mora na
+ * lateral do catálogo.
  *
- * Por que: num aparelho de 375x812 o cabeçalho comia 107px empilhados ACIMA do
- * banner, e junto com os 469px do banner sobrava quase nada para o produto —
- * quem vinha do Instagram via banner e ia embora sem ver uma roupa. Flutuando,
- * esses 107px voltam para o conteúdo sem cortar um pixel da arte.
+ * Celular: menu à esquerda, logo no centro, busca e sacola à direita; o menu
+ * abre uma gaveta com os departamentos e a conta. Desktop: logo à esquerda,
+ * seções no centro (o Masculino abre um painel com as categorias) e os ícones
+ * à direita.
  *
- * ⚠️ NÃO é transparente de verdade, é VIDRO (`bg-background/45` + blur). O logo
- * tem `dark:invert`: no tema escuro ele é BRANCO, e as artes do banner são
- * claras — transparência total faria o logo sumir. O véu leve mantém a leitura
- * em qualquer slide, claro ou escuro, e o banner continua visível atrás.
+ * Sólido e `sticky` em todas as páginas. A versão anterior flutuava em vidro
+ * sobre o banner da home; o hero novo começa abaixo do cabeçalho, então não há
+ * arte por baixo para deixar transparecer.
  *
- * ⚠️ No celular a posição é SEMPRE `fixed` na home, mesmo depois de rolar; só o
- * fundo muda. Alternar entre `fixed` e `sticky` no scroll devolveria o
- * cabeçalho ao fluxo e o conteúdo daria um salto de 107px.
- *
- * No desktop (`sm:`) nada muda: `sticky`, sólido, no fluxo. Lá não há aperto de
- * espaço, e o banner é limitado a 80% da largura — um cabeçalho flutuante
- * ficaria sobre a arte no centro e sobre o fundo da página nas laterais.
+ * Os links de categoria levam a `/produtos?…`, endereço que o robots.txt
+ * proíbe a robôs — por isso `prefetch={false}` em todos (armadilha de faceta,
+ * ver CLAUDE.md).
  */
 export function SiteHeader({
   isLogged,
   isAdmin,
+  categories,
+  femininoEmBreve,
   whatsappUrl,
 }: {
   isLogged: boolean;
   isAdmin: boolean;
+  categories: NavCategory[];
+  /** Feminino ainda sem produto: aparece no menu com a marca "em breve". */
+  femininoEmBreve: boolean;
   whatsappUrl: string;
 }) {
-  const naHome = usePathname() === "/";
-  const rolou = useRolou();
-  const sobreBanner = naHome && !rolou;
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [mascOpen, setMascOpen] = useState(true);
+  const closeMenu = () => setMenuOpen(false);
+  const menuRef = useModal<HTMLElement>(menuOpen, closeMenu);
 
-  // ⚠️ UMA classe de fundo por estado — nunca um par `bg-x sm:bg-y`.
-  // Tentei `bg-background/45 sm:bg-background/80` e depois o inverso com
-  // `max-sm:`, e nos DOIS casos a versão errada venceu: o Tailwind v4 emite as
-  // utilidades na ordem em que as descobre no código, e `bg-background/80` já
-  // existia em outros arquivos, então saiu antes no CSS. Como as duas são
-  // seletor de classe simples, quem decide é a ordem no arquivo — que aqui é
-  // imprevisível. Com um valor só por estado o problema não existe.
-  //
-  // O véu vale também no desktop, e isso é inofensivo: lá o cabeçalho fica
-  // ACIMA do banner (que começa a 131px), então translucidez sobre o fundo da
-  // página é visualmente igual ao opaco. A borda fica sempre visível, para o
-  // topbar ter aresta definida sobre a arte.
-  const posicao = naHome ? "fixed inset-x-0 sm:sticky" : "sticky";
-  const fundo = sobreBanner ? "bg-background/45" : "bg-background/80";
+  const contaHref = isLogged ? "/conta" : "/entrar";
+  const contaLabel = isLogged ? "Minha conta" : "Entrar";
+
+  const navLink =
+    "relative flex h-full items-center text-sm font-medium after:absolute after:inset-x-0 after:bottom-0 after:h-0.5 after:origin-left after:scale-x-0 after:bg-foreground after:transition-transform hover:after:scale-x-100";
 
   return (
-    <header
-      className={`${posicao} top-0 z-40 border-b border-border backdrop-blur transition-colors duration-300 ${fundo}`}
-    >
-      <div className="mx-auto flex w-full items-center justify-between px-6 py-3 sm:w-[80%]">
-        <Link href="/" aria-label="Uzzo Store — início">
-          <Logo height={27} />
+    <header className="sticky top-0 z-40 border-b border-border bg-background">
+      <div className="px-page relative grid h-[var(--header-h)] grid-cols-[1fr_auto_1fr] items-center lg:grid-cols-[auto_1fr_auto] lg:gap-10">
+        {/* Celular: abre o menu */}
+        <div className="flex lg:hidden">
+          <button
+            type="button"
+            onClick={() => setMenuOpen(true)}
+            aria-label="Abrir menu"
+            aria-expanded={menuOpen}
+            className={`${iconBtn} inline-flex`}
+          >
+            <IconMenu />
+          </button>
+        </div>
+
+        <Link href="/" aria-label="Uzzo Store — início" className="flex">
+          <Logo height={27} className="h-[26px] lg:h-[30px]" />
         </Link>
-        <div className="flex items-center gap-5">
-          <a
-            href={whatsappUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="hidden text-xs font-medium uppercase tracking-[0.2em] text-muted transition-colors hover:text-foreground sm:inline"
+
+        {/* Desktop: seções */}
+        <nav
+          aria-label="Seções da loja"
+          className="hidden h-full items-center gap-8 lg:flex"
+        >
+          <div className="group/mega flex h-full items-center">
+            <Link href="/masculino" className={navLink}>
+              Masculino
+            </Link>
+            {/* Painel de categorias: abre no hover E no foco de teclado. Ancora
+                no cabeçalho (o item é `static`), então ocupa a largura toda. */}
+            <div className="invisible absolute inset-x-0 top-full border-b border-border bg-background opacity-0 transition-opacity duration-150 group-focus-within/mega:visible group-focus-within/mega:opacity-100 group-hover/mega:visible group-hover/mega:opacity-100">
+              <div className="px-page grid grid-cols-[14rem_1fr] gap-10 py-8">
+                <div>
+                  <p className="font-display text-xl font-bold">Masculino</p>
+                  <Link
+                    href="/masculino"
+                    className="mt-3 inline-block text-sm underline underline-offset-4"
+                  >
+                    Ver tudo
+                  </Link>
+                </div>
+                <ul className="grid grid-cols-3 gap-x-8 gap-y-3 xl:grid-cols-5">
+                  {categories.map((c) => (
+                    <li key={c.slug}>
+                      <Link
+                        href={categoriaHref(c.slug)}
+                        prefetch={false}
+                        className="text-sm text-muted transition-colors hover:text-foreground"
+                      >
+                        {c.name}
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </div>
+          </div>
+          <Link href="/feminino" className={navLink}>
+            Feminino
+            {femininoEmBreve && (
+              <span className="ml-2 rounded-xs bg-surface px-1.5 py-0.5 text-[0.7rem] font-medium text-muted">
+                em breve
+              </span>
+            )}
+          </Link>
+          <Link href="/ofertas" className={navLink}>
+            Ofertas
+          </Link>
+        </nav>
+
+        <div className="flex items-center justify-end gap-5">
+          {/* Desktop: busca sempre à mão. Formulário GET nativo — funciona sem
+              JS e cai direto em /produtos?busca=. */}
+          <form
+            action="/produtos"
+            role="search"
+            className="relative hidden lg:block"
           >
-            WhatsApp
-          </a>
-          <Link
-            href="/produtos"
+            <input
+              type="search"
+              name="busca"
+              placeholder="Buscar peça"
+              aria-label="Buscar produtos"
+              className="h-10 w-52 rounded-xs border border-border bg-transparent pl-3 pr-9 text-sm outline-none transition-[width,border-color] placeholder:text-muted focus:w-72 focus:border-foreground"
+            />
+            <button
+              type="submit"
+              aria-label="Buscar"
+              className="absolute right-0 top-0 flex h-10 w-9 items-center justify-center text-muted hover:text-foreground"
+            >
+              <IconSearch size={18} />
+            </button>
+          </form>
+          <button
+            type="button"
+            onClick={() => setSearchOpen((o) => !o)}
             aria-label="Buscar produtos"
-            className="-m-2 inline-flex items-center p-2 text-muted transition-colors hover:text-foreground"
+            aria-expanded={searchOpen}
+            className={`${iconBtn} inline-flex lg:hidden`}
           >
-            <svg
-              width="19"
-              height="19"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1.8"
-              strokeLinecap="round"
-              aria-hidden
-            >
-              <circle cx="11" cy="11" r="7" />
-              <path d="M20 20l-3.5-3.5" />
-            </svg>
-          </Link>
-          {/* Conta como ÍCONE só no celular: no desktop ela continua sendo
-              texto na fileira de menu, que ali não custa espaço. */}
+            <IconSearch />
+          </button>
           <Link
-            href={isLogged ? "/conta" : "/entrar"}
-            aria-label={isLogged ? "Minha conta" : "Entrar"}
-            className="-m-2 inline-flex items-center p-2 text-muted transition-colors hover:text-foreground sm:hidden"
+            href={contaHref}
+            aria-label={contaLabel}
+            className={`${iconBtn} hidden lg:inline-flex`}
           >
-            <svg
-              width="19"
-              height="19"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1.8"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              aria-hidden
-            >
-              <circle cx="12" cy="8" r="4" />
-              <path d="M4 20c0-3.3 3.6-6 8-6s8 2.7 8 6" />
-            </svg>
+            <IconUser />
           </Link>
+          <Link
+            href="/conta/favoritos"
+            aria-label="Favoritos"
+            className={`${iconBtn} hidden lg:inline-flex`}
+          >
+            <IconHeart />
+          </Link>
+          <CartButton />
           {isAdmin && (
             <Link
               href="/admin"
-              className="text-xs font-medium uppercase tracking-[0.15em] text-foreground sm:hidden"
+              className="hidden rounded-xs border border-foreground px-3 py-1.5 text-xs font-semibold lg:inline-block"
             >
-              Admin
+              Painel
             </Link>
           )}
-          <CartButton />
         </div>
       </div>
-      {/* Segunda fileira SÓ no desktop. No celular ela custava ~48px dos 812 da
-          tela e não pagava: "Home" repete o logo, "Produtos" repete a lupa, e
-          conta/Admin viraram ícone na fileira de cima. O cabeçalho caiu de
-          ~107px para ~56px, e esses 51px vão para o produto. */}
-      <nav className="hidden border-t border-border sm:block">
-        <div className="mx-auto flex w-full items-center gap-6 px-6 py-3 text-sm sm:w-[80%]">
-          <Link href="/" className="text-muted hover:text-foreground">
-            Home
-          </Link>
-          <Link href="/produtos" className="text-muted hover:text-foreground">
-            Produtos
-          </Link>
-          <Link
-            href={isLogged ? "/conta" : "/entrar"}
-            className={`text-muted hover:text-foreground ${isAdmin ? "" : "ml-auto"}`}
-          >
-            {isLogged ? "Minha conta" : "Entrar"}
-          </Link>
-          {isAdmin && (
-            <Link
-              href="/admin"
-              className="ml-auto font-medium text-foreground underline-offset-4 hover:underline"
+
+      {/* Celular: campo de busca que desce sob o cabeçalho */}
+      {searchOpen && (
+        <form
+          action="/produtos"
+          role="search"
+          className="px-page border-t border-border py-3 lg:hidden"
+        >
+          <div className="relative">
+            <input
+              type="search"
+              name="busca"
+              autoFocus
+              placeholder="O que você procura?"
+              aria-label="Buscar produtos"
+              className="h-12 w-full rounded-xs border border-foreground bg-transparent pl-4 pr-12 text-base outline-none placeholder:text-muted"
+            />
+            <button
+              type="submit"
+              aria-label="Buscar"
+              className="absolute right-0 top-0 flex h-12 w-12 items-center justify-center"
             >
-              Admin
-            </Link>
-          )}
+              <IconSearch size={20} />
+            </button>
+          </div>
+        </form>
+      )}
+
+      {/* Celular: gaveta do menu */}
+      {menuOpen && (
+        <div
+          className="fixed inset-0 z-50 lg:hidden"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Menu"
+        >
+          <button
+            type="button"
+            aria-label="Fechar menu"
+            onClick={closeMenu}
+            className="absolute inset-0 animate-fade-in bg-black/50"
+          />
+          <aside
+            ref={menuRef}
+            tabIndex={-1}
+            className="absolute inset-y-0 left-0 flex w-[86%] max-w-sm animate-drawer-in-left flex-col bg-background outline-none"
+          >
+            <div className="flex h-14 shrink-0 items-center justify-between border-b border-border px-4">
+              <Logo height={22} />
+              <button
+                type="button"
+                onClick={closeMenu}
+                aria-label="Fechar menu"
+                className={`${iconBtn} inline-flex`}
+              >
+                <IconClose />
+              </button>
+            </div>
+
+            <nav
+              aria-label="Seções da loja"
+              className="flex-1 overflow-y-auto px-4 py-2"
+            >
+              <div className="border-b border-border">
+                <div className="flex items-center">
+                  <Link
+                    href="/masculino"
+                    onClick={closeMenu}
+                    className="font-display flex-1 py-4 text-xl font-bold"
+                  >
+                    Masculino
+                  </Link>
+                  <button
+                    type="button"
+                    onClick={() => setMascOpen((o) => !o)}
+                    aria-expanded={mascOpen}
+                    aria-label="Categorias do masculino"
+                    className="-mr-2 p-3"
+                  >
+                    <IconChevronDown
+                      size={20}
+                      className={`transition-transform ${mascOpen ? "rotate-180" : ""}`}
+                    />
+                  </button>
+                </div>
+                {mascOpen && (
+                  <ul className="grid grid-cols-2 gap-x-4 pb-4">
+                    {categories.map((c) => (
+                      <li key={c.slug}>
+                        <Link
+                          href={categoriaHref(c.slug)}
+                          prefetch={false}
+                          onClick={closeMenu}
+                          className="block py-2 text-[0.95rem] text-muted"
+                        >
+                          {c.name}
+                        </Link>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+              <Link
+                href="/feminino"
+                onClick={closeMenu}
+                className="font-display flex items-center border-b border-border py-4 text-xl font-bold"
+              >
+                Feminino
+                {femininoEmBreve && (
+                  <span className="ml-3 rounded-xs bg-surface px-2 py-1 font-sans text-xs font-medium tracking-normal text-muted [font-stretch:100%]">
+                    em breve
+                  </span>
+                )}
+              </Link>
+              <Link
+                href="/ofertas"
+                onClick={closeMenu}
+                className="font-display block border-b border-border py-4 text-xl font-bold"
+              >
+                Ofertas
+              </Link>
+
+              <ul className="py-4 text-[0.95rem]">
+                <li>
+                  <Link
+                    href={contaHref}
+                    onClick={closeMenu}
+                    className="flex items-center gap-3 py-2.5"
+                  >
+                    <IconUser size={20} />
+                    {contaLabel}
+                  </Link>
+                </li>
+                <li>
+                  <Link
+                    href="/conta/favoritos"
+                    onClick={closeMenu}
+                    className="flex items-center gap-3 py-2.5"
+                  >
+                    <IconHeart size={20} />
+                    Favoritos
+                  </Link>
+                </li>
+                {isLogged && (
+                  <li>
+                    <Link
+                      href="/conta/pedidos"
+                      onClick={closeMenu}
+                      className="block py-2.5 pl-8"
+                    >
+                      Meus pedidos
+                    </Link>
+                  </li>
+                )}
+                {isAdmin && (
+                  <li>
+                    <Link
+                      href="/admin"
+                      onClick={closeMenu}
+                      className="block py-2.5 pl-8 font-semibold"
+                    >
+                      Painel da loja
+                    </Link>
+                  </li>
+                )}
+              </ul>
+            </nav>
+
+            <a
+              href={whatsappUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="m-4 flex h-12 shrink-0 items-center justify-center rounded-xs border border-foreground text-sm font-semibold"
+            >
+              Falar no WhatsApp
+            </a>
+          </aside>
         </div>
-      </nav>
+      )}
     </header>
   );
 }

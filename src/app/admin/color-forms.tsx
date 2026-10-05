@@ -12,7 +12,7 @@ import { SubmitButton } from "@/components/submit-button";
 import type { ColorOption } from "@/lib/admin-products";
 
 const field =
-  "rounded-md border border-border bg-transparent px-3 py-2 text-sm outline-none focus:border-foreground";
+  "rounded-xs border border-border bg-transparent px-3 py-2 text-sm outline-none focus:border-foreground";
 
 export function NewColorForm() {
   const [state, action] = useActionState<ActionResult | null, FormData>(
@@ -51,12 +51,12 @@ export function NewColorForm() {
           type="color"
           name="hex"
           defaultValue="#000000"
-          className="mt-1 block h-9 w-14 cursor-pointer rounded-md border border-border bg-transparent"
+          className="mt-1 block h-9 w-14 cursor-pointer rounded-xs border border-border bg-transparent"
         />
       </label>
       <SubmitButton
         pendingText="Salvando…"
-        className="h-9 rounded-full bg-foreground px-5 text-sm font-medium text-background hover:opacity-90"
+        className="h-9 rounded-xs bg-foreground px-5 text-sm font-medium text-background hover:opacity-90"
       >
         + Cadastrar cor
       </SubmitButton>
@@ -86,7 +86,7 @@ export function ColorRow({
   }, [state]);
 
   return (
-    <div className="flex flex-wrap items-end gap-3 rounded-md border border-border p-3">
+    <div className="flex flex-wrap items-end gap-3 rounded-xs border border-border p-3">
       <form action={action} className="flex flex-1 flex-wrap items-end gap-3">
         <input type="hidden" name="colorId" value={color.id} />
         <label className="text-xs text-muted">
@@ -104,12 +104,12 @@ export function ColorRow({
             type="color"
             name="hex"
             defaultValue={color.hex ?? "#000000"}
-            className="mt-1 block h-9 w-14 cursor-pointer rounded-md border border-border bg-transparent"
+            className="mt-1 block h-9 w-14 cursor-pointer rounded-xs border border-border bg-transparent"
           />
         </label>
         <SubmitButton
           pendingText="Salvando…"
-          className="h-9 rounded-full border border-border px-4 text-sm font-medium hover:border-foreground"
+          className="h-9 rounded-xs border border-border px-4 text-sm font-medium hover:border-foreground"
         >
           Salvar
         </SubmitButton>

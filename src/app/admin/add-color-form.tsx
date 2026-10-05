@@ -7,7 +7,7 @@ import { SubmitButton } from "@/components/submit-button";
 import type { ColorOption } from "@/lib/admin-products";
 
 const field =
-  "rounded-md border border-border bg-transparent px-3 py-2 text-sm outline-none focus:border-foreground";
+  "rounded-xs border border-border bg-transparent px-3 py-2 text-sm outline-none focus:border-foreground";
 
 export function AddColorForm({
   productId,
@@ -68,7 +68,7 @@ export function AddColorForm({
               type="color"
               name="newColorHex"
               defaultValue="#000000"
-              className="mt-1 block h-9 w-14 cursor-pointer rounded-md border border-border bg-transparent"
+              className="mt-1 block h-9 w-14 cursor-pointer rounded-xs border border-border bg-transparent"
             />
           </label>
         </>
@@ -76,7 +76,7 @@ export function AddColorForm({
 
       <SubmitButton
         pendingText="Adicionando…"
-        className="h-9 rounded-full bg-foreground px-5 text-sm font-medium text-background hover:opacity-90"
+        className="h-9 rounded-xs bg-foreground px-5 text-sm font-medium text-background hover:opacity-90"
       >
         + Adicionar cor
       </SubmitButton>

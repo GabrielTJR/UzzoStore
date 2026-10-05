@@ -1,4 +1,3 @@
-import Link from "next/link";
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { getAdminRecord } from "@/lib/admin";
@@ -47,38 +46,32 @@ export default async function EquipePage() {
   const admins = serviceRoleMissing ? [] : await getAdmins();
 
   return (
-    <section className="mx-auto max-w-3xl space-y-10 px-6 py-12">
+    <section className="max-w-3xl space-y-10">
       <header>
-        <Link
-          href="/admin"
-          className="text-sm text-muted underline-offset-4 hover:text-foreground hover:underline"
-        >
-          ← Produtos
-        </Link>
-        <h1 className="mt-3 font-serif text-3xl font-semibold tracking-tight">
+        <h1 className="font-display text-2xl font-bold lg:text-3xl">
           Equipe
         </h1>
         <p className="mt-1 text-sm text-muted">Admins com acesso ao painel.</p>
       </header>
 
       {serviceRoleMissing && (
-        <div className="rounded-md border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm">
+        <div className="rounded-xs border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm">
           Falta configurar <code>SUPABASE_SERVICE_ROLE_KEY</code> no servidor.
         </div>
       )}
 
       {isOwner && (
-        <div className="rounded-lg border border-border p-6">
-          <h2 className="mb-4 text-sm font-medium uppercase tracking-[0.2em] text-muted">
+        <div className="rounded-sm border border-border p-6">
+          <h2 className="mb-4 text-sm font-medium text-muted">
             Adicionar admin
           </h2>
           <AddAdminForm />
         </div>
       )}
 
-      <div className="overflow-x-auto rounded-lg border border-border">
+      <div className="overflow-x-auto rounded-sm border border-border">
         <table className="w-full text-sm">
-          <thead className="border-b border-border text-left text-xs uppercase tracking-wide text-muted">
+          <thead className="border-b border-border text-left text-xs text-muted">
             <tr>
               <th className="px-4 py-3 font-medium">Nome</th>
               <th className="px-4 py-3 font-medium">E-mail</th>

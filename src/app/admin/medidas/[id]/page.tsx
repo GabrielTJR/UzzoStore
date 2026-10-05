@@ -19,16 +19,16 @@ export default async function EditarMedidaPage({
   if (!model) notFound();
 
   return (
-    <section className="mx-auto max-w-3xl px-6 py-12">
+    <section className="max-w-3xl">
       <header className="mb-8 flex items-start justify-between gap-4">
         <div>
           <Link
             href="/admin/medidas"
             className="text-sm text-muted underline-offset-4 hover:text-foreground hover:underline"
           >
-            ← Tabelas de medidas
+            ‹ Tabelas de medidas
           </Link>
-          <h1 className="mt-3 font-serif text-3xl font-semibold tracking-tight">
+          <h1 className="font-display text-2xl font-bold lg:text-3xl">
             {model.name}
           </h1>
         </div>

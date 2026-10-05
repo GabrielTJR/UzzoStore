@@ -1,4 +1,3 @@
-import Link from "next/link";
 import type { Metadata } from "next";
 import { requireAdmin } from "@/lib/admin";
 import { getAdminCategories } from "@/lib/admin-products";
@@ -11,14 +10,8 @@ export default async function CategoriasPage() {
   const categories = await getAdminCategories();
 
   return (
-    <section className="mx-auto max-w-3xl px-6 py-12">
-      <Link
-        href="/admin"
-        className="text-sm text-muted underline-offset-4 hover:text-foreground hover:underline"
-      >
-        ← Produtos
-      </Link>
-      <h1 className="mt-4 font-serif text-3xl font-semibold tracking-tight">
+    <section className="max-w-3xl">
+      <h1 className="font-display text-2xl font-bold lg:text-3xl">
         Categorias
       </h1>
       <p className="mt-2 text-sm text-muted">
@@ -27,8 +20,8 @@ export default async function CategoriasPage() {
         sem categoria (não apaga os produtos).
       </p>
 
-      <div className="mt-8 rounded-lg border border-dashed border-border p-5">
-        <p className="mb-3 text-xs font-medium uppercase tracking-wide text-muted">
+      <div className="mt-8 rounded-sm border border-dashed border-border p-5">
+        <p className="mb-3 text-xs font-medium text-muted">
           Nova categoria
         </p>
         <NewCategoryForm />
@@ -43,7 +36,7 @@ export default async function CategoriasPage() {
           <CategoryRow key={c.id} category={c} />
         ))}
         {categories.length === 0 && (
-          <p className="rounded-md border border-dashed border-border p-4 text-sm text-muted">
+          <p className="rounded-xs border border-dashed border-border p-4 text-sm text-muted">
             Nenhuma categoria ainda.
           </p>
         )}

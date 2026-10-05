@@ -29,9 +29,9 @@ export function MeasurementTable({ chart }: { chart: MeasurementChart }) {
             className="absolute inset-0 bg-black/50"
             onClick={() => setOpen(false)}
           />
-          <div className="relative z-10 max-h-[85vh] w-full max-w-lg overflow-auto rounded-lg border border-border bg-background p-6 shadow-xl">
+          <div className="relative z-10 max-h-[85vh] w-full max-w-lg overflow-auto rounded-sm border border-border bg-background p-6 shadow-xl">
             <div className="mb-4 flex items-center justify-between gap-4">
-              <h2 className="font-serif text-xl font-semibold">
+              <h2 className="font-display text-xl font-bold">
                 Tabela de medidas
               </h2>
               <button

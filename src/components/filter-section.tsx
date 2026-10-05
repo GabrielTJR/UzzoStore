@@ -1,11 +1,12 @@
 "use client";
 
 import { useState } from "react";
+import { IconChevronDown } from "@/components/icons";
 
 /**
  * Um grupo de filtro recolhível (Ofertas, Categoria, Cor…). O título é o
- * botão: seta para baixo quando aberto, para o lado quando fechado.
- * `action` (ex.: link "limpar") fica ao lado do título, fora do botão.
+ * botão; a seta gira quando fecha. `action` (ex.: link "limpar") fica ao lado
+ * do título, fora do botão.
  */
 export function FilterSection({
   title,
@@ -23,33 +24,39 @@ export function FilterSection({
 }) {
   const [open, setOpen] = useState(defaultOpen);
   return (
-    <div>
-      <div className="mb-2 flex items-baseline justify-between gap-2">
+    <div className="border-b border-border py-4 first:pt-0">
+      <div className="flex items-center justify-between gap-2">
         <button
           type="button"
           onClick={() => setOpen((o) => !o)}
           aria-expanded={open}
-          className="flex items-center gap-1.5 text-xs font-medium uppercase tracking-[0.2em] text-muted transition-colors hover:text-foreground"
+          className="flex flex-1 items-center gap-2 py-1 text-left text-sm font-semibold"
         >
-          <span
-            aria-hidden
-            className="text-[0.6rem] leading-none transition-transform duration-150"
-          >
-            {open ? "▼" : "▶"}
-          </span>
           {title}
           {!open && selectedCount > 0 && (
             <span
               aria-label={`${selectedCount} selecionado(s)`}
-              className="ml-0.5 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-foreground px-1 text-[0.6rem] font-semibold tracking-normal text-background"
+              className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-foreground px-1 text-[0.7rem] font-bold text-background"
             >
               {selectedCount}
             </span>
           )}
         </button>
         {open && action}
+        <button
+          type="button"
+          tabIndex={-1}
+          aria-hidden
+          onClick={() => setOpen((o) => !o)}
+          className="-mr-1 p-1 text-muted"
+        >
+          <IconChevronDown
+            size={18}
+            className={`transition-transform duration-150 ${open ? "rotate-180" : ""}`}
+          />
+        </button>
       </div>
-      {open && <div>{children}</div>}
+      {open && <div className="mt-2">{children}</div>}
     </div>
   );
 }

@@ -1,14 +1,44 @@
 @import "tailwindcss";
 
+/**
+ * Identidade "Etiqueta" (out/2026): branco e preto, cinza concreto para os
+ * poços de foto, e UM acento — o cobalto das etiquetas de tecido do hero. O
+ * acento é sinal, não decoração: etiqueta, selo de desconto, foco de teclado.
+ * Botão principal continua preto.
+ */
 :root {
   /* "light dark" (e não "light") avisa o navegador que o site trata os dois
      temas. Declarar só "light" liga o escurecimento automático do navegador,
      que mexe no fundo mas não na imagem — a logo preta sumia no escuro. */
   color-scheme: light dark;
   --background: #ffffff;
-  --foreground: #0a0a0a;
-  --muted: #71717a; /* zinc-500 */
-  --border: #e4e4e7; /* zinc-200 */
+  --foreground: #000000;
+  --muted: #5b6068; /* grafite */
+  --border: #dcdddf;
+  --surface: #f2f2f3; /* concreto: poço de foto, faixas, fundo do admin */
+  --accent: #1f45e0; /* cobalto */
+  --accent-foreground: #ffffff;
+
+  /* Respiro lateral da página. A loja usa a largura INTEIRA da tela; o que
+     separa o conteúdo da borda é só este valor, que cresce com a tela. Fica
+     em variável porque as fileiras que deslizam (`.bleed-x`) precisam do
+     mesmo número para sangrar até a borda e voltar. */
+  --page-px: 1rem;
+  /* Altura do cabeçalho da loja — usada por tudo que gruda abaixo dele. */
+  --header-h: 3.5rem;
+}
+
+@media (min-width: 40rem) {
+  :root {
+    --page-px: 2rem;
+  }
+}
+
+@media (min-width: 64rem) {
+  :root {
+    --page-px: 3rem;
+    --header-h: 4.5rem;
+  }
 }
 
 @theme inline {
@@ -16,22 +46,54 @@
   --color-foreground: var(--foreground);
   --color-muted: var(--muted);
   --color-border: var(--border);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-  --font-serif: var(--font-playfair);
+  --color-surface: var(--surface);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --font-sans: var(--font-archivo), Arial, Helvetica, sans-serif;
+  /* Sem fonte mono carregada: só aparece em trechos de código do admin. */
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
     --background: #0a0a0a;
     --foreground: #f5f5f5;
-    --muted: #a1a1aa; /* zinc-400 */
-    --border: #27272a; /* zinc-800 */
+    --muted: #a1a1aa;
+    --border: #27272a;
+    --surface: #161618;
+    --accent: #7b96ff; /* cobalto clareado: o original não tem contraste no escuro */
+    --accent-foreground: #0a0a0a;
   }
 }
 
-/* Dropdown nativo do <select> legível em ambos os temas (o bg-transparent do
-   campo deixaria as opções sem fundo). */
+/**
+ * Títulos: a MESMA família do texto (Archivo), na largura expandida. As letras
+ * largas conversam com as capitais largas da logo sem tentar imitá-la. O peso
+ * vem da classe ao lado (`font-bold`/`font-extrabold`).
+ */
+@utility font-display {
+  font-family: var(--font-archivo), Arial, Helvetica, sans-serif;
+  font-stretch: 125%;
+  letter-spacing: -0.02em;
+}
+
+@layer components {
+  /* Respiro lateral padrão da página (ver `--page-px`). */
+  .px-page {
+    padding-inline: var(--page-px);
+  }
+
+  /* Fileira que desliza de borda a borda dentro de um bloco com `.px-page`:
+     sangra o respiro para fora e o devolve por dentro, para o primeiro card
+     alinhar com o título. O `scroll-padding` acompanha — sem ele o
+     `snap-mandatory` encosta o primeiro card na borda da tela. */
+  .bleed-x {
+    margin-inline: calc(var(--page-px) * -1);
+    padding-inline: var(--page-px);
+    scroll-padding-inline-start: var(--page-px);
+  }
+}
+
 /**
  * Logo pintada com a COR DO TEXTO, recortada pelo alfa do arquivo.
  *
@@ -59,6 +121,8 @@
   }
 }
 
+/* Dropdown nativo do <select> legível em ambos os temas (o bg-transparent do
+   campo deixaria as opções sem fundo). */
 select option {
   background-color: var(--background);
   color: var(--foreground);
@@ -67,7 +131,13 @@ select option {
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: var(--font-geist-sans), Arial, Helvetica, sans-serif;
+  font-family: var(--font-archivo), Arial, Helvetica, sans-serif;
+}
+
+/* Foco de teclado visível em tudo, na cor de sinal. */
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
 }
 
 @keyframes toast-in {
@@ -99,6 +169,20 @@ body {
   animation: drawer-in 0.25s ease-out;
 }
 
+/* Gaveta do menu e dos filtros (entra da esquerda). */
+@keyframes drawer-in-left {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(0);
+  }
+}
+
+.animate-drawer-in-left {
+  animation: drawer-in-left 0.25s ease-out;
+}
+
 @keyframes fade-in {
   from {
     opacity: 0;
@@ -110,6 +194,106 @@ body {
 
 .animate-fade-in {
   animation: fade-in 0.2s ease-out;
+}
+
+/**
+ * Etiquetas do hero: ponto, linha e rótulo entram em sequência UMA vez, na
+ * abertura da página. É o único movimento não provocado pelo cliente no site.
+ * O atraso de cada etiqueta vem de `--d` (definido inline por etiqueta).
+ */
+@keyframes etiqueta-ponto {
+  from {
+    opacity: 0;
+    transform: scale(0.3);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes etiqueta-linha {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+@keyframes etiqueta-rotulo {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.etiqueta-ponto {
+  opacity: 0;
+  animation: etiqueta-ponto 0.25s ease-out forwards;
+  animation-delay: var(--d, 0s);
+}
+
+.etiqueta-linha {
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  animation: etiqueta-linha 0.45s ease-out forwards;
+  animation-delay: calc(var(--d, 0s) + 0.15s);
+}
+
+.etiqueta-rotulo {
+  opacity: 0;
+  animation: etiqueta-rotulo 0.3s ease-out forwards;
+  animation-delay: calc(var(--d, 0s) + 0.5s);
+}
+
+/* Faixa de avisos do topo: as mensagens se revezam no mesmo lugar. */
+@keyframes aviso-rodizio {
+  0% {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  2%,
+  23% {
+    opacity: 1;
+    transform: none;
+  }
+  25%,
+  100% {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+}
+
+.aviso-rodizio > * {
+  opacity: 0;
+  animation: aviso-rodizio 16s infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .etiqueta-ponto,
+  .etiqueta-rotulo {
+    opacity: 1;
+    animation: none;
+  }
+  .etiqueta-linha {
+    stroke-dashoffset: 0;
+    animation: none;
+  }
+  /* Sem rodízio: fica só a primeira mensagem, parada. */
+  .aviso-rodizio > * {
+    animation: none;
+  }
+  .aviso-rodizio > :first-child {
+    opacity: 1;
+  }
+  .animate-drawer-in,
+  .animate-drawer-in-left,
+  .animate-fade-in,
+  .animate-toast-in {
+    animation: none;
+  }
 }
 
 /* Faixas com deslize horizontal no celular: a barra de rolagem visível

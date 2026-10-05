@@ -4,6 +4,21 @@
  * jsonb em tipos seguros (nunca confie no formato do banco vindo de UI antiga).
  */
 
+/**
+ * ⚠️ DECORAÇÃO DESLIGADA (out/2026, decisão do dono da loja).
+ *
+ * A home passou a ter uma base FIXA (hero "Etiqueta", atalhos de categoria,
+ * vitrines, faixa de tecido) e não lê mais os blocos de `home_sections`
+ * enquanto esse desenho assenta. Nada foi apagado: os blocos continuam no
+ * banco e editáveis em /admin/decoracao, que avisa que eles não estão no ar.
+ *
+ * Religar NÃO é só trocar para `true`: os blocos (banner, mosaico, vitrine,
+ * aviso) precisam ser desenhados de novo dentro do visual atual, em
+ * `app/(loja)/page.tsx` e `app/(loja)/layout.tsx`. Esta constante existe para
+ * o painel e o código saberem em que estado a loja está.
+ */
+export const HOME_DECORATIONS_ENABLED = false;
+
 export type HomeSectionKind = "aviso" | "banner" | "mosaico" | "vitrine";
 
 export type BannerSlide = {

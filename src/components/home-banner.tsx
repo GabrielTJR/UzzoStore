@@ -93,7 +93,7 @@ export function HomeBanner({ slides }: { slides: BannerSlide[] }) {
   return (
     <section className="relative mx-auto w-full sm:mt-8 sm:w-[80%]">
       <div
-        className="relative aspect-[4/5] w-full touch-pan-y overflow-hidden bg-zinc-200 dark:bg-zinc-800 sm:aspect-[16/9] sm:rounded-lg"
+        className="relative aspect-[4/5] w-full touch-pan-y overflow-hidden bg-zinc-200 dark:bg-zinc-800 sm:aspect-[16/9] sm:rounded-sm"
         {...handlers}
         onPointerDown={aoEncostar}
       >
@@ -156,19 +156,19 @@ export function HomeBanner({ slides }: { slides: BannerSlide[] }) {
                   } ${claro ? "text-zinc-900" : "text-white"}`}
                 >
                   {sl.subtitle && (
-                    <p className="text-xs font-medium uppercase tracking-[0.3em] opacity-90">
+                    <p className="text-xs font-medium opacity-90">
                       {sl.subtitle}
                     </p>
                   )}
                   {sl.title && (
-                    <h2 className="max-w-2xl font-serif text-3xl font-semibold leading-tight tracking-tight drop-shadow-sm sm:text-5xl">
+                    <h2 className="max-w-2xl font-display text-3xl font-bold leading-tight drop-shadow-sm sm:text-5xl">
                       {sl.title}
                     </h2>
                   )}
                   {sl.buttonLabel && sl.buttonHref && (
                     <Link
                       href={sl.buttonHref}
-                      className={`inline-flex h-12 w-fit items-center justify-center rounded-full px-8 text-sm font-medium transition-opacity hover:opacity-90 ${
+                      className={`inline-flex h-12 w-fit items-center justify-center rounded-xs px-8 text-sm font-medium transition-opacity hover:opacity-90 ${
                         claro
                           ? "bg-zinc-900 text-white"
                           : "bg-white text-zinc-900"

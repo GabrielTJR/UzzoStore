@@ -16,6 +16,14 @@ function discountPercent(product: ProductListItem): number | null {
   return pct >= 5 ? pct : null;
 }
 
+/**
+ * Card de produto. A foto ocupa quase tudo; embaixo, na ordem em que o cliente
+ * decide: cores disponíveis, nome, preço, parcela.
+ *
+ * O selo de desconto é o único ponto de cor (cobalto) — mesma cor das etiquetas
+ * do hero, o "sinal" da loja. A categoria saiu do card: na listagem ela já está
+ * no filtro e no título, e repetida em cada peça era só ruído.
+ */
 export function ProductCard({
   product,
   isAdmin = false,
@@ -38,7 +46,7 @@ export function ProductCard({
         product={product}
         badge={
           off != null ? (
-            <span className="absolute bottom-2 left-2 z-10 rounded-full bg-foreground px-2 py-0.5 text-[0.65rem] font-semibold text-background">
+            <span className="absolute bottom-2 left-2 z-10 rounded-xs bg-accent px-1.5 py-1 text-[0.7rem] font-bold leading-none text-accent-foreground">
               −{off}%
             </span>
           ) : null
@@ -55,19 +63,12 @@ export function ProductCard({
         />
       </div>
 
-      <Link href={`/produtos/${product.slug}`} className="mt-3 block space-y-1">
-        {product.category && (
-          <p className="text-[0.65rem] font-medium uppercase tracking-[0.2em] text-muted">
-            {product.category}
-          </p>
-        )}
+      <Link href={`/produtos/${product.slug}`} className="mt-2.5 block">
         <h3 className="text-sm font-medium leading-snug">{product.name}</h3>
         {product.price != null && (
-          <div>
-            <p className="flex flex-wrap items-baseline gap-x-2 text-sm">
-              <span className={product.onPromo ? "font-medium" : "text-muted"}>
-                {formatBRL(product.price)}
-              </span>
+          <>
+            <p className="mt-1 flex flex-wrap items-baseline gap-x-2 text-sm">
+              <span className="font-bold">{formatBRL(product.price)}</span>
               {product.onPromo && product.basePrice != null && (
                 <span className="text-xs text-muted line-through">
                   {formatBRL(product.basePrice)}
@@ -75,12 +76,12 @@ export function ProductCard({
               )}
             </p>
             {parcelas && (
-              <p className="text-xs text-muted">
+              <p className="mt-0.5 text-xs text-muted">
                 {parcelas.count}x de {formatBRL(parcelas.value)}
                 {parcelas.semJuros ? " sem juros" : ""}
               </p>
             )}
-          </div>
+          </>
         )}
       </Link>
 

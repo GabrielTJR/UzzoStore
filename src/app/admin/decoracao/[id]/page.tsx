@@ -25,16 +25,16 @@ export default async function EditarBlocoPage({
   if (!section) notFound();
 
   return (
-    <section className="mx-auto max-w-3xl px-6 py-12">
+    <section className="max-w-3xl">
       <header className="mb-8 flex items-start justify-between gap-4">
         <div>
           <Link
             href="/admin/decoracao"
             className="text-sm text-muted underline-offset-4 hover:text-foreground hover:underline"
           >
-            ← Decoração da home
+            ‹ Decoração da home
           </Link>
-          <h1 className="mt-3 font-serif text-3xl font-semibold tracking-tight">
+          <h1 className="font-display text-2xl font-bold lg:text-3xl">
             {section.name}
           </h1>
           <p className="mt-1 text-sm text-muted">

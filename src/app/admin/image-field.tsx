@@ -90,7 +90,7 @@ export function ImageField({
 
       <div className="flex flex-wrap items-center gap-3">
         {shown && (
-          <div className="relative h-20 w-32 overflow-hidden rounded-md border border-border">
+          <div className="relative h-20 w-32 overflow-hidden rounded-xs border border-border">
             <Image
               src={shown}
               alt={label}
@@ -110,7 +110,7 @@ export function ImageField({
             const f = e.target.files?.[0];
             if (f) void handleFile(f);
           }}
-          className="text-sm text-muted file:mr-3 file:rounded-full file:border file:border-border file:bg-transparent file:px-4 file:py-2 file:text-sm file:text-foreground"
+          className="text-sm text-muted file:mr-3 file:rounded-xs file:border file:border-border file:bg-transparent file:px-4 file:py-2 file:text-sm file:text-foreground"
         />
         {(shown || value) && (
           <button

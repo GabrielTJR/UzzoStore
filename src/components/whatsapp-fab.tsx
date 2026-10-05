@@ -1,20 +1,46 @@
 "use client";
 
 import { usePathname } from "next/navigation";
+import { useSyncExternalStore } from "react";
+import { whatsappLink } from "@/lib/store-info";
 
-const WHATSAPP_URL =
-  "https://wa.me/5547991744865?text=" +
-  encodeURIComponent("Olá! Vim pelo site da Uzzo Store.");
+const WHATSAPP_URL = whatsappLink("Olá! Vim pelo site da Uzzo Store.");
+
+/** Páginas de vitrine onde o botão aparece. */
+const ONDE = new Set(["/", "/produtos", "/masculino", "/feminino", "/ofertas"]);
+
+/**
+ * Já rolou a primeira tela? `useSyncExternalStore` (e não state + effect): é o
+ * padrão para estado que vem de fora do React, e o snapshot do servidor (`false`)
+ * bate com o valor inicial do cliente — sem divergência de hidratação.
+ */
+function useRolou(limite: number): boolean {
+  return useSyncExternalStore(
+    (avisa) => {
+      window.addEventListener("scroll", avisa, { passive: true });
+      return () => window.removeEventListener("scroll", avisa);
+    },
+    () => window.scrollY > limite,
+    () => false,
+  );
+}
 
 /**
  * Botão flutuante de WhatsApp — o canal onde a loja de fato fecha venda.
- * Aparece só na home e na listagem: na página do produto o rodapé do celular
- * pertence à barra fixa de compra, e em conta/admin/checkout ele só atrapalha.
+ * Aparece só nas páginas de vitrine: na página do produto o rodapé do celular
+ * pertence à barra de compra, e em conta/admin/checkout ele só atrapalha.
+ *
+ * Só entra DEPOIS da primeira rolagem: parado na primeira tela ele cobria o
+ * segundo botão do hero no celular. Quem acabou de chegar ainda não tem
+ * dúvida para tirar; quem rolou e não comprou, talvez tenha.
+ *
+ * `z-30`: abaixo do cabeçalho (z-40), senão ficava por cima do fundo escuro da
+ * gaveta do menu.
  */
 export function WhatsappFab() {
   const pathname = usePathname();
-  const show = pathname === "/" || pathname === "/produtos";
-  if (!show) return null;
+  const rolou = useRolou(360);
+  if (!ONDE.has(pathname)) return null;
 
   return (
     <a
@@ -22,8 +48,13 @@ export function WhatsappFab() {
       target="_blank"
       rel="noopener noreferrer"
       aria-label="Falar com a loja no WhatsApp"
-      className="fixed bottom-5 right-5 z-40 flex h-13 w-13 items-center justify-center rounded-full bg-[#25D366] text-white shadow-lg transition-transform hover:scale-105"
-      style={{ height: 52, width: 52 }}
+      tabIndex={rolou ? 0 : -1}
+      aria-hidden={!rolou}
+      className={`fixed bottom-5 right-5 z-30 flex h-13 w-13 items-center justify-center rounded-full bg-[#25D366] text-white shadow-lg transition-[opacity,transform] duration-200 ${
+        rolou
+          ? "opacity-100"
+          : "pointer-events-none translate-y-3 opacity-0"
+      }`}
     >
       <svg
         viewBox="0 0 32 32"

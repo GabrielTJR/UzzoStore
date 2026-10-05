@@ -12,7 +12,7 @@ import { SubmitButton } from "@/components/submit-button";
 import type { AdminCategory } from "@/lib/admin-products";
 
 const field =
-  "rounded-md border border-border bg-transparent px-3 py-2 text-sm outline-none focus:border-foreground";
+  "rounded-xs border border-border bg-transparent px-3 py-2 text-sm outline-none focus:border-foreground";
 
 export function NewCategoryForm() {
   const [state, action] = useActionState<ActionResult | null, FormData>(
@@ -49,7 +49,7 @@ export function NewCategoryForm() {
       </label>
       <SubmitButton
         pendingText="Salvando…"
-        className="h-9 rounded-full bg-foreground px-5 text-sm font-medium text-background hover:opacity-90"
+        className="h-9 rounded-xs bg-foreground px-5 text-sm font-medium text-background hover:opacity-90"
       >
         + Criar categoria
       </SubmitButton>
@@ -73,7 +73,7 @@ export function CategoryRow({ category }: { category: AdminCategory }) {
   const count = category.products;
 
   return (
-    <div className="flex flex-wrap items-end gap-3 rounded-md border border-border p-3">
+    <div className="flex flex-wrap items-end gap-3 rounded-xs border border-border p-3">
       <form action={action} className="flex flex-1 flex-wrap items-end gap-3">
         <input type="hidden" name="categoryId" value={category.id} />
         <label className="text-xs text-muted">
@@ -87,7 +87,7 @@ export function CategoryRow({ category }: { category: AdminCategory }) {
         </label>
         <SubmitButton
           pendingText="Salvando…"
-          className="h-9 rounded-full border border-border px-4 text-sm font-medium hover:border-foreground"
+          className="h-9 rounded-xs border border-border px-4 text-sm font-medium hover:border-foreground"
         >
           Salvar
         </SubmitButton>

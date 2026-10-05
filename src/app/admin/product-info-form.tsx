@@ -1,5 +1,10 @@
 "use client";
 
+import {
+  DEPARTMENT_COLUMN_READY,
+  DEPARTMENT_VALUES,
+  DEPARTMENT_VALUE_LABELS,
+} from "@/lib/departments";
 import Link from "next/link";
 import { useActionState, useEffect, useState } from "react";
 import { updateProductAction, type ActionResult } from "./actions";
@@ -9,7 +14,7 @@ import { useToast } from "@/components/toast";
 import type { AdminProduct } from "@/lib/admin-products";
 
 const field =
-  "w-full rounded-md border border-border bg-transparent px-4 py-2.5 text-sm outline-none focus:border-foreground";
+  "w-full rounded-xs border border-border bg-transparent px-4 py-2.5 text-sm outline-none focus:border-foreground";
 const label = "block text-sm font-medium";
 
 export function ProductInfoForm({
@@ -78,6 +83,29 @@ export function ProductInfoForm({
             ))}
           </select>
         </div>
+        {/* Só aparece depois da migração 0022 (ver lib/departments.ts). */}
+        {DEPARTMENT_COLUMN_READY && (
+          <div className="space-y-1.5">
+            <label className={label} htmlFor="department">
+              Departamento
+            </label>
+            <select
+              id="department"
+              name="department"
+              defaultValue={product.department}
+              className={field}
+            >
+              {DEPARTMENT_VALUES.map((d) => (
+                <option key={d} value={d}>
+                  {DEPARTMENT_VALUE_LABELS[d]}
+                </option>
+              ))}
+            </select>
+            <p className="text-xs text-muted">
+              Em qual seção da loja a peça aparece. Unissex aparece nas duas.
+            </p>
+          </div>
+        )}
         <div className="space-y-1.5">
           <label className={label} htmlFor="reference">
             Referência / SKU
@@ -212,7 +240,7 @@ export function ProductInfoForm({
         <button
           type="submit"
           disabled={pending || !dirty}
-          className="h-11 rounded-full bg-foreground px-8 text-sm font-medium text-background transition-opacity hover:opacity-90 disabled:opacity-50"
+          className="h-11 rounded-xs bg-foreground px-8 text-sm font-medium text-background transition-opacity hover:opacity-90 disabled:opacity-50"
         >
           {pending ? "Salvando…" : "Salvar informações"}
         </button>

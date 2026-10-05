@@ -7,7 +7,7 @@ import { useToast } from "@/components/toast";
 import { useEffect } from "react";
 
 const field =
-  "h-11 w-full rounded-md border border-border bg-transparent px-3 text-sm outline-none focus:border-foreground";
+  "h-11 w-full rounded-xs border border-border bg-transparent px-3 text-sm outline-none focus:border-foreground";
 const label = "block text-sm font-medium";
 
 export function CouponForm() {
@@ -23,7 +23,7 @@ export function CouponForm() {
   return (
     <form
       action={formAction}
-      className="grid gap-4 rounded-lg border border-border p-5 sm:grid-cols-2 lg:grid-cols-5"
+      className="grid gap-4 rounded-sm border border-border p-5 sm:grid-cols-2 lg:grid-cols-5"
     >
       <div className="space-y-1.5">
         <label className={label} htmlFor="code">

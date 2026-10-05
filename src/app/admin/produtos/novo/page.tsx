@@ -15,14 +15,14 @@ export default async function NovoProdutoPage() {
   ]);
 
   return (
-    <section className="mx-auto max-w-2xl px-6 py-12">
+    <section className="max-w-2xl">
       <Link
-        href="/admin"
+        href="/admin/produtos"
         className="text-sm text-muted underline-offset-4 hover:text-foreground hover:underline"
       >
-        ← Voltar
+        ‹ Produtos
       </Link>
-      <h1 className="mt-4 font-serif text-3xl font-semibold tracking-tight">
+      <h1 className="font-display text-2xl font-bold lg:text-3xl">
         Novo produto
       </h1>
       <p className="mt-2 text-sm text-muted">
@@ -30,7 +30,7 @@ export default async function NovoProdutoPage() {
         e ajusta o estoque na tela de edição.
       </p>
 
-      <div className="mt-8 rounded-lg border border-border p-6">
+      <div className="mt-8 rounded-sm border border-border p-6">
         <NewProductForm colors={colors} categories={categories} />
       </div>
     </section>

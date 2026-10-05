@@ -11,14 +11,8 @@ export default async function MedidasPage() {
   const models = await getMeasurementModelsList();
 
   return (
-    <section className="mx-auto max-w-3xl px-6 py-12">
-      <Link
-        href="/admin"
-        className="text-sm text-muted underline-offset-4 hover:text-foreground hover:underline"
-      >
-        ← Produtos
-      </Link>
-      <h1 className="mt-4 font-serif text-3xl font-semibold tracking-tight">
+    <section className="max-w-3xl">
+      <h1 className="font-display text-2xl font-bold lg:text-3xl">
         Tabelas de medidas
       </h1>
       <p className="mt-2 text-sm text-muted">
@@ -27,8 +21,8 @@ export default async function MedidasPage() {
         modelo em cada produto. A tabela aparece na página do produto na loja.
       </p>
 
-      <div className="mt-8 rounded-lg border border-dashed border-border p-5">
-        <p className="mb-3 text-xs font-medium uppercase tracking-wide text-muted">
+      <div className="mt-8 rounded-sm border border-dashed border-border p-5">
+        <p className="mb-3 text-xs font-medium text-muted">
           Novo modelo
         </p>
         <NewMeasurementModelForm />
@@ -45,7 +39,7 @@ export default async function MedidasPage() {
           <Link
             key={m.id}
             href={`/admin/medidas/${m.id}`}
-            className="flex items-center justify-between gap-4 rounded-md border border-border p-4 transition-colors hover:border-foreground"
+            className="flex items-center justify-between gap-4 rounded-xs border border-border p-4 transition-colors hover:border-foreground"
           >
             <span className="font-medium">{m.name}</span>
             <span className="text-xs text-muted">
@@ -56,7 +50,7 @@ export default async function MedidasPage() {
           </Link>
         ))}
         {models.length === 0 && (
-          <p className="rounded-md border border-dashed border-border p-4 text-sm text-muted">
+          <p className="rounded-xs border border-dashed border-border p-4 text-sm text-muted">
             Nenhum modelo ainda.
           </p>
         )}

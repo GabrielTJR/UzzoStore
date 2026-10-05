@@ -94,7 +94,7 @@ export function CookieResetButton() {
       type="button"
       onClick={limpar}
       disabled={feito}
-      className="rounded-full border border-border px-5 py-2.5 text-sm font-medium transition-colors hover:bg-foreground/5 disabled:opacity-60"
+      className="rounded-xs border border-border px-5 py-2.5 text-sm font-medium transition-colors hover:bg-foreground/5 disabled:opacity-60"
     >
       Rever minha escolha de cookies
     </button>
@@ -187,14 +187,14 @@ export function CookieConsent({ gaId }: { gaId: string }) {
               <button
                 type="button"
                 onClick={() => decidir("recusado")}
-                className="flex-1 rounded-full border border-border px-5 py-2.5 text-sm font-medium transition-colors hover:bg-foreground/5 sm:flex-none"
+                className="flex-1 rounded-xs border border-border px-5 py-2.5 text-sm font-medium transition-colors hover:bg-foreground/5 sm:flex-none"
               >
                 Recusar
               </button>
               <button
                 type="button"
                 onClick={() => decidir("aceito")}
-                className="flex-1 rounded-full bg-foreground px-5 py-2.5 text-sm font-medium text-background transition-opacity hover:opacity-90 sm:flex-none"
+                className="flex-1 rounded-xs bg-foreground px-5 py-2.5 text-sm font-medium text-background transition-opacity hover:opacity-90 sm:flex-none"
               >
                 Aceitar
               </button>

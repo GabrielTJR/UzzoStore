@@ -11,7 +11,7 @@ import { SubmitButton } from "@/components/submit-button";
 import type { AdminVariant } from "@/lib/admin-products";
 
 const smallField =
-  "w-full rounded-md border border-border bg-transparent px-3 py-2 text-sm outline-none focus:border-foreground";
+  "w-full rounded-xs border border-border bg-transparent px-3 py-2 text-sm outline-none focus:border-foreground";
 
 export function VariantForm({
   productId,
@@ -55,7 +55,7 @@ export function VariantForm({
 
   return (
     <div
-      className={`flex flex-wrap items-end gap-3 rounded-md border p-3 ${
+      className={`flex flex-wrap items-end gap-3 rounded-xs border p-3 ${
         isNew ? "border-dashed border-border" : "border-border"
       }`}
     >
@@ -87,7 +87,7 @@ export function VariantForm({
         <SubmitButton
           disabled={!dirty}
           pendingText={isNew ? "Adicionando…" : "Salvando…"}
-          className="h-9 rounded-full bg-foreground px-5 text-sm font-medium text-background hover:opacity-90"
+          className="h-9 rounded-xs bg-foreground px-5 text-sm font-medium text-background hover:opacity-90"
         >
           {isNew ? "+ Adicionar tamanho" : "Salvar"}
         </SubmitButton>

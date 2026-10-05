@@ -775,6 +775,7 @@ export type Database = {
           brand: string | null
           category_id: string | null
           category_name: string | null
+          department: string
           effective_price: number | null
           id: string
           measurement_model_id: string | null
@@ -794,6 +795,7 @@ export type Database = {
           brand?: string | null
           category_id?: string | null
           category_name?: string | null
+          department?: string
           effective_price?: number | null
           id?: string
           measurement_model_id?: string | null
@@ -813,6 +815,7 @@ export type Database = {
           brand?: string | null
           category_id?: string | null
           category_name?: string | null
+          department?: string
           effective_price?: number | null
           id?: string
           measurement_model_id?: string | null

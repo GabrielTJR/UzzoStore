@@ -10,7 +10,7 @@ import { useToast } from "@/components/toast";
 import { SubmitButton } from "@/components/submit-button";
 
 const field =
-  "rounded-md border border-border bg-transparent px-3 py-2 text-sm outline-none focus:border-foreground";
+  "rounded-xs border border-border bg-transparent px-3 py-2 text-sm outline-none focus:border-foreground";
 
 export function NewMeasurementModelForm() {
   const [state, action] = useActionState<ActionResult | null, FormData>(
@@ -36,7 +36,7 @@ export function NewMeasurementModelForm() {
       </label>
       <SubmitButton
         pendingText="Criando…"
-        className="h-9 rounded-full bg-foreground px-5 text-sm font-medium text-background hover:opacity-90"
+        className="h-9 rounded-xs bg-foreground px-5 text-sm font-medium text-background hover:opacity-90"
       >
         + Criar modelo
       </SubmitButton>

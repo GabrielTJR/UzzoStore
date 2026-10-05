@@ -47,7 +47,7 @@ export function CardColorMedia({
             images={gallery}
             index={photoIdx}
             alt={active ? `${product.name} — ${active.name}` : product.name}
-            sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw"
+            sizes="(max-width: 768px) 50vw, (max-width: 1280px) 33vw, 25vw"
           />
         </Link>
         {badge}
@@ -57,7 +57,7 @@ export function CardColorMedia({
       </div>
 
       {colors.length > 1 && (
-        <div className="mt-2 flex flex-wrap items-center gap-1.5">
+        <div className="mt-2.5 flex flex-wrap items-center gap-2">
           {colors.map((c, i) => {
             const isSelected = i === colorIdx;
             return (
@@ -68,10 +68,10 @@ export function CardColorMedia({
                 title={displayColor(c.name)}
                 aria-label={`Ver cor ${displayColor(c.name)}`}
                 aria-pressed={isSelected}
-                className={`h-5 w-5 rounded-full border transition duration-150 ease-out ${
+                className={`h-4 w-4 rounded-full border ${
                   isSelected
-                    ? "border-foreground ring-2 ring-foreground ring-offset-2 ring-offset-background"
-                    : "border-border hover:scale-110"
+                    ? "border-foreground ring-1 ring-foreground ring-offset-2 ring-offset-background"
+                    : "border-foreground/25"
                 }`}
                 style={
                   c.hex

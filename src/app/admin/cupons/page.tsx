@@ -17,7 +17,7 @@ export default async function AdminCuponsPage() {
   return (
     <section className="space-y-8">
       <header>
-        <h1 className="font-serif text-3xl font-semibold tracking-tight">
+        <h1 className="font-display text-3xl font-bold">
           Cupons
         </h1>
         <p className="mt-1 text-sm text-muted">
@@ -28,9 +28,9 @@ export default async function AdminCuponsPage() {
 
       <CouponForm />
 
-      <div className="overflow-x-auto rounded-lg border border-border">
+      <div className="overflow-x-auto rounded-sm border border-border">
         <table className="w-full text-sm">
-          <thead className="border-b border-border text-left text-xs uppercase tracking-wide text-muted">
+          <thead className="border-b border-border text-left text-xs text-muted">
             <tr>
               <th className="px-4 py-3">Código</th>
               <th className="px-4 py-3">Desconto</th>

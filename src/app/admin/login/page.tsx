@@ -7,9 +7,9 @@ import { checkAdminEmail, changePassword, recordLogin } from "../auth-actions";
 type Mode = "email" | "password" | "firstAccess" | "resetSent";
 
 const inputClass =
-  "w-full rounded-md border border-border bg-transparent px-4 py-2.5 text-sm outline-none focus:border-foreground";
+  "w-full rounded-xs border border-border bg-transparent px-4 py-2.5 text-sm outline-none focus:border-foreground";
 const buttonClass =
-  "h-11 w-full rounded-full bg-foreground text-sm font-medium text-background transition-opacity hover:opacity-90 disabled:opacity-50";
+  "h-11 w-full rounded-xs bg-foreground text-sm font-medium text-background transition-opacity hover:opacity-90 disabled:opacity-50";
 
 export default function AdminLoginPage() {
   const [supabase] = useState(() => createClient());
@@ -113,7 +113,7 @@ export default function AdminLoginPage() {
 
   return (
     <section className="mx-auto flex min-h-[60vh] max-w-sm flex-col justify-center px-6 py-16">
-      <h1 className="font-serif text-3xl font-semibold tracking-tight">
+      <h1 className="font-display text-3xl font-bold">
         Área administrativa
       </h1>
 
@@ -178,7 +178,7 @@ export default function AdminLoginPage() {
 
       {mode === "firstAccess" && (
         <form onSubmit={submitFirstAccess} className="mt-8 space-y-4">
-          <div className="rounded-md border border-border bg-foreground/[.03] px-4 py-3 text-sm">
+          <div className="rounded-xs border border-border bg-foreground/[.03] px-4 py-3 text-sm">
             <p className="font-medium">Primeiro acesso</p>
             <p className="mt-1 text-muted">
               Digite a senha provisória e defina uma nova senha para{" "}

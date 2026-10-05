@@ -46,14 +46,8 @@ export default async function PedidosAdminPage({
   const kanban = (await searchParams).vista === "kanban";
 
   return (
-    <section className="mx-auto max-w-4xl px-6 py-12">
-      <Link
-        href="/admin"
-        className="text-sm text-muted underline-offset-4 hover:text-foreground hover:underline"
-      >
-        ← Produtos
-      </Link>
-      <h1 className="mt-4 font-serif text-3xl font-semibold tracking-tight">
+    <section>
+      <h1 className="font-display text-2xl font-bold lg:text-3xl">
         Pedidos
       </h1>
       <p className="mt-2 text-sm text-muted">
@@ -65,7 +59,7 @@ export default async function PedidosAdminPage({
         <form action={markOrdersSeenAction} className="mt-6">
           <SubmitButton
             pendingText="Marcando…"
-            className="h-9 rounded-full border border-border px-5 text-sm font-medium hover:border-foreground"
+            className="h-9 rounded-xs border border-border px-5 text-sm font-medium hover:border-foreground"
           >
             Marcar {novos} {novos === 1 ? "pedido novo" : "pedidos novos"} como
             visto{novos === 1 ? "" : "s"}
@@ -77,7 +71,7 @@ export default async function PedidosAdminPage({
         <Link
           href="/admin/pedidos"
           prefetch={false}
-          className={`rounded-full border px-4 py-1.5 ${
+          className={`rounded-xs border px-4 py-1.5 ${
             kanban
               ? "border-border text-muted hover:border-foreground hover:text-foreground"
               : "border-foreground font-medium"
@@ -88,7 +82,7 @@ export default async function PedidosAdminPage({
         <Link
           href="/admin/pedidos?vista=kanban"
           prefetch={false}
-          className={`rounded-full border px-4 py-1.5 ${
+          className={`rounded-xs border px-4 py-1.5 ${
             kanban
               ? "border-foreground font-medium"
               : "border-border text-muted hover:border-foreground hover:text-foreground"
@@ -112,7 +106,7 @@ export default async function PedidosAdminPage({
             return (
               <div
                 key={o.id}
-                className={`rounded-lg border p-5 ${
+                className={`rounded-sm border p-5 ${
                   o.isNew ? "border-red-500/60 bg-red-500/5" : "border-border"
                 }`}
               >
@@ -158,12 +152,12 @@ export default async function PedidosAdminPage({
 
                 {/* Entrega: sem isso não dá para saber se retira ou para onde enviar */}
                 {o.shippingMethod === "pickup" && (
-                  <p className="mt-3 rounded-md border border-border px-3 py-2 text-sm">
+                  <p className="mt-3 rounded-xs border border-border px-3 py-2 text-sm">
                     <span className="font-medium">Retirada na loja</span>
                   </p>
                 )}
                 {o.shippingMethod === "delivery" && o.shippingAddress && (
-                  <p className="mt-3 rounded-md border border-border px-3 py-2 text-sm">
+                  <p className="mt-3 rounded-xs border border-border px-3 py-2 text-sm">
                     <span className="font-medium">Entrega</span>
                     <span className="block text-muted">
                       {o.shippingAddress.street}
@@ -220,11 +214,11 @@ export default async function PedidosAdminPage({
                         name="tracking"
                         defaultValue={o.trackingCode ?? ""}
                         placeholder="AA123456789BR"
-                        className="h-9 w-44 rounded-md border border-border bg-transparent px-3 font-mono text-xs uppercase outline-none focus:border-foreground"
+                        className="h-9 w-44 rounded-xs border border-border bg-transparent px-3 font-mono text-xs uppercase outline-none focus:border-foreground"
                       />
                       <SubmitButton
                         pendingText="…"
-                        className="h-9 rounded-full border border-border px-4 text-xs font-medium hover:border-foreground"
+                        className="h-9 rounded-xs border border-border px-4 text-xs font-medium hover:border-foreground"
                       >
                         Salvar
                       </SubmitButton>
@@ -253,7 +247,7 @@ export default async function PedidosAdminPage({
                           <input type="hidden" name="status" value="paid" />
                           <SubmitButton
                             pendingText="Salvando…"
-                            className="h-8 rounded-full border border-green-600 px-4 text-xs font-medium text-green-700 hover:bg-green-600 hover:text-white dark:text-green-400"
+                            className="h-8 rounded-xs border border-green-600 px-4 text-xs font-medium text-green-700 hover:bg-green-600 hover:text-white dark:text-green-400"
                           >
                             Confirmar pagamento
                           </SubmitButton>
@@ -316,7 +310,7 @@ export default async function PedidosAdminPage({
                         <input type="hidden" name="status" value={next} />
                         <SubmitButton
                           pendingText="Salvando…"
-                          className="h-9 rounded-full bg-foreground px-5 text-sm font-medium text-background hover:opacity-90"
+                          className="h-9 rounded-xs bg-foreground px-5 text-sm font-medium text-background hover:opacity-90"
                         >
                           {fulfillmentLabel(next)}
                         </SubmitButton>
@@ -356,7 +350,7 @@ export default async function PedidosAdminPage({
                             <SubmitButton
                               disabled={o.fulfillmentStatus === s}
                               pendingText="…"
-                              className="h-7 rounded-full border border-border px-3 text-xs hover:border-foreground disabled:opacity-40"
+                              className="h-7 rounded-xs border border-border px-3 text-xs hover:border-foreground disabled:opacity-40"
                             >
                               {FULFILLMENT_STATUS[s]}
                             </SubmitButton>
@@ -371,7 +365,7 @@ export default async function PedidosAdminPage({
           })}
 
           {orders.length === 0 && (
-            <p className="rounded-lg border border-dashed border-border p-6 text-sm text-muted">
+            <p className="rounded-sm border border-dashed border-border p-6 text-sm text-muted">
               Nenhum pedido ainda. Os pedidos aparecem aqui assim que um cliente
               finalizar a compra pelo site.
             </p>

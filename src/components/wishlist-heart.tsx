@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { toggleWishlistAction } from "@/app/produtos/wishlist-actions";
+import { toggleWishlistAction } from "@/app/(loja)/produtos/wishlist-actions";
 
 function HeartIcon({ filled }: { filled: boolean }) {
   return (

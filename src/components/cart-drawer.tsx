@@ -127,7 +127,7 @@ export function CartDrawer({
             <Link
               href="/produtos"
               onClick={closeCart}
-              className="inline-flex h-11 items-center justify-center rounded-full border border-border px-6 text-sm font-medium transition-colors hover:border-foreground"
+              className="inline-flex h-11 items-center justify-center rounded-xs border border-border px-6 text-sm font-medium transition-colors hover:border-foreground"
             >
               Ver produtos
             </Link>
@@ -140,7 +140,7 @@ export function CartDrawer({
                   <Link
                     href={`/produtos/${item.productSlug}`}
                     onClick={closeCart}
-                    className="relative h-20 w-16 shrink-0 overflow-hidden rounded-md border border-border bg-border/30"
+                    className="relative h-20 w-16 shrink-0 overflow-hidden rounded-xs border border-border bg-border/30"
                   >
                     {item.image && (
                       <Image
@@ -168,7 +168,7 @@ export function CartDrawer({
                     )}
 
                     <div className="mt-auto flex items-center justify-between pt-2">
-                      <div className="flex items-center rounded-md border border-border">
+                      <div className="flex items-center rounded-xs border border-border">
                         <button
                           type="button"
                           aria-label={`Diminuir quantidade de ${item.productName}`}
@@ -224,14 +224,14 @@ export function CartDrawer({
               <Link
                 href="/sacola"
                 onClick={closeCart}
-                className="flex h-12 w-full items-center justify-center rounded-full bg-foreground text-sm font-medium text-background transition-opacity hover:opacity-90"
+                className="flex h-12 w-full items-center justify-center rounded-xs bg-foreground text-sm font-medium text-background transition-opacity hover:opacity-90"
               >
                 Finalizar compra
               </Link>
               <button
                 type="button"
                 onClick={closeCart}
-                className="flex h-11 w-full items-center justify-center rounded-full border border-border text-sm font-medium transition-colors hover:border-foreground"
+                className="flex h-11 w-full items-center justify-center rounded-xs border border-border text-sm font-medium transition-colors hover:border-foreground"
               >
                 Continuar comprando
               </button>

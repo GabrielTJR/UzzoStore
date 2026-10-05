@@ -9,6 +9,10 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { logAudit } from "@/lib/audit";
 import { displayColor } from "@/lib/color-name";
+import {
+  DEPARTMENT_COLUMN_READY,
+  isDepartmentValue,
+} from "@/lib/departments";
 import { isHomeSectionKind, KIND_LABEL } from "@/lib/home-sections";
 import {
   isFulfillmentStatus,
@@ -184,6 +188,7 @@ async function ensureProductContent(
 function revalidateProduct(id?: string) {
   updateTag(CACHE_TAGS.catalogo);
   revalidatePath("/admin");
+  revalidatePath("/admin/produtos");
   if (id) revalidatePath(`/admin/produtos/${id}`);
   revalidatePath("/produtos");
   revalidatePath("/produtos/[slug]", "page");
@@ -213,6 +218,7 @@ export async function createProductAction(
 
   const name = String(formData.get("name") ?? "").trim();
   const categoryName = String(formData.get("category") ?? "").trim();
+  const novoDepartamento = formData.get("department");
   const reference = String(formData.get("reference") ?? "").trim() || null;
   const price = parsePrice(formData.get("price"));
   const promo = parseOptionalPrice(formData.get("promoPrice"));
@@ -281,6 +287,9 @@ export async function createProductAction(
       active_ecommerce: true,
       price,
       promo_price: promo,
+      ...(DEPARTMENT_COLUMN_READY && isDepartmentValue(novoDepartamento)
+        ? { department: novoDepartamento }
+        : {}),
     })
     .select("id")
     .single();
@@ -376,6 +385,7 @@ export async function updateProductAction(
   const measurementModelId =
     String(formData.get("measurementModelId") ?? "").trim() || null;
   // Peso em gramas para a cotação de frete (vazio = padrão da categoria).
+  const departmentRaw = formData.get("department");
   const weightRaw = String(formData.get("weightGrams") ?? "").trim();
   const weightGrams = weightRaw ? parseInt(weightRaw, 10) : null;
   if (weightRaw && (!Number.isFinite(weightGrams) || weightGrams! <= 0))
@@ -402,6 +412,10 @@ export async function updateProductAction(
       promo_price: promo,
       weight_grams: weightGrams,
       measurement_model_id: measurementModelId,
+      // Só grava depois da migração 0022 (ver lib/departments.ts).
+      ...(DEPARTMENT_COLUMN_READY && isDepartmentValue(departmentRaw)
+        ? { department: departmentRaw }
+        : {}),
     })
     .eq("id", id);
   if (prodErr) return { ok: false, error: "Erro ao salvar o produto." };
@@ -516,7 +530,7 @@ export async function deleteProductAction(formData: FormData): Promise<void> {
     entityId: id,
   });
   revalidateProduct(id);
-  redirect("/admin");
+  redirect("/admin/produtos");
 }
 
 // --- Cores DO PRODUTO -------------------------------------------------------

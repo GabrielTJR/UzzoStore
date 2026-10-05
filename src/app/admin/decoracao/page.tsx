@@ -2,6 +2,7 @@ import Link from "next/link";
 import type { Metadata } from "next";
 import { requireAdmin } from "@/lib/admin";
 import { getAdminHomeSections } from "@/lib/admin-products";
+import { HOME_DECORATIONS_ENABLED } from "@/lib/home-sections";
 import { KIND_LABEL } from "@/lib/home-sections";
 import { AddHomeSectionForm, SectionRowActions } from "../home-section-forms";
 
@@ -31,14 +32,8 @@ export default async function DecoracaoPage() {
   const sections = await getAdminHomeSections();
 
   return (
-    <section className="mx-auto max-w-3xl px-6 py-12">
-      <Link
-        href="/admin"
-        className="text-sm text-muted underline-offset-4 hover:text-foreground hover:underline"
-      >
-        ← Produtos
-      </Link>
-      <h1 className="mt-4 font-serif text-3xl font-semibold tracking-tight">
+    <section className="max-w-3xl">
+      <h1 className="font-display text-2xl font-bold lg:text-3xl">
         Decoração da home
       </h1>
       <p className="mt-2 text-sm text-muted">
@@ -48,8 +43,21 @@ export default async function DecoracaoPage() {
         publique depois.
       </p>
 
-      <div className="mt-8 rounded-lg border border-dashed border-border p-5">
-        <p className="mb-3 text-xs font-medium uppercase tracking-wide text-muted">
+      {!HOME_DECORATIONS_ENABLED && (
+        <div className="mt-6 rounded-sm border border-amber-500/50 bg-amber-500/10 p-4 text-sm">
+          <p className="font-semibold">
+            A decoração está desligada no site por enquanto.
+          </p>
+          <p className="mt-1 text-muted">
+            A página inicial está usando a base nova, fixa. Os blocos abaixo
+            continuam guardados e você pode editá-los, mas nenhum aparece na
+            loja até a decoração ser religada.
+          </p>
+        </div>
+      )}
+
+      <div className="mt-8 rounded-sm border border-dashed border-border p-5">
+        <p className="mb-3 text-xs font-medium text-muted">
           Novo bloco
         </p>
         <AddHomeSectionForm />
@@ -57,7 +65,7 @@ export default async function DecoracaoPage() {
 
       <div className="mt-8 space-y-3">
         {sections.filter((s) => s.kind === "aviso" && s.active).length > 1 && (
-          <p className="rounded-md border border-amber-500/50 bg-amber-500/10 p-3 text-xs text-amber-700 dark:text-amber-400">
+          <p className="rounded-xs border border-amber-500/50 bg-amber-500/10 p-3 text-xs text-amber-700 dark:text-amber-400">
             Há mais de uma faixa de aviso no ar — só a primeira aparece no site.
             Oculte as outras para não ficar dúvida.
           </p>
@@ -65,7 +73,7 @@ export default async function DecoracaoPage() {
         {sections.map((s, i) => (
           <div
             key={s.id}
-            className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-border p-4"
+            className="flex flex-wrap items-center justify-between gap-3 rounded-xs border border-border p-4"
           >
             <div className="min-w-0">
               <Link
@@ -96,7 +104,7 @@ export default async function DecoracaoPage() {
           </div>
         ))}
         {sections.length === 0 && (
-          <p className="rounded-md border border-dashed border-border p-4 text-sm text-muted">
+          <p className="rounded-xs border border-dashed border-border p-4 text-sm text-muted">
             Nenhum bloco ainda — a home mostra o layout padrão (capa +
             destaques).
           </p>

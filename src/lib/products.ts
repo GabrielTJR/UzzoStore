@@ -2,9 +2,14 @@ import { cache } from "react";
 import { unstable_cache } from "next/cache";
 import { createPublicClient } from "@/lib/supabase/public";
 import { compareSizes } from "@/lib/sizes";
+import { displayProductName } from "@/lib/product-name";
 import type { SortKey } from "@/lib/product-sort";
 export { SORT_OPTIONS, isSortKey, type SortKey } from "@/lib/product-sort";
 import type { StoreCategory } from "@/lib/categories";
+import {
+  DEPARTMENT_COLUMN_READY,
+  type Department,
+} from "@/lib/departments";
 import { toChart, type MeasurementChart } from "@/lib/measurements";
 import {
   toHomeSection,
@@ -179,11 +184,18 @@ const CACHE_CADASTROS = 3600; // cores/categorias/decoração: só mudam pelo ad
 /** Quantas fotos por cor o CARD carrega (a página do produto mostra todas). */
 const CARD_IMAGES_PER_COLOR = 4;
 
-/** Padrão de produtos por página na vitrine. */
-export const PRODUCTS_PER_PAGE = 12;
+/**
+ * Padrão de produtos por página na vitrine. Eram 12 enquanto a grade tinha 3
+ * colunas num miolo de 80% da tela; com a loja em largura inteira (até 5
+ * colunas) 12 peças viravam pouco mais de duas fileiras. As fotos seguem
+ * `loading="lazy"`: a página maior só baixa imagem do que o cliente rola.
+ */
+export const PRODUCTS_PER_PAGE = 24;
 
 export type ProductQuery = {
   featured?: boolean;
+  /** Masculino/Feminino. Peças "unissex" entram nos dois. */
+  department?: Department;
   categoryIds?: string[];
   /** Nomes canônicos de cor (como estão em `colors.name`). */
   colorNames?: string[];
@@ -241,6 +253,15 @@ async function queryProducts(opts: ProductQuery): Promise<ProductPage> {
     .eq("products.active_ecommerce", true);
 
   if (opts.featured) query = query.eq("featured", true);
+  if (opts.department) {
+    if (DEPARTMENT_COLUMN_READY) {
+      query = query.in("products.department", [opts.department, "unissex"]);
+    } else if (opts.department !== "masculino") {
+      // Antes da migração 0022 não há coluna: o catálogo inteiro é masculino,
+      // então qualquer outro departamento é vazio por definição.
+      return { items: [], total: 0 };
+    }
+  }
   if (opts.categoryIds?.length)
     query = query.in("products.category_id", opts.categoryIds);
   if (opts.onlyPromo) query = query.gt("products.promo_price", 0);
@@ -307,7 +328,7 @@ async function queryProducts(opts: ProductQuery): Promise<ProductPage> {
     return {
       id: row.products.id,
       slug: row.slug,
-      name: row.products.name,
+      name: displayProductName(row.products.name),
       category: row.products.category_name,
       price: effectivePrice(row.products.price, row.products.promo_price),
       basePrice: row.products.price != null ? Number(row.products.price) : null,
@@ -335,6 +356,19 @@ const cachedProducts = unstable_cache(queryProducts, ["produtos"], {
 
 export function getProducts(opts: ProductQuery = {}): Promise<ProductPage> {
   return cachedProducts(opts);
+}
+
+/**
+ * Existe ao menos uma peça ativa neste departamento? Decide se o Feminino
+ * aparece como "em breve" (menu, home e /feminino). Sai do MESMO cache do
+ * catálogo: uma consulta por janela, derrubada quando o admin salva um produto
+ * — o Feminino "acende" sozinho quando a primeira peça for cadastrada.
+ */
+export async function hasDepartmentProducts(
+  department: Department,
+): Promise<boolean> {
+  const { total } = await getProducts({ department, page: 1, perPage: 1 });
+  return total > 0;
 }
 
 /**
@@ -436,6 +470,80 @@ export const getCategories = cache(
     semCachearFalha(categoriesCache, [], "categorias"),
 );
 
+/** Capa de cada categoria (atalhos da home): categoria → 1ª foto encontrada. */
+export type CategoryCover = {
+  id: string;
+  name: string;
+  image: string | null;
+  count: number;
+};
+
+/**
+ * Categorias que TÊM peça ativa, cada uma com uma foto de capa e a contagem.
+ *
+ * Uma consulta só (não uma por categoria), no cache de cadastros (1 h) e com a
+ * etiqueta do catálogo. Traz só categoria + galerias — nada de preço, variante
+ * ou estoque. O teto de 400 linhas protege o payload quando o catálogo crescer
+ * (a capa de uma categoria não precisa de todas as peças dela).
+ */
+const categoryCoversCache = unstable_cache(
+  async (): Promise<CategoryCover[]> => {
+    const supabase = createPublicClient();
+    const { data, error } = await supabase
+      .from("product_content")
+      .select(
+        `featured, products!inner ( category_id, category_name,
+           product_colors ( sort_order, gallery ) )`,
+      )
+      .eq("products.active_ecommerce", true)
+      .order("featured", { ascending: false })
+      .order("slug")
+      .limit(400);
+    if (error) throw new Error(`capas de categoria: ${error.message}`);
+    type Row = {
+      products: {
+        category_id: string | null;
+        category_name: string | null;
+        product_colors: { sort_order: number; gallery: unknown }[];
+      };
+    };
+    const map = new Map<string, CategoryCover>();
+    for (const row of (data ?? []) as unknown as Row[]) {
+      const p = row.products;
+      if (!p.category_id || !p.category_name) continue;
+      const cover =
+        (p.product_colors ?? [])
+          .slice()
+          .sort((a, b) => a.sort_order - b.sort_order)
+          .map((c) => toGallery(c.gallery)[0])
+          .find(Boolean) ?? null;
+      const atual = map.get(p.category_id);
+      if (!atual) {
+        map.set(p.category_id, {
+          id: p.category_id,
+          name: p.category_name,
+          image: cover,
+          count: 1,
+        });
+      } else {
+        atual.count += 1;
+        if (!atual.image && cover) atual.image = cover;
+      }
+    }
+    // As categorias com mais peças primeiro: é o que a loja mais tem a mostrar.
+    return [...map.values()].sort(
+      (a, b) => b.count - a.count || a.name.localeCompare(b.name, "pt-BR"),
+    );
+  },
+  ["category-covers"],
+  { revalidate: CACHE_CADASTROS, tags: [CACHE_TAGS.catalogo] },
+);
+
+export const getCategoryCovers = cache(
+  (): Promise<CategoryCover[]> =>
+    semCachearFalha(categoryCoversCache, [], "capas de categoria"),
+);
+
 async function queryProductBySlug(slug: string): Promise<ProductDetail | null> {
   const supabase = createPublicClient();
   const { data, error } = await supabase
@@ -487,7 +595,7 @@ async function queryProductBySlug(slug: string): Promise<ProductDetail | null> {
   return {
     id: row.products.id,
     slug: row.slug,
-    name: row.products.name,
+    name: displayProductName(row.products.name),
     featured: row.featured,
     brand: row.products.brand,
     reference: row.products.reference,

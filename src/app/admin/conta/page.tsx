@@ -1,4 +1,3 @@
-import Link from "next/link";
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { getAdminRecord } from "@/lib/admin";
@@ -12,15 +11,9 @@ export default async function ContaPage() {
   if (rec.record.must_change_password) redirect("/admin/definir-senha");
 
   return (
-    <section className="mx-auto max-w-lg space-y-10 px-6 py-12">
+    <section className="max-w-lg space-y-10">
       <header>
-        <Link
-          href="/admin"
-          className="text-sm text-muted underline-offset-4 hover:text-foreground hover:underline"
-        >
-          ← Produtos
-        </Link>
-        <h1 className="mt-3 font-serif text-3xl font-semibold tracking-tight">
+        <h1 className="font-display text-2xl font-bold lg:text-3xl">
           Minha conta
         </h1>
         <p className="mt-1 text-sm text-muted">
@@ -29,15 +22,15 @@ export default async function ContaPage() {
         </p>
       </header>
 
-      <div className="rounded-lg border border-border p-6">
-        <h2 className="mb-4 text-sm font-medium uppercase tracking-[0.2em] text-muted">
+      <div className="rounded-sm border border-border p-6">
+        <h2 className="mb-4 text-sm font-medium text-muted">
           Nome
         </h2>
         <NameForm currentName={rec.record.full_name} />
       </div>
 
-      <div className="rounded-lg border border-border p-6">
-        <h2 className="mb-4 text-sm font-medium uppercase tracking-[0.2em] text-muted">
+      <div className="rounded-sm border border-border p-6">
+        <h2 className="mb-4 text-sm font-medium text-muted">
           Senha
         </h2>
         <PasswordForm />

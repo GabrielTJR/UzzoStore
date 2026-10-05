@@ -1,4 +1,9 @@
 import "server-only";
+import {
+  DEPARTMENT_COLUMN_READY,
+  isDepartmentValue,
+  type DepartmentValue,
+} from "@/lib/departments";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { compareSizes } from "@/lib/sizes";
 import {
@@ -16,9 +21,23 @@ export type AdminProductListItem = {
   active: boolean;
   featured: boolean;
   price: number | null; // preço efetivo (promo ?? cheio)
+  /** Preço cheio — para riscar na lista quando há promoção. */
+  basePrice: number | null;
+  onPromo: boolean;
+  reference: string | null;
+  /** 1ª foto (miniatura da lista). */
+  thumb: string | null;
   images: number;
   colors: number;
+  /** Soma do saldo de todas as variantes. */
+  stock: number;
+  /** Quantas variantes (cor × tamanho) existem e quantas estão zeradas. */
+  variants: number;
+  variantsOut: number;
 };
+
+/** Saldo total a partir do qual a lista marca "baixo". */
+export const LOW_STOCK_TOTAL = 3;
 
 export type AdminVariant = {
   id: string;
@@ -50,6 +69,8 @@ export type AdminProduct = {
   price: number | null; // products.price (cheio)
   promoPrice: number | null; // products.promo_price
   weightGrams: number | null; // gramas, para a cotação de frete
+  /** Seção da loja. Antes da migração 0022, sempre "masculino". */
+  department: DepartmentValue;
   measurementModelId: string | null;
   colors: AdminProductColor[];
 };
@@ -69,9 +90,14 @@ type ListRow = {
   price: number | null;
   promo_price: number | null;
   weight_grams: number | null;
+  reference: string | null;
   categories: { name: string } | null;
   product_content: { slug: string; featured: boolean } | null;
-  product_colors: { gallery: unknown }[];
+  product_colors: {
+    sort_order: number;
+    gallery: unknown;
+    product_variants: { stock_cache: { qty_available: number }[] }[];
+  }[];
 };
 
 type DetailRow = {
@@ -82,6 +108,7 @@ type DetailRow = {
   category_id: string | null;
   price: number | null;
   weight_grams: number | null;
+  department?: string | null;
   promo_price: number | null;
   measurement_model_id: string | null;
   categories: { id: string; name: string } | null;
@@ -122,29 +149,49 @@ export async function getAdminProducts(): Promise<AdminProductListItem[]> {
   const { data, error } = await admin
     .from("products")
     .select(
-      `id, name, active_ecommerce, price, promo_price, weight_grams,
+      // Traz o saldo por variante para a lista mostrar estoque sem abrir cada
+      // produto. Uso só do painel (não é leitura por visita da loja). Quando o
+      // catálogo passar de algumas centenas de produtos — a carga do Microvix —
+      // esta lista precisa de paginação no banco.
+      `id, name, reference, active_ecommerce, price, promo_price, weight_grams,
        categories ( name ),
        product_content ( slug, featured ),
-       product_colors ( gallery )`,
+       product_colors ( sort_order, gallery,
+         product_variants!product_variants_product_color_id_fkey (
+           stock_cache ( qty_available ) ) )`,
     )
     .order("name");
   if (error || !data) return [];
 
   const rows = data as unknown as ListRow[];
-  return rows.map((r) => ({
-    id: r.id,
-    name: r.name,
-    category: r.categories?.name ?? null,
-    slug: r.product_content?.slug ?? null,
-    active: r.active_ecommerce,
-    featured: r.product_content?.featured ?? false,
-    price: effectivePrice(r.price, r.promo_price),
-    images: (r.product_colors ?? []).reduce(
-      (n, c) => n + toGallery(c.gallery).length,
-      0,
-    ),
-    colors: (r.product_colors ?? []).length,
-  }));
+  return rows.map((r) => {
+    const colors = (r.product_colors ?? [])
+      .slice()
+      .sort((a, b) => a.sort_order - b.sort_order);
+    const saldos = colors.flatMap((c) =>
+      (c.product_variants ?? []).map((v) =>
+        (v.stock_cache ?? []).reduce((n, s) => n + (s.qty_available ?? 0), 0),
+      ),
+    );
+    return {
+      id: r.id,
+      name: r.name,
+      category: r.categories?.name ?? null,
+      slug: r.product_content?.slug ?? null,
+      active: r.active_ecommerce,
+      featured: r.product_content?.featured ?? false,
+      price: effectivePrice(r.price, r.promo_price),
+      basePrice: r.price != null ? Number(r.price) : null,
+      onPromo: r.promo_price != null && Number(r.promo_price) > 0,
+      reference: r.reference,
+      thumb: colors.map((c) => toGallery(c.gallery)[0]).find(Boolean) ?? null,
+      images: colors.reduce((n, c) => n + toGallery(c.gallery).length, 0),
+      colors: colors.length,
+      stock: saldos.reduce((n, q) => n + q, 0),
+      variants: saldos.length,
+      variantsOut: saldos.filter((q) => q <= 0).length,
+    };
+  });
 }
 
 /** Detalhe completo de um produto para edição (inclusive inativo). */
@@ -156,6 +203,7 @@ export async function getAdminProduct(
     .from("products")
     .select(
       `id, name, reference, active_ecommerce, category_id, price, promo_price, weight_grams, measurement_model_id,
+       ${DEPARTMENT_COLUMN_READY ? "department," : ""}
        categories ( id, name ),
        product_content ( slug, rich_description, featured ),
        product_colors ( id, sort_order, gallery,
@@ -204,6 +252,7 @@ export async function getAdminProduct(
     price: row.price != null ? Number(row.price) : null,
     promoPrice: row.promo_price != null ? Number(row.promo_price) : null,
     weightGrams: row.weight_grams ?? null,
+    department: isDepartmentValue(row.department) ? row.department : "masculino",
     measurementModelId: row.measurement_model_id,
     colors,
   };

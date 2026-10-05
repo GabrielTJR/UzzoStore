@@ -40,7 +40,7 @@ export function AddHomeSectionForm() {
         <select
           name="kind"
           defaultValue="banner"
-          className="mt-1 block w-56 rounded-md border border-border bg-transparent px-3 py-2 text-sm outline-none focus:border-foreground"
+          className="mt-1 block w-56 rounded-xs border border-border bg-transparent px-3 py-2 text-sm outline-none focus:border-foreground"
         >
           {KINDS.map((k) => (
             <option key={k} value={k}>
@@ -51,7 +51,7 @@ export function AddHomeSectionForm() {
       </label>
       <SubmitButton
         pendingText="Criando…"
-        className="h-9 rounded-full bg-foreground px-5 text-sm font-medium text-background hover:opacity-90"
+        className="h-9 rounded-xs bg-foreground px-5 text-sm font-medium text-background hover:opacity-90"
       >
         + Adicionar bloco
       </SubmitButton>
@@ -86,7 +86,7 @@ export function SectionRowActions({
   }
 
   const btn =
-    "flex h-8 w-8 items-center justify-center rounded-md border border-border text-sm transition-colors hover:border-foreground disabled:opacity-30";
+    "flex h-8 w-8 items-center justify-center rounded-xs border border-border text-sm transition-colors hover:border-foreground disabled:opacity-30";
 
   return (
     <div
@@ -123,7 +123,7 @@ export function SectionRowActions({
         <SubmitButton
           pendingText="…"
           disabled={pending}
-          className={`h-8 rounded-full border px-3 text-xs font-medium transition-colors ${
+          className={`h-8 rounded-xs border px-3 text-xs font-medium transition-colors ${
             active
               ? "border-green-600 text-green-700 dark:text-green-400"
               : "border-border text-muted hover:border-foreground"

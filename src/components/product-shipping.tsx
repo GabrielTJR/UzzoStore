@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { formatBRL } from "@/lib/format";
 import { nomeServicoFrete, FRETE_GRATIS_MIN } from "@/lib/shipping-config";
-import { quoteShippingAction } from "@/app/sacola/shipping-actions";
+import { quoteShippingAction } from "@/app/(loja)/sacola/shipping-actions";
 import type { ShippingOption } from "@/lib/shipping";
 
 /**
@@ -64,7 +64,7 @@ export function ProductShipping({ variantId }: { variantId: string | null }) {
   if (!variantId) return null;
 
   return (
-    <div className="mt-6 rounded-md border border-border p-4">
+    <div className="mt-6 rounded-xs border border-border p-4">
       <p className="text-sm font-medium">Frete e prazo</p>
 
       <div className="mt-3 flex gap-2">
@@ -80,13 +80,13 @@ export function ProductShipping({ variantId }: { variantId: string | null }) {
           inputMode="numeric"
           placeholder="00000-000"
           aria-label="CEP para calcular o frete"
-          className="h-10 w-32 rounded-md border border-border bg-transparent px-3 text-sm"
+          className="h-10 w-32 rounded-xs border border-border bg-transparent px-3 text-sm"
         />
         <button
           type="button"
           onClick={calcular}
           disabled={!podeCotar}
-          className="h-10 rounded-md border border-foreground px-4 text-sm font-medium transition-opacity hover:opacity-80 disabled:opacity-40"
+          className="h-10 rounded-xs border border-foreground px-4 text-sm font-medium transition-opacity hover:opacity-80 disabled:opacity-40"
         >
           {carregando ? "Calculando…" : "Calcular"}
         </button>

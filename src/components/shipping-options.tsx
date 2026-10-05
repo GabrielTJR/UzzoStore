@@ -82,7 +82,7 @@ export function ShippingOptions({
     return (
       <label
         key={o.serviceId}
-        className={`relative flex cursor-pointer items-center justify-between gap-3 rounded-md border px-3 py-2.5 text-sm transition-colors ${
+        className={`relative flex cursor-pointer items-center justify-between gap-3 rounded-xs border px-3 py-2.5 text-sm transition-colors ${
           selected
             ? "border-foreground"
             : rapida

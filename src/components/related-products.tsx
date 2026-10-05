@@ -44,16 +44,16 @@ export async function RelatedProducts({
   return (
     <section
       aria-label="Produtos relacionados"
-      className="mt-16 border-t border-border pt-10"
+      className="mt-12 border-t border-border pt-8 lg:mt-20 lg:pt-12"
     >
-      <h2 className="mb-6 font-serif text-2xl font-semibold tracking-tight">
+      <h2 className="mb-5 font-display text-xl font-bold lg:mb-7 lg:text-3xl">
         Você também pode gostar
       </h2>
       {/* `scroll-pl-6` casa com o `px-6` — sem ele o snap encosta o primeiro
           card na borda da tela (mesmo motivo comentado em app/page.tsx). */}
-      <div className="scrollbar-hide -mx-6 flex snap-x snap-mandatory scroll-pl-6 gap-4 overflow-x-auto sm:overflow-visible px-6 sm:mx-0 sm:grid sm:snap-none sm:grid-cols-3 sm:gap-6 sm:px-0 lg:grid-cols-4">
+      <div className="scrollbar-hide bleed-x flex snap-x snap-mandatory gap-3 overflow-x-auto lg:mx-0 lg:grid lg:grid-cols-4 lg:gap-x-5 lg:overflow-visible lg:px-0">
         {related.map((p) => (
-          <div key={p.slug} className="min-w-[62%] snap-start sm:min-w-0">
+          <div key={p.slug} className="w-[58%] shrink-0 snap-start sm:w-[36%] lg:w-auto">
             <ProductCard
               product={p}
               isAdmin={isAdmin}

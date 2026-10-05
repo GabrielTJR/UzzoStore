@@ -14,7 +14,7 @@ import type {
 import type { StoreCategory } from "@/lib/categories";
 
 const field =
-  "w-full rounded-md border border-border bg-transparent px-3 py-2 text-sm outline-none focus:border-foreground";
+  "w-full rounded-xs border border-border bg-transparent px-3 py-2 text-sm outline-none focus:border-foreground";
 const label = "block text-sm font-medium";
 
 const emptySlide: BannerSlide = {
@@ -151,10 +151,10 @@ export function HomeSectionEditor({
           {slides.map((s, i) => (
             <div
               key={s._id}
-              className="space-y-4 rounded-lg border border-border p-5"
+              className="space-y-4 rounded-sm border border-border p-5"
             >
               <div className="flex items-center justify-between">
-                <p className="text-xs font-medium uppercase tracking-wide text-muted">
+                <p className="text-xs font-medium text-muted">
                   Banner {i + 1}
                 </p>
                 {slides.length > 1 && (
@@ -265,7 +265,7 @@ export function HomeSectionEditor({
             onClick={() =>
               setSlides((ss) => [...ss, { ...emptySlide, _id: nextRowId() }])
             }
-            className="rounded-full border border-dashed border-border px-4 py-2 text-sm hover:border-foreground"
+            className="rounded-xs border border-dashed border-border px-4 py-2 text-sm hover:border-foreground"
           >
             + Adicionar banner ao carrossel
           </button>
@@ -287,10 +287,10 @@ export function HomeSectionEditor({
           {cards.map((c, i) => (
             <div
               key={c._id}
-              className="space-y-4 rounded-lg border border-border p-5"
+              className="space-y-4 rounded-sm border border-border p-5"
             >
               <div className="flex items-center justify-between">
-                <p className="text-xs font-medium uppercase tracking-wide text-muted">
+                <p className="text-xs font-medium text-muted">
                   Cartão {i + 1}
                 </p>
                 {cards.length > 1 && (
@@ -342,7 +342,7 @@ export function HomeSectionEditor({
                 { image: null, label: "", href: "/produtos", _id: nextRowId() },
               ])
             }
-            className="rounded-full border border-dashed border-border px-4 py-2 text-sm hover:border-foreground"
+            className="rounded-xs border border-dashed border-border px-4 py-2 text-sm hover:border-foreground"
           >
             + Adicionar cartão
           </button>
@@ -407,7 +407,7 @@ export function HomeSectionEditor({
         <SubmitButton
           disabled={uploading > 0 || missingCategory}
           pendingText="Salvando…"
-          className="h-11 rounded-full bg-foreground px-8 text-sm font-medium text-background hover:opacity-90"
+          className="h-11 rounded-xs bg-foreground px-8 text-sm font-medium text-background hover:opacity-90"
         >
           Salvar bloco
         </SubmitButton>

@@ -39,7 +39,7 @@ export function PedidosKanban({ orders }: { orders: AdminOrder[] }) {
           return (
             <div
               key={col.key}
-              className="w-64 shrink-0 snap-start rounded-lg border border-border bg-black/[0.02] p-3 dark:bg-white/[0.02]"
+              className="w-64 shrink-0 snap-start rounded-sm border border-border bg-black/[0.02] p-3 dark:bg-white/[0.02]"
             >
               <p className="mb-3 flex items-baseline justify-between text-xs font-medium">
                 <span>{col.label}</span>
@@ -57,7 +57,7 @@ export function PedidosKanban({ orders }: { orders: AdminOrder[] }) {
                   return (
                     <div
                       key={o.id}
-                      className={`rounded-md border bg-background p-3 text-sm ${
+                      className={`rounded-xs border bg-background p-3 text-sm ${
                         o.isNew ? "border-red-500/60" : "border-border"
                       }`}
                     >
@@ -93,7 +93,7 @@ export function PedidosKanban({ orders }: { orders: AdminOrder[] }) {
                           <input type="hidden" name="status" value="paid" />
                           <SubmitButton
                             pendingText="…"
-                            className="h-7 w-full rounded-full border border-green-600 text-xs font-medium text-green-700 hover:bg-green-600 hover:text-white dark:text-green-400"
+                            className="h-7 w-full rounded-xs border border-green-600 text-xs font-medium text-green-700 hover:bg-green-600 hover:text-white dark:text-green-400"
                           >
                             Confirmar pagamento
                           </SubmitButton>
@@ -106,7 +106,7 @@ export function PedidosKanban({ orders }: { orders: AdminOrder[] }) {
                           <input type="hidden" name="status" value={next} />
                           <SubmitButton
                             pendingText="…"
-                            className="h-7 w-full rounded-full bg-foreground text-xs font-medium text-background hover:opacity-90"
+                            className="h-7 w-full rounded-xs bg-foreground text-xs font-medium text-background hover:opacity-90"
                           >
                             {fulfillmentLabel(next)}
                           </SubmitButton>
@@ -117,7 +117,7 @@ export function PedidosKanban({ orders }: { orders: AdminOrder[] }) {
                 })}
 
                 {doColuna.length === 0 && (
-                  <p className="rounded-md border border-dashed border-border p-3 text-center text-xs text-muted">
+                  <p className="rounded-xs border border-dashed border-border p-3 text-center text-xs text-muted">
                     vazio
                   </p>
                 )}
@@ -144,7 +144,7 @@ export function PedidosKanban({ orders }: { orders: AdminOrder[] }) {
       )}
 
       {orders.length === 0 && (
-        <p className="rounded-lg border border-dashed border-border p-6 text-sm text-muted">
+        <p className="rounded-sm border border-dashed border-border p-6 text-sm text-muted">
           Nenhum pedido ainda.
         </p>
       )}

@@ -6,7 +6,7 @@ import { createClient } from "@/lib/supabase/client";
 import { changePassword } from "../auth-actions";
 
 const inputClass =
-  "w-full rounded-md border border-border bg-transparent px-4 py-2.5 text-sm outline-none focus:border-foreground";
+  "w-full rounded-xs border border-border bg-transparent px-4 py-2.5 text-sm outline-none focus:border-foreground";
 
 export default function DefinirSenhaPage() {
   const router = useRouter();
@@ -46,7 +46,7 @@ export default function DefinirSenhaPage() {
 
   return (
     <section className="mx-auto flex min-h-[60vh] max-w-sm flex-col justify-center px-6 py-16">
-      <h1 className="font-serif text-3xl font-semibold tracking-tight">
+      <h1 className="font-display text-3xl font-bold">
         Definir nova senha
       </h1>
       <p className="mt-2 text-sm text-muted">
@@ -69,7 +69,7 @@ export default function DefinirSenhaPage() {
           <button
             type="submit"
             disabled={loading}
-            className="h-11 w-full rounded-full bg-foreground text-sm font-medium text-background transition-opacity hover:opacity-90 disabled:opacity-50"
+            className="h-11 w-full rounded-xs bg-foreground text-sm font-medium text-background transition-opacity hover:opacity-90 disabled:opacity-50"
           >
             {loading ? "Salvando…" : "Salvar e continuar"}
           </button>
