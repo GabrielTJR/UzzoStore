@@ -1,3 +1,4 @@
+import { formatCpf, formatPhone } from "@/lib/customer-fields";
 import {
   PAYMENT_STATUS,
   FULFILLMENT_STATUS,
@@ -426,18 +427,18 @@ export function OrderDetail({
                     className="inline-flex items-center gap-1.5 underline underline-offset-4"
                   >
                     <IconChat size={15} />
-                    {o.customerPhone}
+                    {formatPhone(o.customerPhone) ?? o.customerPhone}
                     <span className="sr-only">
                       {" "}
                       (abre a conversa no WhatsApp)
                     </span>
                   </a>
                 ) : (
-                  o.customerPhone
+                  (formatPhone(o.customerPhone) ?? o.customerPhone)
                 )}
               </Campo>
               <Campo rotulo="CPF">
-                {o.customerCpf ?? (
+                {(o.customerCpf && (formatCpf(o.customerCpf) ?? o.customerCpf)) || (
                   <span className="text-muted">Não informado</span>
                 )}
               </Campo>
