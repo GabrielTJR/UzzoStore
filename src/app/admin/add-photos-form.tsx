@@ -12,6 +12,7 @@ export function AddPhotosForm({ productColorId }: { productColorId: string }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [chosen, setChosen] = useState(0);
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -72,26 +73,44 @@ export function AddPhotosForm({ productColorId }: { productColorId: string }) {
     <form
       ref={formRef}
       onSubmit={handleSubmit}
-      className="flex flex-wrap items-center gap-3"
+      onReset={() => setChosen(0)}
+      className="flex flex-wrap items-center gap-x-3 gap-y-2"
     >
-      <input
-        ref={inputRef}
-        type="file"
-        name="images"
-        accept={FORMATOS_ACEITOS}
-        multiple
-        required
-        disabled={busy}
-        className="text-sm text-muted file:mr-3 file:rounded-xs file:border file:border-border file:bg-transparent file:px-4 file:py-2 file:text-sm file:text-foreground"
-      />
+      {/* O input de arquivo nativo ("Escolher arquivos / Nenhum arquivo")
+          não aceita estilo; ele fica escondido dentro do rótulo, que vira o
+          botão. Continua focável e operável por teclado. */}
+      <label className="relative inline-flex h-9 cursor-pointer items-center rounded-xs border border-dashed border-foreground/40 px-4 text-sm font-medium hover:border-foreground has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-accent has-[:disabled]:cursor-not-allowed has-[:disabled]:opacity-50">
+        {chosen > 0
+          ? `${chosen} ${chosen === 1 ? "foto escolhida" : "fotos escolhidas"}`
+          : "Escolher fotos"}
+        <input
+          ref={inputRef}
+          type="file"
+          name="images"
+          accept={FORMATOS_ACEITOS}
+          multiple
+          disabled={busy}
+          onChange={(e) => {
+            setError(null);
+            setChosen(e.currentTarget.files?.length ?? 0);
+          }}
+          className="sr-only"
+        />
+      </label>
       <button
         type="submit"
-        disabled={busy}
-        className="h-10 rounded-xs border border-border px-5 text-sm font-medium hover:border-foreground disabled:opacity-50"
+        disabled={busy || chosen === 0}
+        className="h-9 rounded-xs bg-foreground px-4 text-sm font-semibold text-background transition-opacity hover:opacity-90 disabled:opacity-40"
       >
-        {busy ? "Enviando…" : "Enviar fotos"}
+        {busy ? "Enviando…" : "Enviar"}
       </button>
-      {error && <span className="text-sm text-red-600">{error}</span>}
+      {error ? (
+        <span className="text-sm text-red-600 dark:text-red-400">{error}</span>
+      ) : (
+        <span className="text-xs text-muted">
+          JPG, PNG ou WebP. Comprimidas antes de subir.
+        </span>
+      )}
     </form>
   );
 }
