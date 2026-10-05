@@ -12,6 +12,7 @@ import { DEPARTMENTS, type Department } from "@/lib/departments";
 import { SORT_OPTIONS, type SortKey } from "@/lib/product-sort";
 import {
   getCategories,
+  getCategoryCovers,
   getProducts,
   getStoreColors,
   hasDepartmentProducts,
@@ -43,8 +44,10 @@ function pageWindow(current: number, total: number): (number | "…")[] {
  * memória. Todo link de filtro aponta para `/produtos?…` com
  * `prefetch={false}` — ver lib/catalog-url.ts sobre o porquê.
  *
- * Os filtros de categoria e cor NÃO são facetados (listam tudo do cadastro, de
- * propósito: a lista não oscila ao trocar de filtro).
+ * Os filtros de categoria e cor NÃO são facetados (a lista não oscila ao trocar
+ * de filtro). A única restrição é o DEPARTAMENTO: dentro de /masculino ou
+ * /feminino a "Categoria" mostra só as categorias daquele departamento — a
+ * lista muda ao trocar de seção, nunca ao marcar uma caixa.
  */
 export async function Catalog({
   state: raw,
@@ -57,15 +60,23 @@ export async function Catalog({
   /** Para onde "limpar filtros" volta: o endereço limpo desta seção. */
   homePath?: string;
 }) {
-  const [categories, storeColors, adminUser, sessionUser, favorites, temFeminino] =
-    await Promise.all([
-      getCategories(),
-      getStoreColors(),
-      getAdminUser(),
-      getSessionUser(),
-      getWishlistIds(),
-      hasDepartmentProducts("feminino"),
-    ]);
+  const [
+    categories,
+    covers,
+    storeColors,
+    adminUser,
+    sessionUser,
+    favorites,
+    temFeminino,
+  ] = await Promise.all([
+    getCategories(),
+    getCategoryCovers(),
+    getStoreColors(),
+    getAdminUser(),
+    getSessionUser(),
+    getWishlistIds(),
+    hasDepartmentProducts("feminino"),
+  ]);
   const isAdmin = !!adminUser;
   const isLogged = !!sessionUser;
 
@@ -83,6 +94,21 @@ export async function Catalog({
   const coresSet = new Set(cores.map((c) => c.toLowerCase()));
 
   const state: CatalogState = { ...raw, categorias, cores };
+
+  // Dentro de um departamento, o filtro "Categoria" lista só as categorias com
+  // peça NELE (unissex conta nos dois); em /produtos sem departamento, lista o
+  // cadastro inteiro. A seleção atual entra sempre, mesmo fora da lista — senão
+  // um link antigo deixaria marcada uma categoria sem caixa para desmarcar.
+  const doDepartamento = state.department
+    ? new Set(covers[state.department].map((c) => c.id))
+    : null;
+  const categoriasDoFiltro = doDepartamento
+    ? categories.filter(
+        (c) =>
+          doDepartamento.has(c.id) ||
+          categorias.includes(categorySlug(c.name)),
+      )
+    : categories;
   /** Mesmo estado com alterações — e sempre de volta à página 1. */
   const com = (patch: Partial<CatalogState>) =>
     catalogHref({ ...state, pagina: 1, ...patch });
@@ -151,40 +177,42 @@ export async function Catalog({
         </CheckItem>
       </FilterSection>
 
-      <FilterSection
-        title="Categoria"
-        selectedCount={categorias.length}
-        action={
-          categorias.length > 0 ? (
-            <Link
-              prefetch={false}
-              href={com({ categorias: [] })}
-              scroll={false}
-              className={limpar}
-            >
-              limpar
-            </Link>
-          ) : null
-        }
-      >
-        {categories.map((c) => {
-          const slug = categorySlug(c.name);
-          const checked = categorias.includes(slug);
-          return (
-            <CheckItem
-              key={c.id}
-              href={com({
-                categorias: checked
-                  ? categorias.filter((s) => s !== slug)
-                  : [...categorias, slug],
-              })}
-              checked={checked}
-            >
-              {c.name}
-            </CheckItem>
-          );
-        })}
-      </FilterSection>
+      {categoriasDoFiltro.length > 0 && (
+        <FilterSection
+          title="Categoria"
+          selectedCount={categorias.length}
+          action={
+            categorias.length > 0 ? (
+              <Link
+                prefetch={false}
+                href={com({ categorias: [] })}
+                scroll={false}
+                className={limpar}
+              >
+                limpar
+              </Link>
+            ) : null
+          }
+        >
+          {categoriasDoFiltro.map((c) => {
+            const slug = categorySlug(c.name);
+            const checked = categorias.includes(slug);
+            return (
+              <CheckItem
+                key={c.id}
+                href={com({
+                  categorias: checked
+                    ? categorias.filter((s) => s !== slug)
+                    : [...categorias, slug],
+                })}
+                checked={checked}
+              >
+                {c.name}
+              </CheckItem>
+            );
+          })}
+        </FilterSection>
+      )}
 
       {storeColors.length >= 2 && (
         <FilterSection

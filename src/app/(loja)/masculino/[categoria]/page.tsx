@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { Catalog } from "@/components/catalog";
 import { EMPTY_CATALOG } from "@/lib/catalog-url";
 import { categorySlug } from "@/lib/categories";
-import { getCategories } from "@/lib/products";
+import { getDepartmentCategory } from "@/lib/products";
 
 /**
  * Categoria do Masculino em ENDEREÇO LIMPO (`/masculino/polos`).
@@ -16,10 +16,14 @@ import { getCategories } from "@/lib/products";
  * categoria), sem espaço combinatório — o desafio não precisa valer.
  *
  * Filtros aplicados DENTRO desta página continuam indo para `/produtos?…`.
+ *
+ * Só existe a categoria que tem peça ativa NESTE departamento (unissex conta
+ * nos dois). O resto é 404: `/feminino/polos` sem polo feminina seria uma
+ * página vazia indexável — e, enquanto o Feminino não tem peças, toda
+ * `/feminino/<categoria>` é 404.
  */
-async function categoriaPorSlug(slug: string) {
-  const categorias = await getCategories();
-  return categorias.find((c) => categorySlug(c.name) === slug) ?? null;
+function categoriaPorSlug(slug: string) {
+  return getDepartmentCategory("masculino", slug);
 }
 
 export async function generateMetadata({

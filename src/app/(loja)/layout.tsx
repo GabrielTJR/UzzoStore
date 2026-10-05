@@ -6,7 +6,11 @@ import { SiteHeader } from "@/components/site-header";
 import { WhatsappFab } from "@/components/whatsapp-fab";
 import { getAdminUser } from "@/lib/admin";
 import { categorySlug } from "@/lib/categories";
-import { getCategories, hasDepartmentProducts } from "@/lib/products";
+import {
+  getCategoryCovers,
+  hasDepartmentProducts,
+  type CategoryCover,
+} from "@/lib/products";
 import { getSessionUser } from "@/lib/session";
 import { shippingConfigured } from "@/lib/shipping";
 import { WHATSAPP_URL } from "@/lib/store-info";
@@ -35,16 +39,29 @@ import { WHATSAPP_URL } from "@/lib/store-info";
 const GA_MEASUREMENT_ID = "G-6BTDTZEJ51";
 
 /**
+ * No menu as categorias vão em ordem ALFABÉTICA (é uma lista de procurar), não
+ * na ordem das capas (mais peças primeiro, que é a da vitrine da home).
+ */
+function paraMenu(covers: CategoryCover[]) {
+  return covers
+    .map((c) => ({ name: c.name, slug: categorySlug(c.name) }))
+    .sort((a, b) => a.name.localeCompare(b.name, "pt-BR"));
+}
+
+/**
  * Casca da LOJA: faixa de avisos, cabeçalho, sacola, rodapé e cookies.
  * O painel (/admin) não passa por aqui.
  */
 export default async function LojaLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
-  const [adminUser, sessionUser, categories, temFeminino] = await Promise.all([
+  // As categorias do menu saem das CAPAS (categorias com peça ativa, por
+  // departamento), não do cadastro inteiro: é a mesma leitura cacheada que a
+  // home usa (memoizada por requisição — uma ida ao cache para as duas).
+  const [adminUser, sessionUser, covers, temFeminino] = await Promise.all([
     getAdminUser(),
     getSessionUser(),
-    getCategories(),
+    getCategoryCovers(),
     hasDepartmentProducts("feminino"),
   ]);
   const freteAtivo = shippingConfigured();
@@ -55,10 +72,10 @@ export default async function LojaLayout({
       <SiteHeader
         isLogged={!!sessionUser} // cliente OU admin
         isAdmin={!!adminUser}
-        categories={categories.map((c) => ({
-          name: c.name,
-          slug: categorySlug(c.name),
-        }))}
+        categories={{
+          masculino: paraMenu(covers.masculino),
+          feminino: paraMenu(covers.feminino),
+        }}
         femininoEmBreve={!temFeminino}
         whatsappUrl={WHATSAPP_URL}
       />

@@ -1,17 +1,14 @@
-import Image from "next/image";
 import Link from "next/link";
 import { BenefitsStrip } from "@/components/benefits-strip";
+import { CategoryStrip } from "@/components/category-strip";
 import { HomeHero } from "@/components/home-hero";
 import { ProductCard } from "@/components/product-card";
-import { ProductPlaceholder } from "@/components/product-placeholder";
 import { getAdminUser } from "@/lib/admin";
-import { categorySlug } from "@/lib/categories";
 import { FABRIC_CLAIMS } from "@/lib/home-hero";
 import {
   getCategoryCovers,
   getProducts,
   hasDepartmentProducts,
-  type CategoryCover,
   type ProductListItem,
 } from "@/lib/products";
 import { getSessionUser } from "@/lib/session";
@@ -34,45 +31,6 @@ import { getWishlistIds } from "@/lib/wishlist";
  * visita — destaques, ofertas, capas de categoria, "tem feminino?" e, só para
  * quem está logado, os favoritos.
  */
-
-/** Atalhos de categoria: fileira que desliza no celular, grade no desktop. */
-function CategoryStrip({ categories }: { categories: CategoryCover[] }) {
-  if (categories.length === 0) return null;
-  return (
-    <section aria-label="Categorias" className="px-page py-8 lg:py-12">
-      <ul className="scrollbar-hide bleed-x flex snap-x snap-mandatory gap-3 overflow-x-auto lg:mx-0 lg:grid lg:auto-cols-fr lg:grid-flow-col lg:gap-4 lg:overflow-visible lg:px-0">
-        {categories.map((c) => (
-          <li key={c.id} className="w-[27%] shrink-0 snap-start sm:w-32 lg:w-auto">
-            {/* Endereço de faceta (/produtos?…): sem prefetch — ver "Armadilha
-                de faceta" no CLAUDE.md. */}
-            <Link
-              href={`/masculino/${categorySlug(c.name)}`}
-              prefetch={false}
-              className="group block"
-            >
-              <div className="relative aspect-[3/4] overflow-hidden rounded-xs bg-surface">
-                {c.image ? (
-                  <Image
-                    src={c.image}
-                    alt=""
-                    fill
-                    sizes="(max-width: 1024px) 128px, 200px"
-                    className="object-cover"
-                  />
-                ) : (
-                  <ProductPlaceholder />
-                )}
-              </div>
-              <p className="mt-2 text-[0.8rem] font-semibold underline-offset-4 group-hover:underline lg:text-sm">
-                {c.name}
-              </p>
-            </Link>
-          </li>
-        ))}
-      </ul>
-    </section>
-  );
-}
 
 /**
  * Vitrine: no celular, fileira que desliza com o dedo (mostra 8 peças sem
@@ -206,7 +164,7 @@ export default async function Home() {
   return (
     <>
       <HomeHero temFeminino={temFeminino} />
-      <CategoryStrip categories={covers} />
+      <CategoryStrip covers={covers} />
       <ProductRow
         title="Destaques"
         href="/masculino"

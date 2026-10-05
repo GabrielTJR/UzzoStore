@@ -5,7 +5,7 @@ import { compareSizes } from "@/lib/sizes";
 import { displayProductName } from "@/lib/product-name";
 import type { SortKey } from "@/lib/product-sort";
 export { SORT_OPTIONS, isSortKey, type SortKey } from "@/lib/product-sort";
-import type { StoreCategory } from "@/lib/categories";
+import { categorySlug, type StoreCategory } from "@/lib/categories";
 import {
   DEPARTMENT_COLUMN_READY,
   type Department,
@@ -481,20 +481,44 @@ export type CategoryCover = {
 };
 
 /**
- * Categorias que TÊM peça ativa, cada uma com uma foto de capa e a contagem.
+ * Categorias com peça ativa, SEPARADAS por departamento. As categorias não têm
+ * departamento no banco — quem tem é o produto (`products.department`) —, então
+ * a divisão é derivada das peças: "Polos" está no Masculino porque existe polo
+ * masculina ativa. Peça "unissex" conta nos dois.
  *
- * Uma consulta só (não uma por categoria), no cache de cadastros (1 h) e com a
- * etiqueta do catálogo. Traz só categoria + galerias — nada de preço, variante
- * ou estoque. O teto de 400 linhas protege o payload quando o catálogo crescer
- * (a capa de uma categoria não precisa de todas as peças dela).
+ * É a fonte do menu (painel de cada departamento), dos atalhos da home, do
+ * filtro "Categoria" dentro de /masculino e /feminino, do 404 das rotas
+ * `/<departamento>/<categoria>` e do sitemap. Antes o menu lia `getCategories`
+ * (o cadastro inteiro) e listava tudo sob o Masculino, inclusive categoria sem
+ * peça nenhuma — clique que caía numa página vazia.
+ */
+export type CategoryCoversByDepartment = Record<Department, CategoryCover[]>;
+
+const SEM_CAPAS: CategoryCoversByDepartment = { masculino: [], feminino: [] };
+
+/**
+ * UMA consulta só (não uma por categoria nem por departamento), com a etiqueta
+ * do catálogo — salvar produto ou categoria no admin derruba as duas (o
+ * `updateCategoryAction` também chama `updateTag(catalogo)`, então renomear
+ * categoria reflete no menu na hora). Traz só categoria, departamento e
+ * galerias — nada de preço, variante ou estoque. O teto de 400 linhas protege o
+ * payload quando o catálogo crescer (a capa de uma categoria não precisa de
+ * todas as peças dela).
+ *
+ * A chave mudou de "category-covers" para "category-covers-dep" junto com o
+ * formato do retorno: com a chave antiga, o primeiro acesso depois do deploy
+ * podia ler do cache um array no lugar do objeto por departamento.
  */
 const categoryCoversCache = unstable_cache(
-  async (): Promise<CategoryCover[]> => {
+  async (): Promise<CategoryCoversByDepartment> => {
     const supabase = createPublicClient();
     const { data, error } = await supabase
       .from("product_content")
       .select(
+        // Sem a migração 0022 não há coluna: pedir `department` derrubaria a
+        // consulta inteira (ver DEPARTMENT_COLUMN_READY).
         `featured, products!inner ( category_id, category_name,
+           ${DEPARTMENT_COLUMN_READY ? "department," : ""}
            product_colors ( sort_order, gallery ) )`,
       )
       .eq("products.active_ecommerce", true)
@@ -506,45 +530,75 @@ const categoryCoversCache = unstable_cache(
       products: {
         category_id: string | null;
         category_name: string | null;
+        department?: string | null;
         product_colors: { sort_order: number; gallery: unknown }[];
       };
     };
-    const map = new Map<string, CategoryCover>();
+    const maps: Record<Department, Map<string, CategoryCover>> = {
+      masculino: new Map(),
+      feminino: new Map(),
+    };
     for (const row of (data ?? []) as unknown as Row[]) {
       const p = row.products;
       if (!p.category_id || !p.category_name) continue;
+      // Sem coluna (ou valor estranho), a peça conta como masculina — mesma
+      // regra de `getProducts` e da página do produto.
+      const dep = p.department ?? "masculino";
+      const destinos: Department[] =
+        dep === "unissex"
+          ? ["masculino", "feminino"]
+          : dep === "feminino"
+            ? ["feminino"]
+            : ["masculino"];
       const cover =
         (p.product_colors ?? [])
           .slice()
           .sort((a, b) => a.sort_order - b.sort_order)
           .map((c) => toGallery(c.gallery)[0])
           .find(Boolean) ?? null;
-      const atual = map.get(p.category_id);
-      if (!atual) {
-        map.set(p.category_id, {
-          id: p.category_id,
-          name: p.category_name,
-          image: cover,
-          count: 1,
-        });
-      } else {
-        atual.count += 1;
-        if (!atual.image && cover) atual.image = cover;
+      for (const d of destinos) {
+        const atual = maps[d].get(p.category_id);
+        if (!atual) {
+          maps[d].set(p.category_id, {
+            id: p.category_id,
+            name: p.category_name,
+            image: cover,
+            count: 1,
+          });
+        } else {
+          atual.count += 1;
+          if (!atual.image && cover) atual.image = cover;
+        }
       }
     }
     // As categorias com mais peças primeiro: é o que a loja mais tem a mostrar.
-    return [...map.values()].sort(
-      (a, b) => b.count - a.count || a.name.localeCompare(b.name, "pt-BR"),
-    );
+    const ordena = (m: Map<string, CategoryCover>) =>
+      [...m.values()].sort(
+        (a, b) => b.count - a.count || a.name.localeCompare(b.name, "pt-BR"),
+      );
+    return { masculino: ordena(maps.masculino), feminino: ordena(maps.feminino) };
   },
-  ["category-covers"],
+  ["category-covers-dep"],
   { revalidate: CACHE_CADASTROS, tags: [CACHE_TAGS.catalogo] },
 );
 
 export const getCategoryCovers = cache(
-  (): Promise<CategoryCover[]> =>
-    semCachearFalha(categoryCoversCache, [], "capas de categoria"),
+  (): Promise<CategoryCoversByDepartment> =>
+    semCachearFalha(categoryCoversCache, SEM_CAPAS, "capas de categoria"),
 );
+
+/**
+ * A categoria deste slug, SE ela tiver peça ativa neste departamento — é o que
+ * decide o 404 de `/masculino/<categoria>` e `/feminino/<categoria>`. Sai do
+ * mesmo cache das capas (memoizado por requisição: metadata e página dividem).
+ */
+export async function getDepartmentCategory(
+  department: Department,
+  slug: string,
+): Promise<CategoryCover | null> {
+  const covers = await getCategoryCovers();
+  return covers[department].find((c) => categorySlug(c.name) === slug) ?? null;
+}
 
 async function queryProductBySlug(slug: string): Promise<ProductDetail | null> {
   const supabase = createPublicClient();

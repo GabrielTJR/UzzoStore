@@ -1,6 +1,7 @@
 import type { MetadataRoute } from "next";
 import { getCategoryCovers, getProducts } from "@/lib/products";
 import { categorySlug } from "@/lib/categories";
+import type { Department } from "@/lib/departments";
 
 /**
  * sitemap.xml — o Google descobre os produtos sem depender de rastrear link a
@@ -31,12 +32,16 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     { url: base, changeFrequency: "daily", priority: 1 },
     { url: `${base}/masculino`, changeFrequency: "daily", priority: 0.9 },
     { url: `${base}/feminino`, changeFrequency: "weekly", priority: 0.6 },
-    // Categorias com peça ativa, em endereço limpo (`/masculino/polos`).
-    ...categorias.map((c) => ({
-      url: `${base}/masculino/${categorySlug(c.name)}`,
-      changeFrequency: "daily" as const,
-      priority: 0.8,
-    })),
+    // Categorias com peça ativa EM CADA departamento, em endereço limpo
+    // (`/masculino/polos`, `/feminino/blusas`). Categoria sem peça naquele
+    // departamento fica de fora — a rota dela responde 404.
+    ...(Object.keys(categorias) as Department[]).flatMap((dep) =>
+      categorias[dep].map((c) => ({
+        url: `${base}/${dep}/${categorySlug(c.name)}`,
+        changeFrequency: "daily" as const,
+        priority: 0.8,
+      })),
+    ),
     { url: `${base}/ofertas`, changeFrequency: "daily", priority: 0.8 },
     { url: `${base}/produtos`, changeFrequency: "daily", priority: 0.8 },
     ...items.map((p) => ({

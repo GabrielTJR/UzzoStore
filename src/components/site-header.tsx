@@ -12,13 +12,21 @@ import {
   IconSearch,
   IconUser,
 } from "@/components/icons";
+import { DEPARTMENTS, type Department } from "@/lib/departments";
 import { useModal } from "@/lib/use-modal";
 
 export type NavCategory = { name: string; slug: string };
 
-/** Endereço do catálogo já filtrado por uma categoria do Masculino. */
-function categoriaHref(slug: string): string {
-  return `/masculino/${slug}`;
+/** Ordem dos departamentos na barra e na gaveta. */
+const DEPTS: Department[] = ["masculino", "feminino"];
+
+/**
+ * Categoria de um departamento em ENDEREÇO LIMPO (`/masculino/polos`). Nunca
+ * `/produtos?categorias=…`: essa URL é faceta e o Firewall da Vercel a desafia
+ * ("Verificando seu navegador") — o menu caía nisso até out/2026.
+ */
+function categoriaHref(dep: Department, slug: string): string {
+  return `/${dep}/${slug}`;
 }
 
 // Sem classe de display aqui: quem usa decide (`inline-flex` ou
@@ -41,9 +49,12 @@ const iconBtn =
  * sobre o banner da home; o hero novo começa abaixo do cabeçalho, então não há
  * arte por baixo para deixar transparecer.
  *
- * Os links de categoria levam a `/produtos?…`, endereço que o robots.txt
- * proíbe a robôs — por isso `prefetch={false}` em todos (armadilha de faceta,
- * ver CLAUDE.md).
+ * Cada departamento lista SÓ as categorias com peça ativa nele (unissex conta
+ * nos dois — `getCategoryCovers`). O Feminino sem peça fica como link simples
+ * com "em breve"; com a 1ª peça cadastrada ganha o mesmo painel/gaveta do
+ * Masculino, sem mexer aqui. Os links de categoria seguem com
+ * `prefetch={false}`: são muitos, e prefetch de todos no hover do painel seria
+ * trabalho por visita sem clique.
  */
 export function SiteHeader({
   isLogged,
@@ -54,14 +65,20 @@ export function SiteHeader({
 }: {
   isLogged: boolean;
   isAdmin: boolean;
-  categories: NavCategory[];
+  /** Categorias com peça ativa em cada departamento (vazio = sem painel). */
+  categories: Record<Department, NavCategory[]>;
   /** Feminino ainda sem produto: aparece no menu com a marca "em breve". */
   femininoEmBreve: boolean;
   whatsappUrl: string;
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
-  const [mascOpen, setMascOpen] = useState(true);
+  // Na gaveta, o Masculino já vem aberto (é onde está quase tudo); o Feminino
+  // abre no toque, para a lista dele não empurrar Ofertas e a conta para baixo.
+  const [deptOpen, setDeptOpen] = useState<Record<Department, boolean>>({
+    masculino: true,
+    feminino: false,
+  });
   const closeMenu = () => setMenuOpen(false);
   const menuRef = useModal<HTMLElement>(menuOpen, closeMenu);
 
@@ -96,47 +113,58 @@ export function SiteHeader({
           aria-label="Seções da loja"
           className="hidden h-full items-center gap-8 lg:flex"
         >
-          <div className="group/mega flex h-full items-center">
-            <Link href="/masculino" className={navLink}>
-              Masculino
-            </Link>
-            {/* Painel de categorias: abre no hover E no foco de teclado. Ancora
-                no cabeçalho (o item é `static`), então ocupa a largura toda. */}
-            <div className="invisible absolute inset-x-0 top-full border-b border-border bg-background opacity-0 transition-opacity duration-150 group-focus-within/mega:visible group-focus-within/mega:opacity-100 group-hover/mega:visible group-hover/mega:opacity-100">
-              <div className="px-page grid grid-cols-[14rem_1fr] gap-10 py-8">
-                <div>
-                  <p className="font-display text-xl font-bold">Masculino</p>
-                  <Link
-                    href="/masculino"
-                    className="mt-3 inline-block text-sm underline underline-offset-4"
-                  >
-                    Ver tudo
-                  </Link>
-                </div>
-                <ul className="grid grid-cols-3 gap-x-8 gap-y-3 xl:grid-cols-5">
-                  {categories.map((c) => (
-                    <li key={c.slug}>
+          {DEPTS.map((dep) =>
+            categories[dep].length > 0 ? (
+              <div key={dep} className="group/mega flex h-full items-center">
+                <Link href={`/${dep}`} className={navLink}>
+                  {DEPARTMENTS[dep]}
+                </Link>
+                {/* Painel de categorias: abre no hover E no foco de teclado.
+                    Ancora no cabeçalho (o item é `static`), então ocupa a
+                    largura toda. Um por departamento, cada um com as SUAS
+                    categorias — o Feminino ganha o dele com a 1ª peça. */}
+                <div className="invisible absolute inset-x-0 top-full border-b border-border bg-background opacity-0 transition-opacity duration-150 group-focus-within/mega:visible group-focus-within/mega:opacity-100 group-hover/mega:visible group-hover/mega:opacity-100">
+                  <div className="px-page grid grid-cols-[14rem_1fr] gap-10 py-8">
+                    <div>
+                      <p className="font-display text-xl font-bold">
+                        {DEPARTMENTS[dep]}
+                      </p>
                       <Link
-                        href={categoriaHref(c.slug)}
-                        prefetch={false}
-                        className="text-sm text-muted transition-colors hover:text-foreground"
+                        href={`/${dep}`}
+                        className="mt-3 inline-block text-sm underline underline-offset-4"
                       >
-                        {c.name}
+                        Ver tudo
                       </Link>
-                    </li>
-                  ))}
-                </ul>
+                    </div>
+                    <ul className="grid grid-cols-3 gap-x-8 gap-y-3 xl:grid-cols-5">
+                      {categories[dep].map((c) => (
+                        <li key={c.slug}>
+                          <Link
+                            href={categoriaHref(dep, c.slug)}
+                            prefetch={false}
+                            className="text-sm text-muted transition-colors hover:text-foreground"
+                          >
+                            {c.name}
+                          </Link>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                </div>
               </div>
-            </div>
-          </div>
-          <Link href="/feminino" className={navLink}>
-            Feminino
-            {femininoEmBreve && (
-              <span className="ml-2 rounded-xs bg-surface px-1.5 py-0.5 text-[0.7rem] font-medium text-muted">
-                em breve
-              </span>
-            )}
-          </Link>
+            ) : (
+              // Sem categoria para listar (Feminino vazio, ou leitura que
+              // falhou): link simples, sem painel vazio pendurado.
+              <Link key={dep} href={`/${dep}`} className={navLink}>
+                {DEPARTMENTS[dep]}
+                {dep === "feminino" && femininoEmBreve && (
+                  <span className="ml-2 rounded-xs bg-surface px-1.5 py-0.5 text-[0.7rem] font-medium text-muted">
+                    em breve
+                  </span>
+                )}
+              </Link>
+            ),
+          )}
           <Link href="/ofertas" className={navLink}>
             Ofertas
           </Link>
@@ -262,57 +290,65 @@ export function SiteHeader({
               aria-label="Seções da loja"
               className="flex-1 overflow-y-auto px-4 py-2"
             >
-              <div className="border-b border-border">
-                <div className="flex items-center">
+              {DEPTS.map((dep) =>
+                categories[dep].length > 0 ? (
+                  <div key={dep} className="border-b border-border">
+                    <div className="flex items-center">
+                      <Link
+                        href={`/${dep}`}
+                        onClick={closeMenu}
+                        className="font-display flex-1 py-4 text-xl font-bold"
+                      >
+                        {DEPARTMENTS[dep]}
+                      </Link>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setDeptOpen((o) => ({ ...o, [dep]: !o[dep] }))
+                        }
+                        aria-expanded={deptOpen[dep]}
+                        aria-label={`Categorias do ${DEPARTMENTS[dep].toLowerCase()}`}
+                        className="-mr-2 p-3"
+                      >
+                        <IconChevronDown
+                          size={20}
+                          className={`transition-transform ${deptOpen[dep] ? "rotate-180" : ""}`}
+                        />
+                      </button>
+                    </div>
+                    {deptOpen[dep] && (
+                      <ul className="grid grid-cols-2 gap-x-4 pb-4">
+                        {categories[dep].map((c) => (
+                          <li key={c.slug}>
+                            <Link
+                              href={categoriaHref(dep, c.slug)}
+                              prefetch={false}
+                              onClick={closeMenu}
+                              className="block py-2 text-[0.95rem] text-muted"
+                            >
+                              {c.name}
+                            </Link>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                ) : (
                   <Link
-                    href="/masculino"
+                    key={dep}
+                    href={`/${dep}`}
                     onClick={closeMenu}
-                    className="font-display flex-1 py-4 text-xl font-bold"
+                    className="font-display flex items-center border-b border-border py-4 text-xl font-bold"
                   >
-                    Masculino
+                    {DEPARTMENTS[dep]}
+                    {dep === "feminino" && femininoEmBreve && (
+                      <span className="ml-3 rounded-xs bg-surface px-2 py-1 font-sans text-xs font-medium tracking-normal text-muted [font-stretch:100%]">
+                        em breve
+                      </span>
+                    )}
                   </Link>
-                  <button
-                    type="button"
-                    onClick={() => setMascOpen((o) => !o)}
-                    aria-expanded={mascOpen}
-                    aria-label="Categorias do masculino"
-                    className="-mr-2 p-3"
-                  >
-                    <IconChevronDown
-                      size={20}
-                      className={`transition-transform ${mascOpen ? "rotate-180" : ""}`}
-                    />
-                  </button>
-                </div>
-                {mascOpen && (
-                  <ul className="grid grid-cols-2 gap-x-4 pb-4">
-                    {categories.map((c) => (
-                      <li key={c.slug}>
-                        <Link
-                          href={categoriaHref(c.slug)}
-                          prefetch={false}
-                          onClick={closeMenu}
-                          className="block py-2 text-[0.95rem] text-muted"
-                        >
-                          {c.name}
-                        </Link>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </div>
-              <Link
-                href="/feminino"
-                onClick={closeMenu}
-                className="font-display flex items-center border-b border-border py-4 text-xl font-bold"
-              >
-                Feminino
-                {femininoEmBreve && (
-                  <span className="ml-3 rounded-xs bg-surface px-2 py-1 font-sans text-xs font-medium tracking-normal text-muted [font-stretch:100%]">
-                    em breve
-                  </span>
-                )}
-              </Link>
+                ),
+              )}
               <Link
                 href="/ofertas"
                 onClick={closeMenu}
