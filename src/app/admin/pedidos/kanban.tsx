@@ -29,7 +29,11 @@ const COLUNAS: { label: string; dica: string; etapas: KanbanColuna[] }[] = [
     dica: "Ainda não pode ser separado",
     etapas: ["aguardando_pagamento"],
   },
-  { label: "A separar", dica: "Pago, esperando alguém pegar", etapas: ["a_separar"] },
+  {
+    label: "A separar",
+    dica: "Pago, esperando alguém pegar",
+    etapas: ["a_separar"],
+  },
   { label: "Separando", dica: "Em preparo na loja", etapas: ["preparing"] },
   {
     label: "Pronto ou enviado",
@@ -43,7 +47,10 @@ const COLUNAS: { label: string; dica: string; etapas: KanbanColuna[] }[] = [
 const CONCLUIDOS_NO_QUADRO = 8;
 
 function haQuanto(iso: string, agora: number): string {
-  const min = Math.max(0, Math.round((agora - new Date(iso).getTime()) / 60000));
+  const min = Math.max(
+    0,
+    Math.round((agora - new Date(iso).getTime()) / 60000),
+  );
   if (min < 60) return `há ${min} min`;
   const h = Math.round(min / 60);
   if (h < 24) return `há ${h} h`;
@@ -66,8 +73,7 @@ const etiqueta =
  * botão preto cheio em cada cartão, o quadro eram cinco colunas de botões
  * gritando por cima do que importa ler (quem, quanto, há quanto tempo).
  */
-const botaoCartao =
-  "h-9 w-full rounded-xs border text-xs font-semibold";
+const botaoCartao = "h-9 w-full rounded-xs border text-xs font-semibold";
 
 /**
  * QUADRO DE PEDIDOS — a visão padrão de /admin/pedidos.
@@ -93,14 +99,8 @@ export function PedidosKanban({ orders }: { orders: AdminOrder[] }) {
     colunaKanban(o.paymentStatus, o.fulfillmentStatus);
   const fora = orders.filter((o) => colunaDe(o) === null);
 
-  if (orders.length === 0) {
-    return (
-      <p className="rounded-sm border border-dashed border-border bg-background p-8 text-sm text-muted">
-        Nenhum pedido ainda. Eles entram aqui, na primeira coluna, assim que
-        alguém fechar uma compra.
-      </p>
-    );
-  }
+  // Sem nenhum pedido o quadro aparece igual, com as colunas vazias: é a
+  // mesma tela de sempre, só que sem fila (pedido do dono).
 
   return (
     <div>
@@ -111,7 +111,13 @@ export function PedidosKanban({ orders }: { orders: AdminOrder[] }) {
           `position: absolute`, e sem um ancestral posicionado AQUI DENTRO eles
           escapam do corte da rolagem — os das colunas fora da tela esticavam a
           página inteira para o lado. */}
-      <div className="relative grid snap-x grid-flow-col auto-cols-[minmax(15.5rem,1fr)] gap-3 overflow-x-auto pb-4 min-[1400px]:auto-cols-fr">
+      {/* ALTURA FIXA, pedido do dono: o quadro ocupa a altura da tela mesmo
+          vazio, e a tela não cresce quando uma coluna enche — quem rola é a
+          COLUNA (ver o `overflow-y-auto` dentro de cada uma). O desconto da
+          altura é o que fica acima (cabeçalho da página) e abaixo (a nota dos
+          cancelados e o respiro da área de trabalho). Colunas de 11rem: as
+          cinco cabem lado a lado num notebook de 1280px com o menu aberto. */}
+      <div className="relative grid h-[calc(100svh-15rem)] min-h-[26rem] snap-x grid-flow-col auto-cols-[minmax(11rem,1fr)] gap-3 overflow-x-auto pb-3 lg:h-[calc(100svh-14rem)]">
         {COLUNAS.map((col, pos) => {
           const todos = orders.filter((o) => {
             const c = colunaDe(o);
@@ -129,11 +135,11 @@ export function PedidosKanban({ orders }: { orders: AdminOrder[] }) {
             <section
               key={col.label}
               aria-label={col.label}
-              className="flex min-w-0 snap-start flex-col rounded-sm border border-border bg-background/60 p-2.5"
+              className="flex min-h-0 min-w-0 snap-start flex-col rounded-sm border border-border bg-background/60 p-2.5"
             >
               {/* A dica da etapa vai no `title` (aparece ao parar o mouse): em
                   texto ela disputava a linha com o valor e quebrava em duas. */}
-              <header className="mb-2.5 px-1 pt-0.5" title={col.dica}>
+              <header className="mb-2.5 shrink-0 px-1 pt-0.5" title={col.dica}>
                 {/* Onde esta coluna fica no caminho: cinco traços, preenchidos
                     até ela. Rolando o quadro no celular só se vê uma coluna
                     por vez, e é o traço que diz quanto falta. */}
@@ -172,168 +178,173 @@ export function PedidosKanban({ orders }: { orders: AdminOrder[] }) {
                 </p>
               </header>
 
-              <ul className="space-y-2">
-                {visiveis.map((o) => {
-                  const next = nextFulfillmentStatus(
-                    o.fulfillmentStatus,
-                    o.shippingMethod,
-                  );
-                  const travado = !podeAvancarAtendimento(o.paymentStatus);
-                  const pecas = o.items.reduce((s, i) => s + i.qty, 0);
-                  const primeiro = o.items[0];
-                  // Pedido de WhatsApp pode não ter forma de entrega gravada
-                  // (combinada na conversa): chamar de "Entrega" seria chute.
-                  const forma =
-                    o.shippingMethod === "pickup"
-                      ? "Retirada"
-                      : o.shippingMethod === "delivery"
-                        ? "Entrega"
-                        : "A combinar";
-                  const expira =
-                    o.paymentStatus === "pending"
-                      ? prazo(o.expiresAt, agora)
-                      : null;
-                  // Pago, mas com o atendimento cancelado: o caso que não pode
-                  // passar batido (pagamento fora do prazo, peça já devolvida).
-                  const pagoCancelado =
-                    o.paymentStatus === "paid" &&
-                    o.fulfillmentStatus === "canceled";
+              {/* Só a lista rola; o cabeçalho da coluna fica parado. O
+                  respiro lateral (`-mx-1 px-1`) deixa a borda e o foco dos
+                  cartões à vista em vez de cortados pela rolagem. */}
+              <div className="-mx-1 min-h-0 flex-1 overflow-y-auto overscroll-contain px-1 pb-1">
+                <ul className="space-y-2">
+                  {visiveis.map((o) => {
+                    const next = nextFulfillmentStatus(
+                      o.fulfillmentStatus,
+                      o.shippingMethod,
+                    );
+                    const travado = !podeAvancarAtendimento(o.paymentStatus);
+                    const pecas = o.items.reduce((s, i) => s + i.qty, 0);
+                    const primeiro = o.items[0];
+                    // Pedido de WhatsApp pode não ter forma de entrega gravada
+                    // (combinada na conversa): chamar de "Entrega" seria chute.
+                    const forma =
+                      o.shippingMethod === "pickup"
+                        ? "Retirada"
+                        : o.shippingMethod === "delivery"
+                          ? "Entrega"
+                          : "A combinar";
+                    const expira =
+                      o.paymentStatus === "pending"
+                        ? prazo(o.expiresAt, agora)
+                        : null;
+                    // Pago, mas com o atendimento cancelado: o caso que não pode
+                    // passar batido (pagamento fora do prazo, peça já devolvida).
+                    const pagoCancelado =
+                      o.paymentStatus === "paid" &&
+                      o.fulfillmentStatus === "canceled";
 
-                  return (
-                    // O cartão inteiro abre o pedido pelo "link esticado": o
-                    // link do número ganha um ::after que cobre o cartão (por
-                    // isso `relative` aqui e NENHUM ancestral posicionado
-                    // entre os dois). Os formulários ficam acima dele com
-                    // `relative z-10` — um <a> em volta de <form>/<button> é
-                    // HTML inválido e o clique no botão abriria o pedido.
-                    <li
-                      key={o.id}
-                      className={`relative rounded-xs border bg-background p-3 transition-colors focus-within:border-foreground hover:border-foreground ${
-                        o.isNew
-                          ? "border-accent shadow-[inset_3px_0_0_var(--accent)]"
-                          : "border-border"
-                      }`}
-                    >
-                      {/* Três níveis: quem (o mais forte), nº e valor, e o
+                    return (
+                      // O cartão inteiro abre o pedido pelo "link esticado": o
+                      // link do número ganha um ::after que cobre o cartão (por
+                      // isso `relative` aqui e NENHUM ancestral posicionado
+                      // entre os dois). Os formulários ficam acima dele com
+                      // `relative z-10` — um <a> em volta de <form>/<button> é
+                      // HTML inválido e o clique no botão abriria o pedido.
+                      <li
+                        key={o.id}
+                        className={`relative rounded-xs border bg-background p-3 transition-colors focus-within:border-foreground hover:border-foreground ${
+                          o.isNew
+                            ? "border-accent shadow-[inset_3px_0_0_var(--accent)]"
+                            : "border-border"
+                        }`}
+                      >
+                        {/* Três níveis: quem (o mais forte), nº e valor, e o
                           resto discreto. Na loja o pedido é "o do Fulano"
                           antes de ser um número. */}
-                      <p className="truncate text-[0.95rem] font-semibold leading-snug">
-                        {o.customerName ?? "Visitante sem conta"}
-                      </p>
-                      <p className="mt-0.5 flex items-baseline justify-between gap-2 text-sm">
-                        {/* `CardLink` é o <Link> de sempre (sem rolagem, sem
+                        <p className="truncate text-[0.95rem] font-semibold leading-snug">
+                          {o.customerName ?? "Visitante sem conta"}
+                        </p>
+                        <p className="mt-0.5 flex items-baseline justify-between gap-2 text-sm">
+                          {/* `CardLink` é o <Link> de sempre (sem rolagem, sem
                             prefetch) mais duas coisas que o modal usa ao
                             fechar: avisa que o pedido foi aberto por aqui e
                             marca o link com o número do pedido. */}
-                        <CardLink
-                          numero={o.number}
-                          href={pedidosHref("quadro", o.number)}
-                          className="font-medium after:absolute after:inset-0"
-                        >
-                          <span className="sr-only">Abrir o pedido </span>
-                          nº {o.number}
-                        </CardLink>
-                        <span className="font-medium tabular-nums">
-                          {formatBRL(o.total)}
-                        </span>
-                      </p>
-
-                      {primeiro && (
-                        <p className="mt-1.5 truncate text-xs text-muted">
-                          {primeiro.productName}
-                          {o.items.length > 1 &&
-                            ` e mais ${o.items.length - 1}`}
-                        </p>
-                      )}
-
-                      <p className="mt-1.5 flex flex-wrap items-center gap-1">
-                        {o.isNew && (
-                          <span className="rounded-xs bg-accent px-1.5 py-0.5 text-[0.7rem] font-bold leading-none text-accent-foreground">
-                            novo
+                          <CardLink
+                            numero={o.number}
+                            href={pedidosHref("quadro", o.number)}
+                            className="font-medium after:absolute after:inset-0"
+                          >
+                            <span className="sr-only">Abrir o pedido </span>
+                            nº {o.number}
+                          </CardLink>
+                          <span className="font-medium tabular-nums">
+                            {formatBRL(o.total)}
                           </span>
+                        </p>
+
+                        {primeiro && (
+                          <p className="mt-1.5 truncate text-xs text-muted">
+                            {primeiro.productName}
+                            {o.items.length > 1 &&
+                              ` e mais ${o.items.length - 1}`}
+                          </p>
                         )}
-                        <span className={etiqueta}>{forma}</span>
-                        <span className={etiqueta}>
-                          {pecas} {pecas === 1 ? "peça" : "peças"}
-                        </span>
-                        {o.channel === "whatsapp" && (
-                          <span className={etiqueta}>WhatsApp</span>
-                        )}
-                        {o.fulfillmentStatus === "shipped" && (
+
+                        <p className="mt-1.5 flex flex-wrap items-center gap-1">
+                          {o.isNew && (
+                            <span className="rounded-xs bg-accent px-1.5 py-0.5 text-[0.7rem] font-bold leading-none text-accent-foreground">
+                              novo
+                            </span>
+                          )}
+                          <span className={etiqueta}>{forma}</span>
                           <span className={etiqueta}>
-                            {o.trackingCode ? "com rastreio" : "sem rastreio"}
+                            {pecas} {pecas === 1 ? "peça" : "peças"}
                           </span>
-                        )}
-                      </p>
-
-                      <p className="mt-1.5 text-xs text-muted">
-                        {haQuanto(o.createdAt, agora)}
-                        {expira && `, ${expira}`}
-                      </p>
-
-                      {pagoCancelado && (
-                        <p className="mt-2 rounded-xs bg-red-600/10 px-2 py-1.5 text-xs font-medium text-red-700 dark:text-red-400">
-                          Pago, mas o atendimento está cancelado. Abra o pedido
-                          e resolva com o cliente.
+                          {o.channel === "whatsapp" && (
+                            <span className={etiqueta}>WhatsApp</span>
+                          )}
+                          {o.fulfillmentStatus === "shipped" && (
+                            <span className={etiqueta}>
+                              {o.trackingCode ? "com rastreio" : "sem rastreio"}
+                            </span>
+                          )}
                         </p>
-                      )}
 
-                      {/* No online o pagamento é do provedor: aqui só o
+                        <p className="mt-1.5 text-xs text-muted">
+                          {haQuanto(o.createdAt, agora)}
+                          {expira && `, ${expira}`}
+                        </p>
+
+                        {pagoCancelado && (
+                          <p className="mt-2 rounded-xs bg-red-600/10 px-2 py-1.5 text-xs font-medium text-red-700 dark:text-red-400">
+                            Pago, mas o atendimento está cancelado. Abra o
+                            pedido e resolva com o cliente.
+                          </p>
+                        )}
+
+                        {/* No online o pagamento é do provedor: aqui só o
                           WhatsApp ganha botão, senão viraria porta para marcar
                           como pago o que não foi. */}
-                      {travado && aceitaPagamentoManual(o.channel) && (
-                        <form
-                          action={updatePaymentStatusAction}
-                          className="relative z-10 mt-2.5"
-                        >
-                          <input type="hidden" name="orderId" value={o.id} />
-                          <input type="hidden" name="status" value="paid" />
-                          <SubmitButton
-                            pendingText="Confirmando…"
-                            className={`${botaoCartao} border-green-700 text-green-700 hover:bg-green-700 hover:text-white dark:border-green-500 dark:text-green-400`}
+                        {travado && aceitaPagamentoManual(o.channel) && (
+                          <form
+                            action={updatePaymentStatusAction}
+                            className="relative z-10 mt-2.5"
                           >
-                            Confirmar pagamento
-                          </SubmitButton>
-                        </form>
-                      )}
+                            <input type="hidden" name="orderId" value={o.id} />
+                            <input type="hidden" name="status" value="paid" />
+                            <SubmitButton
+                              pendingText="Confirmando…"
+                              className={`${botaoCartao} border-green-700 text-green-700 hover:bg-green-700 hover:text-white dark:border-green-500 dark:text-green-400`}
+                            >
+                              Confirmar pagamento
+                            </SubmitButton>
+                          </form>
+                        )}
 
-                      {next && !travado && !pagoCancelado && (
-                        <form
-                          action={updateFulfillmentAction}
-                          className="relative z-10 mt-2.5"
-                        >
-                          <input type="hidden" name="orderId" value={o.id} />
-                          <input type="hidden" name="status" value={next} />
-                          <SubmitButton
-                            pendingText="Salvando…"
-                            className={`${botaoCartao} border-foreground hover:bg-foreground hover:text-background`}
+                        {next && !travado && !pagoCancelado && (
+                          <form
+                            action={updateFulfillmentAction}
+                            className="relative z-10 mt-2.5"
                           >
-                            {fulfillmentLabel(next)}
-                          </SubmitButton>
-                        </form>
-                      )}
-                    </li>
-                  );
-                })}
-              </ul>
+                            <input type="hidden" name="orderId" value={o.id} />
+                            <input type="hidden" name="status" value={next} />
+                            <SubmitButton
+                              pendingText="Salvando…"
+                              className={`${botaoCartao} border-foreground hover:bg-foreground hover:text-background`}
+                            >
+                              {fulfillmentLabel(next)}
+                            </SubmitButton>
+                          </form>
+                        )}
+                      </li>
+                    );
+                  })}
+                </ul>
 
-              {/* Coluna vazia: uma linha, sem caixa. Vazio não é pendência e
+                {/* Coluna vazia: uma linha, sem caixa. Vazio não é pendência e
                   não deve chamar mais atenção que uma coluna com fila. */}
-              {todos.length === 0 && (
-                <p className="px-1 py-2 text-xs text-muted">
-                  Nenhum pedido nesta etapa
-                </p>
-              )}
+                {todos.length === 0 && (
+                  <p className="px-1 py-2 text-xs text-muted">
+                    Nenhum pedido nesta etapa
+                  </p>
+                )}
 
-              {ehConcluido && todos.length > visiveis.length && (
-                <Link
-                  href={pedidosHref("lista")}
-                  prefetch={false}
-                  className="mt-2 block px-1 text-xs text-muted underline underline-offset-4 hover:text-foreground"
-                >
-                  Mais {todos.length - visiveis.length} na lista
-                </Link>
-              )}
+                {ehConcluido && todos.length > visiveis.length && (
+                  <Link
+                    href={pedidosHref("lista")}
+                    prefetch={false}
+                    className="mt-2 block px-1 text-xs text-muted underline underline-offset-4 hover:text-foreground"
+                  >
+                    Mais {todos.length - visiveis.length} na lista
+                  </Link>
+                )}
+              </div>
             </section>
           );
         })}
