@@ -14,8 +14,12 @@ import { FreeShippingBar } from "@/components/free-shipping-bar";
  * página — no celular, trocar de página no meio da escolha é onde se perde a
  * venda) e pelo ícone do header. 100% client-side (Zustand), zero consulta.
  *
- * A página /sacola continua existindo: é onde vive o fluxo completo
- * (WhatsApp/pagamento). A gaveta é o atalho; os botões levam para lá.
+ * "Finalizar compra" leva DIRETO ao /checkout (pagamento em uma página): cada
+ * tela a mais entre a sacola e o pagamento é onde o cliente desiste. A página
+ * /sacola continua existindo para quem quer cupom, cotação e o pedido pelo
+ * WhatsApp — por isso o "Ver sacola" logo abaixo, como segunda opção.
+ * Os dois links são `prefetch={false}`: são páginas dinâmicas, e pré-carregar
+ * a cada abertura da gaveta seria invocação paga sem clique.
  */
 export function CartDrawer({
   shippingEnabled = false,
@@ -222,16 +226,28 @@ export function CartDrawer({
                 </div>
               </div>
               <Link
-                href="/sacola"
+                href="/checkout"
+                prefetch={false}
                 onClick={closeCart}
                 className="flex h-12 w-full items-center justify-center rounded-xs bg-foreground text-sm font-medium text-background transition-opacity hover:opacity-90"
               >
                 Finalizar compra
               </Link>
+              <Link
+                href="/sacola"
+                prefetch={false}
+                onClick={closeCart}
+                className="flex h-11 w-full items-center justify-center rounded-xs border border-border text-sm font-medium transition-colors hover:border-foreground"
+              >
+                Ver sacola
+              </Link>
+              {/* Texto, não botão com borda: três caixas empilhadas disputariam
+                  atenção com o "Finalizar compra". 44px de altura mantém o
+                  alvo de toque. */}
               <button
                 type="button"
                 onClick={closeCart}
-                className="flex h-11 w-full items-center justify-center rounded-xs border border-border text-sm font-medium transition-colors hover:border-foreground"
+                className="flex h-11 w-full items-center justify-center text-sm text-muted underline underline-offset-4 transition-colors hover:text-foreground"
               >
                 Continuar comprando
               </button>

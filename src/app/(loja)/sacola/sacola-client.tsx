@@ -13,6 +13,9 @@ import { formatBRL } from "@/lib/format";
 import { FreeShippingBar } from "@/components/free-shipping-bar";
 import { ShippingOptions } from "@/components/shipping-options";
 import type { ShippingOption } from "@/lib/shipping";
+// Fonte única da opção marcada: o checkout usa a mesma função, então o mesmo
+// CEP nunca aparece com uma opção marcada aqui e outra lá.
+import { freteRecomendado } from "@/lib/freight-choice";
 import {
   createOrderAction,
   cartStockAction,
@@ -98,30 +101,6 @@ function SkeletonItem() {
       <div className="h-4 w-16 rounded bg-border/60" />
     </li>
   );
-}
-
-/**
- * Qual opção já vem marcada.
- *
- * Sem frete grátis: a MAIS BARATA. Marcar uma paga por padrão cobraria do
- * cliente uma escolha que ele não fez.
- *
- * Com frete grátis: a loja cobre até a opção recomendada, então várias saem por
- * R$ 0 — entre elas, a que chega ANTES é estritamente melhor para quem compra e
- * não custa nada a mais para a loja. As pagas ("Outros fretes") nunca vêm
- * marcadas: cobrar por velocidade tem que ser escolha ativa.
- */
-function freteRecomendado(
-  options: ShippingOption[],
-  tudoGratis: boolean,
-): ShippingOption | null {
-  if (options.length === 0) return null;
-  if (tudoGratis) {
-    const livres = options.filter((o) => o.free);
-    if (livres.length > 0)
-      return livres.reduce((a, b) => (b.days < a.days ? b : a));
-  }
-  return options[0]; // a lista já vem com a mais barata primeiro
 }
 
 export function SacolaClient({
@@ -227,6 +206,14 @@ export function SacolaClient({
       if (res.ok) {
         setCouponDiscount(res.discount);
         setCouponMsg(null);
+      } else if (res.rateLimited) {
+        // O "não" é do freio por IP, não do cupom. Apagar aqui faria o cliente
+        // perder um desconto válido só por ter mexido muito na sacola; o
+        // pedido revalida o cupom no servidor de qualquer forma. O desconto já
+        // exibido fica como estava.
+        setCouponMsg(
+          "Não conseguimos conferir o cupom agora; o desconto entra no valor final.",
+        );
       } else {
         setCoupon(null);
         setCouponDiscount(0);
@@ -267,6 +254,9 @@ export function SacolaClient({
       // entre rádios vazios para seguir, no passo em que ele está mais perto
       // de desistir.
       else {
+        // CEP que cotou de verdade vai para a sacola: o checkout o usa para
+        // pré-preencher o endereço. Só depois do ok — CEP recusado não serve.
+        useCart.getState().setCep(limpo);
         const rec = freteRecomendado(res.options, res.freeApplied);
         if (rec) setShipping(escolhaDeFrete(limpo, rec));
       }
@@ -289,6 +279,10 @@ export function SacolaClient({
       setCoupon(res.code);
       setCouponDiscount(res.discount);
       setCouponMsg(`Cupom ${res.code} aplicado: −${formatBRL(res.discount)}`);
+    } else if (res.rateLimited) {
+      // Freio, não recusa: não derruba o cupom que já estava aplicado. O código
+      // digitado não foi conferido, então mostramos o aviso do freio.
+      setCouponMsg(res.error);
     } else {
       setCoupon(null);
       setCouponDiscount(0);
@@ -632,8 +626,11 @@ export function SacolaClient({
               como segunda opção (antes era o inverso). */}
           <div className="flex w-full flex-col gap-3 md:items-end">
             {!error && !busy && !temFalta ? (
+              // prefetch={false}: /checkout é dinâmico (sessão); pré-carregar a
+              // cada visita à sacola seria invocação paga sem clique.
               <Link
                 href="/checkout"
+                prefetch={false}
                 className="inline-flex h-13 w-full items-center justify-center rounded-xs bg-foreground px-8 text-[0.95rem] font-semibold text-background hover:opacity-90 md:w-auto md:min-w-72"
               >
                 Pagar com Pix ou cartão

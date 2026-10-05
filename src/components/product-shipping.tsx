@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { formatBRL } from "@/lib/format";
+import { useCart } from "@/lib/cart-store";
 import { nomeServicoFrete, FRETE_GRATIS_MIN } from "@/lib/shipping-config";
 import { quoteShippingAction } from "@/app/(loja)/sacola/shipping-actions";
 import type { ShippingOption } from "@/lib/shipping";
@@ -47,8 +48,12 @@ export function ProductShipping({ variantId }: { variantId: string | null }) {
     setRes(null);
     try {
       const r = await quoteShippingAction(cepLimpo, [{ variantId, qty: 1 }]);
-      if (r.ok) setRes({ tipo: "ok", opcoes: r.options, gratis: r.freeApplied });
-      else if (r.unavailable)
+      if (r.ok) {
+        setRes({ tipo: "ok", opcoes: r.options, gratis: r.freeApplied });
+        // Guarda o CEP que cotou: o checkout pré-preenche o endereço com ele,
+        // e o cliente não digita de novo o que já deu aqui.
+        useCart.getState().setCep(cepLimpo);
+      } else if (r.unavailable)
         setRes({
           tipo: "erro",
           msg: "Combinamos o frete pelo WhatsApp — é só chamar.",
