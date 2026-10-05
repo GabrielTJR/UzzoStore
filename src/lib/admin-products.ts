@@ -25,6 +25,8 @@ export type AdminProductListItem = {
   basePrice: number | null;
   onPromo: boolean;
   reference: string | null;
+  /** Seção da loja. Antes da migração 0022, sempre "masculino". */
+  department: DepartmentValue;
   /** 1ª foto (miniatura da lista). */
   thumb: string | null;
   images: number;
@@ -91,6 +93,7 @@ type ListRow = {
   promo_price: number | null;
   weight_grams: number | null;
   reference: string | null;
+  department?: string | null;
   categories: { name: string } | null;
   product_content: { slug: string; featured: boolean } | null;
   product_colors: {
@@ -154,6 +157,7 @@ export async function getAdminProducts(): Promise<AdminProductListItem[]> {
       // catálogo passar de algumas centenas de produtos — a carga do Microvix —
       // esta lista precisa de paginação no banco.
       `id, name, reference, active_ecommerce, price, promo_price, weight_grams,
+       ${DEPARTMENT_COLUMN_READY ? "department," : ""}
        categories ( name ),
        product_content ( slug, featured ),
        product_colors ( sort_order, gallery,
@@ -184,6 +188,7 @@ export async function getAdminProducts(): Promise<AdminProductListItem[]> {
       basePrice: r.price != null ? Number(r.price) : null,
       onPromo: r.promo_price != null && Number(r.promo_price) > 0,
       reference: r.reference,
+      department: isDepartmentValue(r.department) ? r.department : "masculino",
       thumb: colors.map((c) => toGallery(c.gallery)[0]).find(Boolean) ?? null,
       images: colors.reduce((n, c) => n + toGallery(c.gallery).length, 0),
       colors: colors.length,

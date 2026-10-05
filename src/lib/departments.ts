@@ -34,15 +34,14 @@ export function isDepartmentValue(v: unknown): v is DepartmentValue {
 }
 
 /**
- * ⚠️ CHAVE DA MIGRAÇÃO 0022. Enquanto for `false`, o código NÃO toca na coluna
- * `products.department`: o catálogo inteiro conta como masculino (é o que ele
- * é hoje), o Feminino fica "em breve" e o campo Departamento não aparece no
- * cadastro de produto.
+ * CHAVE DA MIGRAÇÃO 0022 (`products.department`). Está `true` desde
+ * 05/10/2026: o dono aplicou o SQL no banco de produção e a coluna foi
+ * conferida pela API (30 produtos, todos "masculino").
  *
- * Existe porque o código foi escrito antes de a migração ser aplicada no banco,
- * e pedir uma coluna que não existe derruba TODA a listagem (o PostgREST
- * recusa a consulta inteira). Depois de aplicar
- * `supabase/migrations/*_0022_departamento.sql`, troque para `true` — é a
- * única mudança necessária.
+ * Continua existindo como constante por um motivo só: um banco que NÃO tenha
+ * a migração (projeto novo, branch de preview do Supabase) derruba TODA a
+ * listagem se o código pedir a coluna — o PostgREST recusa a consulta inteira.
+ * Nesse caso, `false` faz o código não tocar nela: o catálogo inteiro conta
+ * como masculino, o Feminino fica "em breve" e o campo some do cadastro.
  */
-export const DEPARTMENT_COLUMN_READY = false;
+export const DEPARTMENT_COLUMN_READY = true;

@@ -117,7 +117,7 @@ O site inteiro foi redesenhado em 05/10/2026 a pedido do dono (ele escolheu a di
 
 ### Departamentos (Masculino / Feminino)
 
-- Campo **`products.department`** (`masculino` | `feminino` | `unissex`; unissex aparece nos dois) — migração **`0022`**. ⚠️ **A migração foi escrita mas PODE NÃO ESTAR APLICADA**: confira `DEPARTMENT_COLUMN_READY` em `src/lib/departments.ts`. Enquanto for `false`, o código não toca na coluna, o catálogo inteiro conta como masculino e o campo não aparece no cadastro. Depois de aplicar o SQL, troque para `true` (única mudança necessária) e regenere os tipos.
+- Campo **`products.department`** (`masculino` | `feminino` | `unissex`; unissex aparece nos dois) — migração **`0022`**, **aplicada em produção em 05/10/2026** pelo SQL Editor (por isso o remoto pode não ter a versão registrada em `schema_migrations`; o arquivo é idempotente e um `db push` posterior passa sem erro). `DEPARTMENT_COLUMN_READY` em `src/lib/departments.ts` está `true`; só volta a `false` num banco sem a migração. O departamento aparece no cadastro do produto (edição e novo) e como coluna/filtro em `/admin/produtos`. Os tipos em `database.types.ts` foram ajustados à mão — regenere com o CLI quando ele estiver disponível.
 - **Feminino "em breve"**: enquanto não houver peça feminina ativa, o menu marca "em breve", a home mostra um aviso e `/feminino` capta e-mail (mesma lista da newsletter). Liga sozinho com a primeira peça cadastrada (`hasDepartmentProducts`, no cache do catálogo).
 - As categorias ainda não são separadas por departamento: o painel do menu lista todas sob Masculino. Quando o Feminino tiver peças, isso precisa de uma leitura "categorias por departamento".
 

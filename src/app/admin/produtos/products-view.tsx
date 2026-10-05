@@ -3,12 +3,18 @@ import Link from "next/link";
 import { FeaturedStar } from "@/components/featured-star";
 import { isLowStock, isSoldOut } from "@/lib/admin-overview";
 import type { AdminProductListItem } from "@/lib/admin-products";
+import {
+  DEPARTMENT_COLUMN_READY,
+  DEPARTMENT_VALUES,
+  DEPARTMENT_VALUE_LABELS,
+} from "@/lib/departments";
 import { formatBRL } from "@/lib/format";
 import { normalizeSearch } from "@/lib/products";
 import { PageHeader, Panel, primaryButton } from "../admin-ui";
 
 export type ProductsSearch = {
   q?: string;
+  departamento?: string;
   categoria?: string;
   situacao?: string;
   estoque?: string;
@@ -47,6 +53,7 @@ export function ProductsView({
       !normalizeSearch(`${p.name} ${p.reference ?? ""}`).includes(termo)
     )
       return false;
+    if (sp.departamento && p.department !== sp.departamento) return false;
     if (sp.categoria && p.category !== sp.categoria) return false;
     if (sp.situacao === "ativo" && !p.active) return false;
     if (sp.situacao === "inativo" && p.active) return false;
@@ -58,6 +65,7 @@ export function ProductsView({
 
   const filtrando = !!(
     termo ||
+    sp.departamento ||
     sp.categoria ||
     sp.situacao ||
     sp.estoque ||
@@ -92,6 +100,21 @@ export function ProductsView({
           aria-label="Buscar produto"
           className={`${campo} min-w-0 flex-1 basis-64 sm:max-w-sm`}
         />
+        {DEPARTMENT_COLUMN_READY && (
+          <select
+            name="departamento"
+            defaultValue={sp.departamento ?? ""}
+            aria-label="Departamento"
+            className={campo}
+          >
+            <option value="">Todos os departamentos</option>
+            {DEPARTMENT_VALUES.map((d) => (
+              <option key={d} value={d}>
+                {DEPARTMENT_VALUE_LABELS[d]}
+              </option>
+            ))}
+          </select>
+        )}
         <select
           name="categoria"
           defaultValue={sp.categoria ?? ""}
@@ -155,6 +178,11 @@ export function ProductsView({
           <thead className="border-b border-border text-left text-xs text-muted">
             <tr>
               <th className="px-4 py-3 font-medium">Produto</th>
+              {DEPARTMENT_COLUMN_READY && (
+                <th className="hidden px-4 py-3 font-medium lg:table-cell">
+                  Departamento
+                </th>
+              )}
               <th className="hidden px-4 py-3 font-medium md:table-cell">
                 Categoria
               </th>
@@ -204,6 +232,11 @@ export function ProductsView({
                     </span>
                   </Link>
                 </td>
+                {DEPARTMENT_COLUMN_READY && (
+                  <td className="hidden px-4 py-2.5 lg:table-cell">
+                    {DEPARTMENT_VALUE_LABELS[p.department]}
+                  </td>
+                )}
                 <td className="hidden px-4 py-2.5 text-muted md:table-cell">
                   {p.category ?? "—"}
                 </td>
@@ -273,7 +306,7 @@ export function ProductsView({
             ))}
             {products.length === 0 && (
               <tr>
-                <td colSpan={9} className="px-4 py-10 text-center text-muted">
+                <td colSpan={10} className="px-4 py-10 text-center text-muted">
                   {filtrando
                     ? "Nenhum produto com esses filtros."
                     : "Nenhum produto ainda. Comece por “Novo produto”."}
