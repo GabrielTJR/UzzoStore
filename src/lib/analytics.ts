@@ -137,6 +137,14 @@ export type AudienceData = {
   pages: { path: string; views: number }[];
   channels: { name: string; sessions: number }[];
   devices: { name: string; visitors: number }[];
+  /**
+   * Funil de vendas, últimos 28 dias: quantas PESSOAS chegaram a cada etapa.
+   * A primeira etapa é quem visitou; as outras vêm dos eventos que o site
+   * envia (`lib/track.ts`). `whatsapp` fica fora da sequência: é o outro
+   * caminho de fechar a compra.
+   */
+  funnel: { key: string; label: string; users: number }[];
+  whatsapp: number;
   fetchedAt: string;
 };
 
@@ -160,6 +168,15 @@ const APARELHOS: Record<string, string> = {
   tablet: "Tablet",
   "smart tv": "TV",
 };
+
+/** Etapas do funil, na ordem da compra (eventos de `lib/track.ts`). */
+const ETAPAS_FUNIL = [
+  { key: "view_item", label: "Viram um produto" },
+  { key: "add_to_cart", label: "Adicionaram à sacola" },
+  { key: "begin_checkout", label: "Começaram o checkout" },
+  { key: "add_payment_info", label: "Foram para o pagamento" },
+  { key: "purchase", label: "Compraram" },
+] as const;
 
 async function fetchAudience(): Promise<AudienceData> {
   const cfg = config();
@@ -217,6 +234,26 @@ async function fetchAudience(): Promise<AudienceData> {
 
   const [totais, porDia, paginas, canais, aparelhos] = reports;
 
+  // Funil: o batch acima já está no máximo de 5 relatórios, então este vai
+  // numa chamada própria. Falhar aqui não derruba a audiência: o card de
+  // funil só aparece vazio.
+  const eventos = await gaPost<GaReport>(cfg, "runReport", {
+    dateRanges: [{ startDate: "27daysAgo", endDate: "today" }],
+    dimensions: [{ name: "eventName" }],
+    metrics: [{ name: "totalUsers" }],
+    dimensionFilter: {
+      filter: {
+        fieldName: "eventName",
+        inListFilter: {
+          values: [...ETAPAS_FUNIL.map((e) => e.key), "checkout_whatsapp"],
+        },
+      },
+    },
+  }).catch(() => ({ rows: [] }) as GaReport);
+  const porEvento = new Map(
+    (eventos.rows ?? []).map((r) => [dim(r), num(r)] as const),
+  );
+
   const porPeriodo = new Map(
     (totais?.rows ?? []).map((r) => [dim(r), r] as const),
   );
@@ -266,6 +303,19 @@ async function fetchAudience(): Promise<AudienceData> {
       name: APARELHOS[dim(r)] ?? dim(r),
       visitors: num(r),
     })),
+    funnel: [
+      {
+        key: "visita",
+        label: "Visitaram a loja",
+        users: num(porPeriodo.get("date_range_2"), 0),
+      },
+      ...ETAPAS_FUNIL.map((e) => ({
+        key: e.key,
+        label: e.label,
+        users: porEvento.get(e.key) ?? 0,
+      })),
+    ],
+    whatsapp: porEvento.get("checkout_whatsapp") ?? 0,
     fetchedAt: new Date().toISOString(),
   };
 }

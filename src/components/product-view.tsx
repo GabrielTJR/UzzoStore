@@ -1,5 +1,6 @@
 "use client";
 
+import { track } from "@/lib/track";
 import { useEffect, useState } from "react";
 import Image from "next/image";
 import { useCart } from "@/lib/cart-store";
@@ -140,6 +141,20 @@ export function ProductView({
       },
       qty,
     );
+    track("add_to_cart", {
+      value: (price as number) * qty,
+      items: [
+        {
+          item_id: selectedVariant.id,
+          item_name: name,
+          price: price as number,
+          quantity: qty,
+          item_variant: [color.name, selectedVariant.size]
+            .filter(Boolean)
+            .join(" / "),
+        },
+      ],
+    });
     setQtyText("1");
     setAdded(true);
     // Abre a GAVETA em vez de só piscar um "✓": o cliente vê o item na sacola
@@ -194,6 +209,14 @@ export function ProductView({
    * Limita em vez de zerar para 1: trocar de M para G com estoque de sobra
    * preserva a quantidade escolhida.
    */
+  // Funil de vendas: "viu um produto". Uma vez por produto aberto.
+  useEffect(() => {
+    track("view_item", {
+      value: price ?? undefined,
+      items: [{ item_id: productId, item_name: name, price: price ?? undefined }],
+    });
+  }, [productId, name, price]);
+
   useEffect(() => {
     setQtyText((t) =>
       String(Math.min(Math.max(1, parseInt(t, 10) || 1), Math.max(1, maxQty))),

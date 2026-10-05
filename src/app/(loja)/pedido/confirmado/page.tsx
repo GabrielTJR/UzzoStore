@@ -5,6 +5,7 @@ import { getSessionUser } from "@/lib/session";
 import { createClient } from "@/lib/supabase/server";
 import { ClearCart } from "./clear-cart";
 import { OrderSummary, type ConfirmedOrder } from "./order-summary";
+import { TrackPurchase } from "./track-purchase";
 
 export const metadata: Metadata = {
   title: "Pedido confirmado",
@@ -100,6 +101,22 @@ export default async function PedidoConfirmadoPage({
   return (
     <section className="mx-auto max-w-lg px-page py-16">
       {paid && <ClearCart />}
+      {/* Funil: a compra só é contada com pagamento confirmado E o pedido
+          lido do próprio cliente — nunca a partir do que veio na URL. */}
+      {paid && order && (
+        <TrackPurchase
+          number={order.number}
+          total={Number(order.total)}
+          shipping={Number(order.shipping_cost ?? 0)}
+          coupon={order.coupon_code}
+          items={order.order_items.map((i) => ({
+            name: i.product_name,
+            variant: i.variant_label,
+            price: Number(i.unit_price),
+            qty: i.qty,
+          }))}
+        />
+      )}
 
       <h1 className="font-display text-3xl font-bold">
         {paid ? "Pagamento confirmado" : "Estamos confirmando seu pagamento"}

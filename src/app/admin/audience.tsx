@@ -27,6 +27,87 @@ function VerDetalhes({ kind, periodo }: { kind: DetalheKind; periodo?: number })
 }
 
 const nf = new Intl.NumberFormat("pt-BR");
+const pct = (n: number) =>
+  new Intl.NumberFormat("pt-BR", {
+    style: "percent",
+    maximumFractionDigits: n < 0.1 ? 1 : 0,
+  }).format(n);
+
+/**
+ * FUNIL DE VENDAS: quantas pessoas chegaram a cada etapa da compra nos
+ * últimos 28 dias. A barra mostra o tamanho em relação a quem visitou; a coluna
+ * da direita diz quanto se perdeu NA PASSAGEM da etapa anterior para esta —
+ * é ela que aponta onde mexer.
+ *
+ * Um série só, uma cor (o acento): a etapa é identificada pelo rótulo, nunca
+ * pela cor. As contagens vêm dos eventos que o site envia desde out/2026; antes
+ * disso não existe dado, e as etapas aparecem zeradas.
+ */
+function Funil({
+  funnel,
+  whatsapp,
+}: {
+  funnel: AudienceData["funnel"];
+  whatsapp: number;
+}) {
+  const topo = funnel[0]?.users ?? 0;
+  const semEventos = funnel.slice(1).every((e) => e.users === 0);
+  return (
+    <Panel className="p-4 lg:p-5">
+      <h3 className="text-sm font-semibold">Funil de vendas, últimos 28 dias</h3>
+      <p className="mt-0.5 text-xs text-muted">
+        Pessoas que chegaram a cada etapa. À direita, quanto se perdeu desde a
+        etapa anterior.
+      </p>
+      {semEventos ? (
+        <p className="mt-4 rounded-xs bg-surface px-3 py-4 text-sm text-muted">
+          As etapas começam a ser contadas a partir de agora: o site passou a
+          enviar ao Google quando alguém vê um produto, adiciona à sacola,
+          começa o checkout e compra. Os primeiros números aparecem em até 48
+          horas.
+        </p>
+      ) : (
+        <ol className="mt-4 space-y-3">
+          {funnel.map((e, i) => {
+            const anterior = i > 0 ? funnel[i - 1].users : 0;
+            const perda =
+              i > 0 && anterior > 0 ? Math.max(0, 1 - e.users / anterior) : null;
+            const largura = topo > 0 ? Math.max(e.users > 0 ? 1 : 0, (e.users / topo) * 100) : 0;
+            return (
+              <li
+                key={e.key}
+                className="grid grid-cols-[minmax(0,1fr)_auto] items-end gap-x-4 gap-y-1.5 sm:grid-cols-[13rem_minmax(0,1fr)_7rem]"
+              >
+                <span className="text-sm">{e.label}</span>
+                <span className="text-right text-sm font-semibold tabular-nums sm:order-last">
+                  {fmt(e.users)}
+                  <span className="block text-xs font-normal text-muted">
+                    {perda == null ? "" : `−${pct(perda)} aqui`}
+                  </span>
+                </span>
+                <div className="col-span-2 h-2.5 rounded-full bg-surface sm:col-span-1 sm:self-center">
+                  <div
+                    className="h-full rounded-full bg-accent/80"
+                    style={{ width: `${largura}%` }}
+                  />
+                </div>
+              </li>
+            );
+          })}
+        </ol>
+      )}
+      {whatsapp > 0 && (
+        <p className="mt-4 border-t border-border pt-3 text-sm">
+          <span className="font-semibold tabular-nums">{fmt(whatsapp)}</span>{" "}
+          <span className="text-muted">
+            {whatsapp === 1 ? "pessoa fechou" : "pessoas fecharam"} pelo
+            WhatsApp em vez de pagar no site.
+          </span>
+        </p>
+      )}
+    </Panel>
+  );
+}
 const fmt = (n: number) => nf.format(n);
 
 function diaCurto(ymd: string): string {
@@ -289,6 +370,8 @@ export function Audience({ result }: { result: AudienceResult }) {
           />
         </Panel>
       </div>
+
+      <Funil funnel={data.funnel} whatsapp={data.whatsapp} />
 
       <p className="max-w-[90ch] text-xs text-muted">
         Fonte: Google Analytics, atualizado a cada 15 minutos. O site só mede

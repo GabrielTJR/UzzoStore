@@ -32,6 +32,7 @@ import { StepShell, type StepEstado } from "./step-shell";
 import { ENDERECO_LOJA, StepDelivery, linhasEndereco } from "./step-delivery";
 import { StepProfile } from "./step-profile";
 import { StepPayment, type PayErroKind } from "./step-payment";
+import { cartItemsForTrack, track } from "@/lib/track";
 
 /**
  * Checkout em UMA página, quatro passos: e-mail com código, entrega, dados e
@@ -346,6 +347,18 @@ export function CheckoutFlow({
     h.focus({ preventScroll: true });
   }, [ativo, mounted]);
 
+  // Funil: "começou o checkout". Uma vez por abertura da página, e só com
+  // sacola de verdade (a sacola persistida só existe depois de montar).
+  const contouInicio = useRef(false);
+  useEffect(() => {
+    if (!mounted || contouInicio.current || items.length === 0) return;
+    contouInicio.current = true;
+    track("begin_checkout", {
+      value: items.reduce((s, i) => s + i.price * i.qty, 0),
+      items: cartItemsForTrack(items),
+    });
+  }, [mounted, items]);
+
   /* ---------- transições ---------- */
 
   const recarregar = () => window.location.assign("/checkout");
@@ -490,6 +503,12 @@ export function CheckoutFlow({
         },
       );
       if (res.ok && res.url) {
+        // Funil: "foi pagar" — saiu do site para a página da InfinitePay.
+        track("add_payment_info", {
+          value: total,
+          coupon: coupon ?? undefined,
+          items: cartItemsForTrack(items),
+        });
         marcarPagamentoIniciado();
         // A sacola NÃO é limpa: se o cliente voltar sem pagar, ela está aqui.
         saiu = true;

@@ -16,6 +16,7 @@ import type { ShippingOption } from "@/lib/shipping";
 // Fonte única da opção marcada: o checkout usa a mesma função, então o mesmo
 // CEP nunca aparece com uma opção marcada aqui e outra lá.
 import { freteRecomendado } from "@/lib/freight-choice";
+import { cartItemsForTrack, track } from "@/lib/track";
 import {
   createOrderAction,
   cartStockAction,
@@ -324,6 +325,11 @@ export function SacolaClient({
       }
 
       showToast("Pedido registrado. Abrindo o WhatsApp…");
+      // Funil: fechou pelo WhatsApp (o caminho alternativo ao pagamento).
+      track("checkout_whatsapp", {
+        value: res.totals.total,
+        items: cartItemsForTrack(items),
+      });
 
       const url = `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(
         buildWhatsappMessage(items, res.totals, res.orderNumber),
