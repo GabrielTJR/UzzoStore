@@ -29,10 +29,10 @@ export default async function EditarBlocoPage({
       <header className="mb-8 flex items-start justify-between gap-4">
         <div>
           <Link
-            href="/admin/decoracao"
+            href="/admin/decoracao/blocos"
             className="text-sm text-muted underline-offset-4 hover:text-foreground hover:underline"
           >
-            ‹ Decoração da home
+            ‹ Blocos antigos da home
           </Link>
           <h1 className="font-display text-2xl font-bold lg:text-3xl">
             {section.name}

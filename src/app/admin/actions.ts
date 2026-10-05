@@ -1633,7 +1633,7 @@ export async function saveHomeSectionAction(
     entityLabel: current.kind,
   });
   revalidateHome(id);
-  redirect("/admin/decoracao"); // volta para a lista após salvar
+  redirect("/admin/decoracao/blocos"); // volta para a lista após salvar
 }
 
 export async function toggleHomeSectionAction(
@@ -1739,7 +1739,7 @@ export async function deleteHomeSectionAction(
     entityId: id,
   });
   revalidateHome();
-  redirect("/admin/decoracao");
+  redirect("/admin/decoracao/blocos");
 }
 
 // --- Fotos (por cor) --------------------------------------------------------

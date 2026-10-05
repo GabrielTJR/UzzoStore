@@ -5,6 +5,7 @@ import { SiteFooter } from "@/components/site-footer";
 import { SiteHeader } from "@/components/site-header";
 import { WhatsappFab } from "@/components/whatsapp-fab";
 import { getAdminUser } from "@/lib/admin";
+import { getHomeConfig } from "@/lib/home-config-server";
 import { categorySlug } from "@/lib/categories";
 import {
   getCategoryCovers,
@@ -58,17 +59,20 @@ export default async function LojaLayout({
   // As categorias do menu saem das CAPAS (categorias com peça ativa, por
   // departamento), não do cadastro inteiro: é a mesma leitura cacheada que a
   // home usa (memoizada por requisição — uma ida ao cache para as duas).
-  const [adminUser, sessionUser, covers, temFeminino] = await Promise.all([
+  // As mensagens da faixa vêm da página inicial publicada no painel (cache com
+  // a etiqueta da decoração; memoizada — a home lê a mesma configuração).
+  const [adminUser, sessionUser, covers, temFeminino, home] = await Promise.all([
     getAdminUser(),
     getSessionUser(),
     getCategoryCovers(),
     hasDepartmentProducts("feminino"),
+    getHomeConfig(),
   ]);
   const freteAtivo = shippingConfigured();
 
   return (
     <>
-      <AnnouncementBar freteAtivo={freteAtivo} />
+      <AnnouncementBar avisos={home.avisos} freteAtivo={freteAtivo} />
       <SiteHeader
         isLogged={!!sessionUser} // cliente OU admin
         isAdmin={!!adminUser}

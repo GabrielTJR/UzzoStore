@@ -329,6 +329,27 @@ export type Database = {
         }
         Relationships: []
       }
+      home_config: {
+        Row: {
+          data: Json
+          slot: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          data?: Json
+          slot: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          data?: Json
+          slot?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: []
+      }
       home_sections: {
         Row: {
           active: boolean

@@ -4,6 +4,8 @@ import { CategoryStrip } from "@/components/category-strip";
 import { HomeHero } from "@/components/home-hero";
 import { ProductCard } from "@/components/product-card";
 import { getAdminUser } from "@/lib/admin";
+import { aplicaAtalhos } from "@/lib/home-config";
+import { getHomeConfig } from "@/lib/home-config-server";
 import { FABRIC_CLAIMS } from "@/lib/home-hero";
 import {
   getCategoryCovers,
@@ -18,7 +20,8 @@ import { getWishlistIds } from "@/lib/wishlist";
 /**
  * HOME — base fixa (out/2026).
  *
- * A decoração editável (`home_sections`, /admin/decoracao) está DESLIGADA por
+ * A decoração em blocos (`home_sections`, hoje em /admin/decoracao/blocos, sem
+ * link no menu) está DESLIGADA por
  * decisão do dono enquanto a base nova assenta: esta página não lê os blocos
  * (ver `HOME_DECORATIONS_ENABLED` em lib/home-sections.ts). Nada foi apagado
  * do banco; religar é voltar a renderizar os blocos aqui, no visual novo.
@@ -27,9 +30,13 @@ import { getWishlistIds } from "@/lib/wishlist";
  * atalhos de categoria → peças → por que o tecido importa → ofertas → o resto.
  * A roupa aparece antes do argumento.
  *
- * Custo: 5 leituras, todas no cache persistente (`unstable_cache`), nenhuma por
- * visita — destaques, ofertas, capas de categoria, "tem feminino?" e, só para
- * quem está logado, os favoritos.
+ * O hero, os atalhos de categoria (e, no layout, a faixa de avisos) vêm da
+ * PÁGINA INICIAL publicada no painel (/admin/decoracao, `lib/home-config.ts`).
+ * Sem nada publicado — ou sem a migração 0023 —, valem os de antes.
+ *
+ * Custo: 6 leituras, todas no cache persistente (`unstable_cache`), nenhuma por
+ * visita — destaques, ofertas, capas de categoria, "tem feminino?", a página
+ * inicial publicada e, só para quem está logado, os favoritos.
  */
 
 /**
@@ -147,24 +154,33 @@ function FemininoTeaser() {
 }
 
 export default async function Home() {
-  const [adminUser, sessionUser, favorites, covers, temFeminino, destaques, ofertas] =
-    await Promise.all([
-      getAdminUser(),
-      getSessionUser(),
-      getWishlistIds(),
-      getCategoryCovers(),
-      hasDepartmentProducts("feminino"),
-      getProducts({ featured: true, page: 1, perPage: 8 }),
-      getProducts({ onlyPromo: true, sort: "promocao", page: 1, perPage: 8 }),
-    ]);
+  const [
+    adminUser,
+    sessionUser,
+    favorites,
+    covers,
+    temFeminino,
+    destaques,
+    ofertas,
+    home,
+  ] = await Promise.all([
+    getAdminUser(),
+    getSessionUser(),
+    getWishlistIds(),
+    getCategoryCovers(),
+    hasDepartmentProducts("feminino"),
+    getProducts({ featured: true, page: 1, perPage: 8 }),
+    getProducts({ onlyPromo: true, sort: "promocao", page: 1, perPage: 8 }),
+    getHomeConfig(),
+  ]);
   const isAdmin = !!adminUser;
   const isLogged = !!sessionUser;
   const freteAtivo = shippingConfigured();
 
   return (
     <>
-      <HomeHero temFeminino={temFeminino} />
-      <CategoryStrip covers={covers} />
+      <HomeHero hero={home.hero} temFeminino={temFeminino} />
+      <CategoryStrip covers={aplicaAtalhos(covers, home.atalhos)} />
       <ProductRow
         title="Destaques"
         href="/masculino"

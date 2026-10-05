@@ -2,8 +2,14 @@
  * Conteúdo do hero da home ("Etiqueta"): uma foto de corpo inteiro e as
  * etiquetas que apontam o que o tecido faz.
  *
- * Fica em código enquanto a decoração da home está desligada (ver
- * `HOME_DECORATIONS_ENABLED`). Trocar a campanha = trocar este arquivo.
+ * Desde a migração 0023 a campanha é trocada pelo PAINEL (Vitrine → Página
+ * inicial, `lib/home-config.ts`). Este arquivo virou o VALOR DE FÁBRICA: é o
+ * que a loja mostra sem a migração, sem nada publicado ou se a leitura da
+ * configuração falhar — e é por onde o editor começa na primeira vez.
+ *
+ * O editor posiciona o rótulo sozinho quando o dono move um ponto
+ * (`posicionaEtiqueta`); as posições abaixo foram afinadas à mão e valem até
+ * alguém mexer nelas.
  *
  * COMO POSICIONAR UMA ETIQUETA — tudo é porcentagem da moldura da foto (que é
  * sempre 4:5, no celular e no desktop, justamente para os pontos não saírem do
