@@ -1,455 +1,731 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { useCart, cartSubtotal } from "@/lib/cart-store";
-import { formatBRL } from "@/lib/format";
-import { ShippingOptions } from "@/components/shipping-options";
-import { startOnlinePaymentAction } from "@/app/(loja)/sacola/actions";
+import { useCartUi } from "@/lib/cart-ui";
 import {
-  quoteShippingAction,
+  maskCpf,
+  maskPhone,
+  onlyDigits,
+  perfilCompleto,
+} from "@/lib/customer-fields";
+import { freteRecomendado } from "@/lib/freight-choice";
+import { nomeServicoFrete } from "@/lib/shipping-config";
+import { formatBRL } from "@/lib/format";
+import { EmailCodeForm } from "@/components/email-code-form";
+import {
+  cartStockAction,
+  startOnlinePaymentAction,
+  type PayCode,
+  type SaldoSacola,
+} from "@/app/(loja)/sacola/actions";
+import {
   checkCouponAction,
+  quoteShippingAction,
   type QuoteResult,
 } from "@/app/(loja)/sacola/shipping-actions";
-import { ProfileForm } from "@/app/(loja)/conta/account-forms";
-import { AddressForm } from "@/app/(loja)/conta/enderecos/address-forms";
 import type { CustomerAddress, CustomerProfile } from "@/lib/customer";
+import type { ShippingOption } from "@/lib/shipping";
+import { signOutAtCheckoutAction } from "./actions";
+import { StepShell, type StepEstado } from "./step-shell";
+import { ENDERECO_LOJA, StepDelivery, linhasEndereco } from "./step-delivery";
+import { StepProfile } from "./step-profile";
+import { StepPayment, type PayErroKind } from "./step-payment";
 
-const card = "rounded-sm border border-border p-5";
-const stepTitle = "text-sm font-medium text-muted";
+/**
+ * Checkout em UMA página, quatro passos: e-mail com código, entrega, dados e
+ * pagamento. Quem não está logado vê só o passo 1 aberto (sem ser mandado
+ * para /entrar — era ali que o cliente do Instagram se perdia).
+ *
+ * Regras que não podem regredir:
+ * - Depois do código, RECARGA COMPLETA (`window.location.assign`), nunca
+ *   refresh do roteador: o pós-login vira o mesmo caminho de "cliente logado abre
+ *   /checkout", e o cookie recém-gravado já vai na requisição.
+ * - O checkout NUNCA limpa a sacola: quem desiste na InfinitePay e volta tem
+ *   de achar tudo lá. Quem limpa é a confirmação, e só com pagamento aprovado.
+ * - Frete cotado só de ENDEREÇO SALVO (é o que o servidor recota), uma vez por
+ *   endereço + composição da sacola. Trocar retirada/entrega não recota.
+ * - Retirada nunca nasce marcada; nenhum "Outros fretes" nasce marcado
+ *   (`freteRecomendado`, a mesma regra da sacola).
+ * - Os passos são DERIVADOS (logado? entrega confirmada? perfil completo?), não
+ *   um contador que avança: assim uma recusa do pagamento reabre o passo certo
+ *   só desfazendo a condição dele.
+ */
+
+const RESERVA_MIN = 25; // reserva de 20 min + folga do pg_cron (roda a cada 5)
+const WHATSAPP_HREF = "/sacola"; // o fechamento pelo WhatsApp vive na sacola
+
+const assinaNada = () => () => {};
+
+const PAGAMENTO_INICIADO = "uzzo-pay-started";
+
+/** Marca a hora em que o cliente saiu para a InfinitePay (aba atual). */
+function marcarPagamentoIniciado() {
+  try {
+    sessionStorage.setItem(PAGAMENTO_INICIADO, String(Date.now()));
+  } catch {
+    /* sem sessionStorage: só perde o aviso de reserva própria */
+  }
+}
+
+/** O cliente iniciou um pagamento há pouco? Então a peça "sem estoque" pode
+ * estar reservada para o PRÓPRIO pedido anterior dele. */
+function pagamentoRecente(): boolean {
+  try {
+    const t = Number(sessionStorage.getItem(PAGAMENTO_INICIADO));
+    return !!t && Date.now() - t < RESERVA_MIN * 60_000;
+  } catch {
+    return false;
+  }
+}
+
+type Perfil = { fullName: string; cpf: string; phone: string };
 
 export function CheckoutFlow({
   profile,
   addresses,
+  shippingEnabled,
 }: {
-  profile: CustomerProfile;
+  profile: CustomerProfile | null;
   addresses: CustomerAddress[];
+  shippingEnabled: boolean;
 }) {
-  const router = useRouter();
   const items = useCart((s) => s.items);
   const coupon = useCart((s) => s.coupon);
-  const [mounted, setMounted] = useState(false);
-  useEffect(() => setMounted(true), []);
+  const setCoupon = useCart((s) => s.setCoupon);
 
-  // Dados obrigatórios para faturar e entregar.
-  const profileComplete = !!(profile.fullName && profile.cpf && profile.phone);
-  const [editingProfile, setEditingProfile] = useState(!profileComplete);
-
-  const [method, setMethod] = useState<"pickup" | "delivery">(
-    addresses.length > 0 ? "delivery" : "pickup",
+  // Guarda de hidratação: a sacola mora no localStorage, que o servidor não vê.
+  const mounted = useSyncExternalStore(
+    assinaNada,
+    () => true,
+    () => false,
   );
-  const [addressId, setAddressId] = useState<string>(
-    addresses.find((a) => a.isDefault)?.id ?? addresses[0]?.id ?? "",
-  );
-  const [addingAddress, setAddingAddress] = useState(false);
 
-  // Frete: cotado pelo CEP do ENDEREÇO escolhido (não por CEP digitado solto).
-  const [quote, setQuote] = useState<QuoteResult | null>(null);
-  const [quoting, setQuoting] = useState(false);
+  const [entrando, setEntrando] = useState(false);
+  const [perfilLocal, setPerfilLocal] = useState<Perfil | null>(null);
+  const [enderecosExtras, setEnderecosExtras] = useState<CustomerAddress[]>([]);
+  const [method, setMethod] = useState<"delivery" | "pickup" | null>(
+    addresses.length > 0 ? "delivery" : null,
+  );
+  const [addressId, setAddressId] = useState<string | null>(
+    addresses.find((a) => a.isDefault)?.id ?? addresses[0]?.id ?? null,
+  );
+  const [addrFormOpen, setAddrFormOpen] = useState(false);
+  /** Chave da entrega que o cliente confirmou com "Continuar" (ver `chaveEntrega`). */
+  const [confirmada, setConfirmada] = useState<string | null>(null);
+  const [editando, setEditando] = useState<2 | 3 | null>(null);
+  /** Cotações por `quoteKey` — é o cache: alternar retirada/entrega ou voltar
+   * a um endereço já cotado não chama o servidor de novo. */
+  const [quotes, setQuotes] = useState<Record<string, QuoteResult>>({});
   const [freightServiceId, setFreightServiceId] = useState<number | null>(null);
-  const [quoteTry, setQuoteTry] = useState(0);
-
-  // Cupom aplicado na sacola: revalida aqui só para EXIBIR o desconto — quem
-  // decide de verdade é o servidor na hora do pedido.
   const [couponDiscount, setCouponDiscount] = useState(0);
-
+  const [couponMsg, setCouponMsg] = useState<string | null>(null);
+  const [saldo, setSaldo] = useState<Record<string, SaldoSacola> | null>(null);
+  const [stockTry, setStockTry] = useState(0);
   const [busy, setBusy] = useState(false);
+  const [saindo, setSaindo] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [errorKind, setErrorKind] = useState<PayErroKind | null>(null);
+  const [reservaPropria, setReservaPropria] = useState(false);
+  const [aviso, setAviso] = useState<string | null>(null);
 
-  const selectedAddress = addresses.find((a) => a.id === addressId) ?? null;
+  const pendentes = useRef(new Set<string>());
+  /** Cupom acabado de aplicar à mão: a revalidação logo em seguida seria a
+   * mesma consulta duas vezes (e gastaria o freio de 10 por 10 min). */
+  const pularCupom = useRef<string | null>(null);
+  const ativoAnterior = useRef<number | null>(null);
 
+  /* ---------- derivados ---------- */
+
+  const logged = !!profile;
+  const perfil = profile ? { ...profile, ...(perfilLocal ?? {}) } : null;
+  const enderecos = [
+    ...addresses,
+    ...enderecosExtras.filter((e) => !addresses.some((a) => a.id === e.id)),
+  ];
+  const selectedAddress = enderecos.find((a) => a.id === addressId) ?? null;
+  const composicao = items.map((i) => `${i.variantId}:${i.qty}`).join("|");
+  const cep8 = onlyDigits(selectedAddress?.cep ?? "");
+  const quoteKey =
+    method === "delivery" && selectedAddress ? `${cep8}|${composicao}` : null;
+  const formAberto =
+    method === "delivery" && (enderecos.length === 0 || addrFormOpen);
+
+  // Os dois casos locais (cotação desligada, CEP torto) nem vão ao servidor.
+  let quote: QuoteResult | null = null;
+  if (quoteKey) {
+    if (!shippingEnabled) quote = { ok: false, unavailable: true };
+    else if (cep8.length !== 8)
+      quote = {
+        ok: false,
+        error: "Este endereço está com o CEP incompleto. Use outro endereço.",
+      };
+    else quote = quotes[quoteKey] ?? null;
+  }
+  const quoting =
+    !!quoteKey && shippingEnabled && cep8.length === 8 && !(quoteKey in quotes);
+
+  // Frete marcado: a escolha do cliente enquanto ela existir na lista; senão a
+  // recomendada. Derivado (não gravado ao chegar a cotação) para não depender
+  // da ordem em que as respostas chegam.
+  const opcoes: ShippingOption[] = quote?.ok ? quote.options : [];
+  const servicoEscolhido: number | null = quote?.ok
+    ? opcoes.some((o) => o.serviceId === freightServiceId)
+      ? freightServiceId
+      : (freteRecomendado(opcoes, quote.freeApplied)?.serviceId ?? null)
+    : null;
+  const freightOption =
+    opcoes.find((o) => o.serviceId === servicoEscolhido) ?? null;
+
+  const entregaValida =
+    method === "pickup" ||
+    (method === "delivery" &&
+      !!selectedAddress &&
+      !formAberto &&
+      !!quote &&
+      !quoting &&
+      (quote.ok ? servicoEscolhido != null : quote.unavailable === true));
+
+  // "Continuar" grava ESTA chave. Mudou o método, o endereço ou (na entrega) a
+  // sacola, a chave muda e o passo 2 reabre sozinho — o frete confirmado era
+  // de outra cesta.
+  const chaveEntrega =
+    method === "pickup"
+      ? "pickup"
+      : method === "delivery" && selectedAddress
+        ? `delivery|${selectedAddress.id}|${composicao}`
+        : null;
+  const entregaConfirmada = confirmada != null && confirmada === chaveEntrega;
+  const sacolaMudou =
+    !!selectedAddress &&
+    method === "delivery" &&
+    !!confirmada &&
+    confirmada !== chaveEntrega &&
+    confirmada.startsWith(`delivery|${selectedAddress.id}|`);
+
+  const passo2Feito =
+    logged && entregaConfirmada && entregaValida && editando !== 2;
+  const passo3Feito = logged && perfilCompleto(perfil) && editando !== 3;
+  const ativo = !logged ? 1 : !passo2Feito ? 2 : !passo3Feito ? 3 : 4;
+  const feito = (n: number) =>
+    n === 1 ? logged : n === 2 ? passo2Feito : n === 3 ? passo3Feito : false;
+  const estado = (n: number): StepEstado =>
+    n === ativo ? "ativo" : feito(n) ? "concluido" : "futuro";
+
+  // Variante sem saldo lido ainda (entrou depois da última leitura) não conta
+  // como falta: o efeito de estoque relê assim que a composição muda.
+  const temFalta = saldo
+    ? items.some((i) => i.variantId in saldo && saldo[i.variantId].qty < i.qty)
+    : false;
+  const subtotal = cartSubtotal(items);
+  const desconto = coupon ? couponDiscount : 0;
+  const frete = method === "delivery" && freightOption ? freightOption.price : 0;
+  const total = Math.max(0, subtotal - desconto + frete);
+  const canPay =
+    ativo === 4 && items.length > 0 && !temFalta && !busy && !saindo;
+
+  /* ---------- efeitos (todos só com login) ---------- */
+
+  // Cotação: uma por endereço + composição. A chave identifica a requisição:
+  // resposta que chega depois de o cliente trocar de endereço é guardada sob a
+  // chave DELA e nunca aparece no endereço errado.
   useEffect(() => {
-    let ignore = false;
-    setQuote(null);
-    setFreightServiceId(null);
-    if (method !== "delivery" || !selectedAddress?.cep || items.length === 0)
-      return;
-    setQuoting(true);
+    if (!logged || !quoteKey || !selectedAddress) return;
+    if (!shippingEnabled || cep8.length !== 8) return;
+    if (quoteKey in quotes || pendentes.current.has(quoteKey)) return;
+    const key = quoteKey;
+    pendentes.current.add(key);
     quoteShippingAction(
       selectedAddress.cep,
       items.map((i) => ({ variantId: i.variantId, qty: i.qty })),
     )
+      .then((res) => setQuotes((q) => ({ ...q, [key]: res })))
+      .catch(() =>
+        setQuotes((q) => ({
+          ...q,
+          [key]: { ok: false, error: "Não conseguimos cotar o frete agora." },
+        })),
+      )
+      .finally(() => pendentes.current.delete(key));
+  }, [logged, quoteKey, selectedAddress, shippingEnabled, cep8, quotes, items]);
+
+  // Cupom persistido na sacola: revalida para EXIBIR o desconto (quem decide é
+  // o pedido). Freio não é recusa: mantém o cupom.
+  useEffect(() => {
+    if (!logged || !coupon || items.length === 0) return;
+    if (pularCupom.current === coupon) {
+      pularCupom.current = null;
+      return;
+    }
+    let ignore = false;
+    checkCouponAction(
+      coupon,
+      items.map((i) => ({ variantId: i.variantId, qty: i.qty })),
+    )
       .then((res) => {
         if (ignore) return;
-        setQuote(res);
-        // Pré-seleciona — um toque a menos no celular. Normalmente a mais
-        // barata (marcar uma paga por padrão cobraria uma escolha que o
-        // cliente não fez); com o frete grátis todas custam zero, e aí a mais
-        // rápida é estritamente melhor para ele.
-        if (res.ok && res.options.length > 0) {
-          // Com frete grátis a loja cobre até a recomendada: entre as que saem
-          // por R$ 0, a que chega antes é a melhor para o cliente e não custa
-          // nada a mais para a loja. As pagas nunca vêm marcadas.
-          const livres = res.freeApplied
-            ? res.options.filter((o) => o.free)
-            : [];
-          const rec =
-            livres.length > 0
-              ? livres.reduce((a, b) => (b.days < a.days ? b : a))
-              : res.options[0];
-          setFreightServiceId(rec.serviceId);
+        if (res.ok) {
+          setCouponDiscount(res.discount);
+          setCouponMsg(null);
+        } else if (res.rateLimited) {
+          setCouponMsg("O desconto do cupom entra no valor final.");
+        } else {
+          setCoupon(null);
+          setCouponDiscount(0);
+          setCouponMsg(`O cupom aplicado não vale mais: ${res.error}`);
         }
       })
       .catch(() => {
-        if (!ignore) setQuote({ ok: false, error: "Não conseguimos cotar." });
+        /* rede: fica o que estava; o pedido revalida */
+      });
+    return () => {
+      ignore = true;
+    };
+    // `composicao` resume `items` (ids + quantidades): mudar só a referência
+    // não pode refazer a consulta.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [logged, coupon, composicao]);
+
+  // Estoque da sacola: avisa a falta ANTES do toque em pagar. Resposta vazia
+  // com ids enviados = leitura falhou; falha aberto (o servidor decide).
+  useEffect(() => {
+    if (!logged || items.length === 0) return;
+    let ignore = false;
+    cartStockAction(items.map((i) => i.variantId))
+      .then((r) => {
+        if (!ignore) setSaldo(Object.keys(r).length === 0 ? null : r);
       })
-      .finally(() => {
-        if (!ignore) setQuoting(false);
+      .catch(() => {
+        if (!ignore) setSaldo(null);
       });
     return () => {
       ignore = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [method, addressId, selectedAddress?.cep, items.length, quoteTry]);
+  }, [logged, composicao, stockTry]);
 
+  // Voltar da InfinitePay pelo "voltar" restaura a página do bfcache com o
+  // botão em "Abrindo pagamento…" para sempre. Reabilita e relê a sacola (outra
+  // aba pode tê-la mudado).
   useEffect(() => {
-    let ignore = false;
-    if (!coupon || items.length === 0) {
-      setCouponDiscount(0);
+    const onShow = (e: PageTransitionEvent) => {
+      if (!e.persisted) return;
+      setBusy(false);
+      setSaindo(false);
+      void useCart.persist.rehydrate();
+    };
+    window.addEventListener("pageshow", onShow);
+    return () => window.removeEventListener("pageshow", onShow);
+  }, []);
+
+  // Logado de verdade: a marca do detector de laço do EmailCodeForm cumpriu o
+  // papel. Sem apagar, quem sai da conta ("trocar") no mesmo minuto veria o
+  // aviso de "não conseguimos manter você conectado" sem motivo.
+  useEffect(() => {
+    if (!logged) return;
+    try {
+      sessionStorage.removeItem("uzzo-otp-ok");
+    } catch {
+      /* sem sessionStorage */
+    }
+  }, [logged]);
+
+  // Passo ativo mudou: leva a tela e o foco ao título dele (leitor de tela
+  // anuncia o passo novo; no celular o cliente não precisa caçar onde está).
+  // Não na primeira montagem — quem chega não deve ser rolado.
+  useEffect(() => {
+    if (!mounted) return;
+    const antes = ativoAnterior.current;
+    ativoAnterior.current = ativo;
+    if (antes == null || antes === ativo) return;
+    const h = document.getElementById(`passo-${ativo}-titulo`);
+    if (!h) return;
+    const calmo = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    h.scrollIntoView({ block: "start", behavior: calmo ? "auto" : "smooth" });
+    h.focus({ preventScroll: true });
+  }, [ativo, mounted]);
+
+  /* ---------- transições ---------- */
+
+  const recarregar = () => window.location.assign("/checkout");
+
+  /** Falha de cotação não é cache: ao sair do endereço/método ela some, e
+   * voltar a ele tenta de novo. */
+  function limparFalhasDeCotacao() {
+    setQuotes((q) => {
+      const n: Record<string, QuoteResult> = {};
+      for (const [k, v] of Object.entries(q))
+        if (v.ok || v.unavailable) n[k] = v;
+      return n;
+    });
+  }
+
+  function escolherMetodo(m: "delivery" | "pickup") {
+    setMethod(m);
+    setAviso(null);
+    limparFalhasDeCotacao();
+  }
+
+  function escolherEndereco(id: string) {
+    setAddressId(id);
+    setAviso(null);
+    limparFalhasDeCotacao();
+  }
+
+  function enderecoSalvo(a: CustomerAddress) {
+    setEnderecosExtras((x) => (x.some((e) => e.id === a.id) ? x : [...x, a]));
+    setAddressId(a.id);
+    setAddrFormOpen(false);
+    setAviso(null);
+    // O CEP salvo vira o "último CEP" da sacola (pré-preenche a próxima vez).
+    useCart.getState().setCep(onlyDigits(a.cep));
+  }
+
+  function tentarCotarDeNovo() {
+    if (!quoteKey) return;
+    const k = quoteKey;
+    setQuotes((q) => {
+      const n = { ...q };
+      delete n[k];
+      return n;
+    });
+  }
+
+  function continuarEntrega() {
+    if (!entregaValida || !chaveEntrega) return;
+    if (servicoEscolhido != null) setFreightServiceId(servicoEscolhido);
+    setConfirmada(chaveEntrega);
+    setEditando(null);
+    setAviso(null);
+  }
+
+  function aplicarCupom(code: string, discount: number) {
+    pularCupom.current = code;
+    setCoupon(code);
+    setCouponDiscount(discount);
+    setCouponMsg(null);
+    if (errorKind === "coupon") {
+      setError(null);
+      setErrorKind(null);
+    }
+  }
+
+  function removerCupom() {
+    setCoupon(null);
+    setCouponDiscount(0);
+    setCouponMsg(null);
+    if (errorKind === "coupon") {
+      setError(null);
+      setErrorKind(null);
+    }
+  }
+
+  function reagir(res: { error?: string; needsLogin?: boolean; code?: PayCode }) {
+    if (res.needsLogin || res.code === "login") {
+      recarregar();
       return;
     }
-    checkCouponAction(
-      coupon,
-      items.map((i) => ({ variantId: i.variantId, qty: i.qty })),
-    ).then((res) => {
-      if (!ignore) setCouponDiscount(res.ok ? res.discount : 0);
-    });
-    return () => {
-      ignore = true;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [coupon, items.length]);
-
-  const subtotal = cartSubtotal(items);
-  const freightOption =
-    quote?.ok && freightServiceId != null
-      ? (quote.options.find((o) => o.serviceId === freightServiceId) ?? null)
-      : null;
-  const freightCost = method === "delivery" ? (freightOption?.price ?? 0) : 0;
-  const total = Math.max(0, subtotal - couponDiscount + freightCost);
-
-  // Com a cotação funcionando, entrega exige uma opção de frete; se a cotação
-  // está indisponível (sem token/fora do ar), o pedido segue e o frete é
-  // combinado no WhatsApp — indisponibilidade não pode travar a venda.
-  // Cotação FALHOU com o serviço configurado (não é o caso "sem token"): não
-  // deixamos pagar às cegas — o cliente recota ou finaliza pelo WhatsApp.
-  const quoteFailed = !!quote && !quote.ok && !quote.unavailable;
-  const freightOk =
-    method === "pickup" ||
-    !quote ||
-    (!quote.ok && quote.unavailable === true) ||
-    (quote.ok && freightServiceId != null);
-  const canPay =
-    profileComplete &&
-    items.length > 0 &&
-    (method === "pickup" || (method === "delivery" && !!addressId)) &&
-    !quoting &&
-    !quoteFailed &&
-    freightOk;
+    switch (res.code) {
+      case "profile":
+        setEditando(3);
+        setAviso(res.error ?? "Complete seus dados para pagar.");
+        return;
+      case "address":
+        setEditando(2);
+        setConfirmada(null);
+        setAviso("Escolha o endereço de entrega de novo.");
+        return;
+      case "freight_required":
+      case "freight_changed":
+      case "freight_down":
+        tentarCotarDeNovo();
+        setConfirmada(null);
+        setAviso(
+          "O valor do frete mudou. Confira as opções e toque em pagar de novo.",
+        );
+        return;
+      case "stock":
+      case "items": {
+        setError(res.error ?? "Uma peça da sacola não está mais disponível.");
+        setErrorKind("stock");
+        setStockTry((t) => t + 1);
+        setReservaPropria(pagamentoRecente());
+        return;
+      }
+      case "coupon":
+        setError(res.error ?? "O cupom não vale para este pedido.");
+        setErrorKind("coupon");
+        return;
+      default:
+        setError(res.error ?? "Não foi possível abrir o pagamento.");
+        setErrorKind("other");
+    }
+  }
 
   async function handlePay() {
-    if (!canPay || busy) return;
+    if (!canPay || !method) return;
+    if (method === "delivery" && !selectedAddress) return;
     setError(null);
+    setErrorKind(null);
+    setReservaPropria(false);
+    setAviso(null);
     setBusy(true);
+    let saiu = false;
     try {
+      const entregaComCotacao = method === "delivery" && !!quote?.ok;
       const res = await startOnlinePaymentAction(
         items.map((i) => ({ variantId: i.variantId, qty: i.qty })),
         method === "pickup"
           ? { method: "pickup" }
-          : { method: "delivery", addressId },
+          : { method: "delivery", addressId: selectedAddress!.id },
         {
           couponCode: coupon,
-          freightServiceId:
-            method === "delivery" && quote?.ok ? freightServiceId : null,
-          freightExpectedPrice:
-            method === "delivery" && quote?.ok
-              ? (freightOption?.price ?? null)
-              : null,
+          freightServiceId: entregaComCotacao ? servicoEscolhido : null,
+          // O preço que a tela MOSTROU: referência para o servidor recusar
+          // recotação mais cara em vez de cobrar diferente em silêncio.
+          freightExpectedPrice: entregaComCotacao
+            ? (freightOption?.price ?? null)
+            : null,
         },
       );
-      if (res.needsLogin) {
-        router.push("/entrar?next=%2Fcheckout");
+      if (res.ok && res.url) {
+        marcarPagamentoIniciado();
+        // A sacola NÃO é limpa: se o cliente voltar sem pagar, ela está aqui.
+        saiu = true;
+        setSaindo(true);
+        window.location.assign(res.url);
         return;
       }
-      if (!res.ok || !res.url) {
-        setError(res.error ?? "Não foi possível abrir o pagamento.");
-        return;
-      }
-      window.location.href = res.url;
+      reagir(res);
     } catch {
       setError("Não foi possível abrir o pagamento.");
+      setErrorKind("other");
     } finally {
-      setBusy(false);
+      // Saindo para a InfinitePay o botão fica travado (dois toques = dois
+      // pedidos); o `pageshow` o devolve se o cliente voltar.
+      if (!saiu) setBusy(false);
     }
   }
+
+  /* ---------- render ---------- */
+
+  if (entrando)
+    return (
+      <p role="status" className="mt-8 text-sm text-muted">
+        Entrando…
+      </p>
+    );
 
   if (!mounted) return <p className="mt-8 text-sm text-muted">Carregando…</p>;
 
   if (items.length === 0)
     return (
-      <div className="mt-8 rounded-sm border border-dashed border-border p-6 text-sm text-muted">
+      <div className="mt-8 rounded-sm border border-dashed border-border p-6 text-sm">
         <p>Sua sacola está vazia.</p>
-        <Link
-          href="/produtos"
-          className="mt-2 inline-block underline underline-offset-4 hover:text-foreground"
-        >
-          Ver produtos
-        </Link>
+        <div className="mt-3 flex flex-wrap gap-x-5 gap-y-2">
+          <Link
+            href="/produtos"
+            className="inline-flex min-h-11 items-center underline underline-offset-4 hover:text-muted"
+          >
+            Ver produtos
+          </Link>
+          {logged && (
+            <Link
+              href="/conta/pedidos"
+              prefetch={false}
+              className="inline-flex min-h-11 items-center text-muted underline underline-offset-4 hover:text-foreground"
+            >
+              Ver meus pedidos
+            </Link>
+          )}
+        </div>
       </div>
     );
 
+  /* resumos dos passos concluídos */
+  const resumoEntrega =
+    method === "pickup" ? (
+      <>
+        <p>Retirar na loja, grátis</p>
+        <p>{ENDERECO_LOJA}</p>
+      </>
+    ) : selectedAddress ? (
+      <>
+        <p>{linhasEndereco(selectedAddress).slice(0, 2).join(", ")}</p>
+        {freightOption ? (
+          <p>
+            {nomeServicoFrete(
+              freightOption.serviceId,
+              freightOption.name,
+              freightOption.company,
+            )}
+            {freightOption.days > 0
+              ? `, até ${freightOption.days} dias úteis`
+              : ""}
+            , {freightOption.price > 0 ? formatBRL(freightOption.price) : "grátis"}
+          </p>
+        ) : quote && !quote.ok && quote.unavailable ? (
+          <p>Frete combinado pelo WhatsApp depois do pagamento</p>
+        ) : null}
+      </>
+    ) : null;
+
+  const resumoPerfil = perfil ? (
+    <>
+      <p>{perfil.fullName}</p>
+      <p>
+        {[
+          perfil.cpf ? `CPF ${maskCpf(perfil.cpf)}` : null,
+          perfil.phone ? `tel. ${maskPhone(perfil.phone)}` : null,
+        ]
+          .filter(Boolean)
+          .join(", ")}
+      </p>
+    </>
+  ) : null;
+
+  const avisoEntrega =
+    aviso ??
+    (sacolaMudou
+      ? "O frete foi recalculado porque a sacola mudou. Confira e continue."
+      : null);
+
+  const freteRotulo =
+    method === "pickup"
+      ? "Retirada na loja"
+      : freightOption
+        ? `Frete (${nomeServicoFrete(
+            freightOption.serviceId,
+            freightOption.name,
+            freightOption.company,
+          )})`
+        : "Frete";
+  const freteValor =
+    method === "pickup" ? 0 : freightOption ? freightOption.price : null;
+
   return (
-    <div className="mt-8 space-y-8">
-      {/* 1. Dados do cliente */}
-      <div>
-        <p className={stepTitle}>1. Seus dados</p>
-        <div className={`mt-3 ${card}`}>
-          {editingProfile ? (
-            <>
-              {!profileComplete && (
-                <p className="mb-4 rounded-xs border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm">
-                  Para comprar precisamos do seu nome, CPF e telefone.
-                </p>
-              )}
-              <ProfileForm profile={profile} />
+    <ol className="mt-8">
+      <StepShell
+        n={1}
+        titulo="Seu e-mail"
+        estado={estado(1)}
+        resumo={profile?.email ? <p className="break-all">{profile.email}</p> : null}
+        trocar={
+          logged ? (
+            // Sair é a única forma honesta de "trocar o e-mail": a sessão é
+            // dessa conta. A sacola fica (localStorage).
+            <form
+              action={signOutAtCheckoutAction}
+              onSubmit={(e) => {
+                if (!window.confirm("Sair desta conta e usar outro e-mail?"))
+                  e.preventDefault();
+              }}
+            >
               <button
-                type="button"
-                onClick={() => router.refresh()}
-                className="mt-4 text-sm underline underline-offset-4 hover:text-foreground"
+                type="submit"
+                className="-my-2 inline-flex min-h-11 items-center text-sm underline underline-offset-4 hover:text-muted"
               >
-                Já salvei, continuar
+                trocar<span className="sr-only"> e-mail</span>
               </button>
-            </>
-          ) : (
-            <div className="flex flex-wrap items-start justify-between gap-3 text-sm">
-              <div>
-                <p className="font-medium">{profile.fullName}</p>
-                <p className="text-muted">
-                  CPF {profile.cpf} · {profile.phone}
-                </p>
-                <p className="text-muted">{profile.email}</p>
-              </div>
-              <button
-                type="button"
-                onClick={() => setEditingProfile(true)}
-                className="text-sm underline underline-offset-4 hover:text-foreground"
-              >
-                Editar
-              </button>
-            </div>
-          )}
-        </div>
-      </div>
+            </form>
+          ) : null
+        }
+      >
+        <EmailCodeForm
+          origem="checkout"
+          senhaHref="/entrar?next=%2Fcheckout"
+          onVerified={() => {
+            setEntrando(true);
+            recarregar();
+          }}
+        />
+      </StepShell>
 
-      {/* 2. Entrega ou retirada */}
-      <div>
-        <p className={stepTitle}>2. Entrega</p>
-        <div className={`mt-3 space-y-4 ${card}`}>
-          <label className="flex cursor-pointer items-start gap-3 text-sm">
-            <input
-              type="radio"
-              name="method"
-              checked={method === "pickup"}
-              onChange={() => setMethod("pickup")}
-              className="mt-1 h-4 w-4"
-            />
-            <span>
-              <span className="font-medium">Retirar na loja — grátis</span>
-              <span className="block text-muted">
-                Rua 3650, nº 3573 — Sala 2, Balneário Camboriú/SC
-              </span>
-            </span>
-          </label>
+      <StepShell
+        n={2}
+        titulo="Entrega"
+        estado={estado(2)}
+        resumo={resumoEntrega}
+        onTrocar={() => {
+          setEditando(2);
+          setConfirmada(null);
+        }}
+      >
+        <StepDelivery
+          method={method}
+          onMethod={escolherMetodo}
+          enderecos={enderecos}
+          addressId={addressId}
+          onAddress={escolherEndereco}
+          formAberto={formAberto}
+          onOpenForm={() => setAddrFormOpen(true)}
+          onCloseForm={() => setAddrFormOpen(false)}
+          onAddressSaved={enderecoSalvo}
+          onNeedsLogin={recarregar}
+          quote={quote}
+          quoting={quoting}
+          servicoEscolhido={servicoEscolhido}
+          onFrete={(o) => setFreightServiceId(o.serviceId)}
+          onRetry={tentarCotarDeNovo}
+          entregaValida={entregaValida}
+          onContinue={continuarEntrega}
+          aviso={avisoEntrega}
+          whatsappHref={WHATSAPP_HREF}
+        />
+      </StepShell>
 
-          <label className="flex cursor-pointer items-start gap-3 text-sm">
-            <input
-              type="radio"
-              name="method"
-              checked={method === "delivery"}
-              onChange={() => setMethod("delivery")}
-              className="mt-1 h-4 w-4"
-            />
-            <span>
-              <span className="font-medium">Entrega</span>
-              <span className="block text-muted">
-                Calculamos o frete pelo seu endereço.
-              </span>
-            </span>
-          </label>
+      <StepShell
+        n={3}
+        titulo="Seus dados"
+        estado={estado(3)}
+        resumo={resumoPerfil}
+        onTrocar={() => setEditando(3)}
+      >
+        {aviso && (
+          <p role="alert" className="mb-4 text-sm text-red-600 dark:text-red-400">
+            {aviso}
+          </p>
+        )}
+        <StepProfile
+          inicial={perfil}
+          onSaved={(p) => {
+            setPerfilLocal(p);
+            setEditando(null);
+            setAviso(null);
+          }}
+          onCancel={
+            perfilCompleto(perfil) ? () => setEditando(null) : undefined
+          }
+          onNeedsLogin={recarregar}
+        />
+      </StepShell>
 
-          {method === "delivery" && (
-            <div className="space-y-3 border-t border-border pt-4">
-              {addresses.map((a) => (
-                <label
-                  key={a.id}
-                  className="flex cursor-pointer items-start gap-3 text-sm"
-                >
-                  <input
-                    type="radio"
-                    name="address"
-                    checked={addressId === a.id}
-                    onChange={() => setAddressId(a.id)}
-                    className="mt-1 h-4 w-4"
-                  />
-                  <span>
-                    <span className="font-medium">
-                      {a.label ?? "Endereço"}
-                      {a.isDefault && (
-                        <span className="ml-2 text-xs text-muted">
-                          (principal)
-                        </span>
-                      )}
-                    </span>
-                    <span className="block text-muted">
-                      {a.street}
-                      {a.number ? `, ${a.number}` : ""}
-                      {a.complement ? ` — ${a.complement}` : ""} · {a.city}/
-                      {a.state} · CEP {a.cep}
-                    </span>
-                  </span>
-                </label>
-              ))}
-
-              {addresses.length === 0 && !addingAddress && (
-                <p className="text-sm text-muted">
-                  Você ainda não tem endereço cadastrado.
-                </p>
-              )}
-
-              {addingAddress ? (
-                <div className="space-y-3">
-                  <AddressForm
-                    onDone={() => {
-                      setAddingAddress(false);
-                      router.refresh(); // traz o endereço novo para a lista
-                    }}
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setAddingAddress(false)}
-                    className="text-sm text-muted underline underline-offset-4 hover:text-foreground"
-                  >
-                    Cancelar
-                  </button>
-                </div>
-              ) : (
-                <button
-                  type="button"
-                  onClick={() => setAddingAddress(true)}
-                  className="rounded-xs border border-dashed border-border px-4 py-2 text-sm hover:border-foreground"
-                >
-                  + Cadastrar novo endereço
-                </button>
-              )}
-
-              {/* Opções de frete do endereço escolhido */}
-              {addressId && (
-                <div className="border-t border-border pt-4">
-                  <p className="text-sm font-medium">Frete</p>
-                  {quoting && (
-                    <p className="mt-2 text-sm text-muted">
-                      Calculando opções…
-                    </p>
-                  )}
-                  {quote && !quote.ok && (
-                    <div className="mt-2 space-y-2 text-sm text-muted">
-                      <p>
-                        {quote.unavailable
-                          ? "Cotação online em breve — combinamos o frete pelo WhatsApp depois do pagamento."
-                          : (quote.error ?? "Não conseguimos cotar agora.")}
-                      </p>
-                      {!quote.unavailable && (
-                        <button
-                          type="button"
-                          onClick={() => setQuoteTry((n) => n + 1)}
-                          className="rounded-xs border border-border px-4 py-1.5 text-xs font-medium hover:border-foreground"
-                        >
-                          Tentar cotar de novo
-                        </button>
-                      )}
-                    </div>
-                  )}
-                  {quote?.ok && (
-                    <ShippingOptions
-                      options={quote.options}
-                      selectedServiceId={freightServiceId}
-                      onSelect={(o) => setFreightServiceId(o.serviceId)}
-                    />
-                  )}
-                </div>
-              )}
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* 3. Resumo e pagamento */}
-      <div>
-        <p className={stepTitle}>3. Pagamento</p>
-        <div className={`mt-3 ${card}`}>
-          <ul className="space-y-1 text-sm text-muted">
-            {items.map((i) => (
-              <li key={i.variantId}>
-                {i.qty}× {i.productName}
-                {i.color || i.size
-                  ? ` — ${[i.color, i.size].filter(Boolean).join(" / ")}`
-                  : ""}{" "}
-                · {formatBRL(i.price * i.qty)}
-              </li>
-            ))}
-          </ul>
-
-          <dl className="mt-4 space-y-1 border-t border-border pt-4 text-sm">
-            <div className="flex items-baseline justify-between">
-              <dt className="text-muted">Subtotal</dt>
-              <dd>{formatBRL(subtotal)}</dd>
-            </div>
-            {couponDiscount > 0 && (
-              <div className="flex items-baseline justify-between">
-                <dt className="text-muted">Cupom {coupon}</dt>
-                <dd>−{formatBRL(couponDiscount)}</dd>
-              </div>
-            )}
-            {method === "delivery" && freightOption && (
-              <div className="flex items-baseline justify-between">
-                <dt className="text-muted">Frete ({freightOption.name})</dt>
-                <dd>
-                  {freightOption.price > 0
-                    ? formatBRL(freightOption.price)
-                    : "Grátis"}
-                </dd>
-              </div>
-            )}
-            <div className="flex items-baseline justify-between pt-1">
-              <dt className="text-muted">Total</dt>
-              <dd className="text-xl font-medium">{formatBRL(total)}</dd>
-            </div>
-          </dl>
-
-          {error && <p className="mt-3 text-sm text-red-600">{error}</p>}
-
-          <button
-            type="button"
-            onClick={handlePay}
-            disabled={!canPay || busy}
-            className="mt-5 inline-flex h-12 w-full items-center justify-center rounded-xs bg-foreground px-8 text-sm font-medium text-background transition-opacity hover:opacity-90 disabled:opacity-50"
-          >
-            {busy ? "Abrindo pagamento…" : "Pagar com Pix ou cartão"}
-          </button>
-
-          {!profileComplete && (
-            <p className="mt-2 text-center text-xs text-muted">
-              Complete seus dados acima para continuar.
-            </p>
-          )}
-          {method === "delivery" && !addressId && (
-            <p className="mt-2 text-center text-xs text-muted">
-              Escolha ou cadastre um endereço de entrega.
-            </p>
-          )}
-        </div>
-      </div>
-    </div>
+      <StepShell n={4} titulo="Pagamento" estado={estado(4)}>
+        <StepPayment
+          items={items}
+          saldo={saldo}
+          subtotal={subtotal}
+          coupon={coupon}
+          couponDiscount={desconto}
+          couponMsg={couponMsg}
+          onCouponApplied={aplicarCupom}
+          onCouponRemoved={removerCupom}
+          freteRotulo={freteRotulo}
+          freteValor={freteValor}
+          total={total}
+          temFalta={temFalta}
+          canPay={canPay}
+          busy={busy}
+          saindo={saindo}
+          onPay={handlePay}
+          error={error}
+          errorKind={errorKind}
+          reservaPropria={reservaPropria}
+          onAjustarSacola={() => useCartUi.getState().openCart()}
+          whatsappHref={WHATSAPP_HREF}
+        />
+      </StepShell>
+    </ol>
   );
 }
