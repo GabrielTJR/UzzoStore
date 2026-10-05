@@ -7,6 +7,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { liberarReserva } from "@/lib/stock";
 import { CACHE_TAGS } from "@/lib/products";
 import { getCurrentUser } from "@/lib/customer";
+import { formatCpf, formatPhone } from "@/lib/customer-fields";
 
 export type ActionResult = { ok: boolean; error?: string };
 
@@ -26,12 +27,25 @@ export async function updateProfileAction(
   const fullName = text(formData.get("fullName"));
   if (!fullName) return { ok: false, error: "Informe seu nome." };
 
+  // Vazio continua permitido aqui (a conta não é o checkout), mas preenchido
+  // tem de ser válido: um CPF "1" gravado em /conta pararia o cliente no
+  // checkout sem ele entender por quê. Grava já formatado — a mesma regra do
+  // checkout (`customer-fields.ts`), para os dois caminhos não divergirem.
+  const cpfRaw = text(formData.get("cpf"), 20);
+  const phoneRaw = text(formData.get("phone"), 30);
+  const cpf = cpfRaw ? formatCpf(cpfRaw) : null;
+  if (cpfRaw && !cpf)
+    return { ok: false, error: "CPF inválido. Confira os números." };
+  const phone = phoneRaw ? formatPhone(phoneRaw) : null;
+  if (phoneRaw && !phone)
+    return { ok: false, error: "Telefone inválido. Use DDD e número." };
+
   const supabase = await createClient();
   const { error } = await supabase.from("customers").upsert({
     id: user.id,
     full_name: fullName,
-    phone: text(formData.get("phone"), 30),
-    cpf: text(formData.get("cpf"), 20),
+    phone,
+    cpf,
   });
   if (error) return { ok: false, error: "Não foi possível salvar os dados." };
 

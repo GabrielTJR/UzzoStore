@@ -17,6 +17,8 @@ import {
 } from "@/lib/infinitepay";
 import { quoteShipping, pesoDaPeca, shippingConfigured } from "@/lib/shipping";
 import { checkCoupon, consumeCoupon } from "@/lib/coupons";
+import { perfilCompleto } from "@/lib/customer-fields";
+import { siteUrl } from "@/lib/site-url";
 
 /**
  * Registra o pedido no banco ao finalizar a compra.
@@ -31,9 +33,30 @@ import { checkCoupon, consumeCoupon } from "@/lib/coupons";
 
 export type CheckoutItem = { variantId: string; qty: number };
 
+/**
+ * Motivo da recusa em forma de CÓDIGO, para a tela reagir (reabrir o passo
+ * certo, recotar o frete, oferecer "Ajustar sacola") sem interpretar texto.
+ * O `error` continua sendo a frase exibida — a sacola mostra essas frases.
+ */
+export type PayCode =
+  | "login"
+  | "config"
+  | "profile"
+  | "address"
+  | "freight_required"
+  | "freight_changed"
+  | "freight_down"
+  | "stock"
+  | "items"
+  | "coupon"
+  | "rate"
+  | "min_total"
+  | "payment";
+
 export type CheckoutResult = {
   ok: boolean;
   error?: string;
+  code?: PayCode;
   orderNumber?: number;
   /** Números CONFIRMADOS pelo servidor — a UI exibe estes, não os locais. */
   totals?: {
@@ -73,7 +96,10 @@ type VariantRow = {
 /**
  * Pagamento online: exige login (a loja quis identificar quem paga pelo site),
  * registra o pedido e devolve a URL do checkout da InfinitePay.
- * Só os produtos são cobrados — frete é combinado depois no WhatsApp.
+ * Na entrega, o frete escolhido é RECOTADO no servidor pelo CEP do endereço do
+ * próprio cliente e entra no total como item próprio; só quando a cotação não
+ * está configurada (`shippingConfigured()` falso) o pedido segue sem frete,
+ * para combinar pelo WhatsApp. Na retirada não há frete.
  */
 export type ShippingChoice =
   { method: "pickup" } | { method: "delivery"; addressId: string };
@@ -91,22 +117,47 @@ export async function startOnlinePaymentAction(
   url?: string;
   error?: string;
   needsLogin?: boolean;
+  code?: PayCode;
 }> {
   const user = await getSessionUser();
-  if (!user) return { ok: false, needsLogin: true, error: "Entre para pagar." };
-  if (!infinitepayHandle())
-    return { ok: false, error: "Pagamento online ainda não está configurado." };
+  if (!user)
+    return {
+      ok: false,
+      needsLogin: true,
+      code: "login",
+      error: "Entre para pagar.",
+    };
+  // Sem a service key o `createAdminClient` LANÇA, e a tela receberia uma
+  // exceção crua em vez de uma recusa que ela sabe mostrar.
+  if (!infinitepayHandle() || !process.env.SUPABASE_SERVICE_ROLE_KEY)
+    return {
+      ok: false,
+      code: "config",
+      error: "Pagamento online ainda não está configurado.",
+    };
 
   const admin0 = createAdminClient();
 
-  // Dados obrigatórios para faturar/entregar.
+  // Dados obrigatórios para faturar/entregar. `perfilCompleto` é a MESMA
+  // regra que a tela usa para liberar o botão — se divergissem, o cliente
+  // veria o botão liberado e a recusa só depois do clique.
   const { data: profile0 } = await admin0
     .from("customers")
     .select("full_name, cpf, phone")
     .eq("id", user.id)
     .maybeSingle();
-  if (!profile0?.full_name || !profile0.cpf || !profile0.phone)
-    return { ok: false, error: "Complete seus dados (nome, CPF e telefone)." };
+  if (
+    !perfilCompleto({
+      fullName: profile0?.full_name,
+      cpf: profile0?.cpf,
+      phone: profile0?.phone,
+    })
+  )
+    return {
+      ok: false,
+      code: "profile",
+      error: "Complete seus dados (nome, CPF e telefone).",
+    };
 
   // Endereço: precisa ser do próprio cliente (o id vem do navegador).
   let shippingAddress: Record<string, unknown> | null = null;
@@ -118,7 +169,11 @@ export async function startOnlinePaymentAction(
       .eq("customer_id", user.id)
       .maybeSingle();
     if (!addr)
-      return { ok: false, error: "Escolha um endereço de entrega válido." };
+      return {
+        ok: false,
+        code: "address",
+        error: "Escolha um endereço de entrega válido.",
+      };
     shippingAddress = {
       label: addr.label,
       cep: addr.cep,
@@ -146,9 +201,13 @@ export async function startOnlinePaymentAction(
   // Com o frete configurado, entrega exige uma opção escolhida — sem isso o
   // pedido nasceria sem frete e a loja pagaria o envio do próprio bolso.
   if (shipping.method === "delivery" && shippingConfigured() && !freight)
-    return { ok: false, error: "Escolha uma opção de frete." };
+    return {
+      ok: false,
+      code: "freight_required",
+      error: "Escolha uma opção de frete.",
+    };
 
-  const order = await createOrderAction(
+  const order = await criarPedido(
     items,
     "online",
     {
@@ -158,7 +217,11 @@ export async function startOnlinePaymentAction(
     { couponCode: extras?.couponCode ?? null, freight },
   );
   if (!order.ok || !order.orderNumber)
-    return { ok: false, error: order.error ?? "Erro ao criar o pedido." };
+    return {
+      ok: false,
+      code: order.code ?? "payment",
+      error: order.error ?? "Erro ao criar o pedido.",
+    };
 
   const admin = createAdminClient();
   const { data: rows } = await admin
@@ -179,7 +242,10 @@ export async function startOnlinePaymentAction(
       `${r.qty}× ` +
       [r.product_name, r.variant_label].filter(Boolean).join(" — "),
   }));
-  if (lineCents.length === 0) return { ok: false, error: "Pedido vazio." };
+  if (lineCents.length === 0) {
+    await cancelaPedidoSemLink(admin, order.orderNumber);
+    return { ok: false, code: "payment", error: "Pedido vazio." };
+  }
 
   // Distribui o desconto SEM nunca negativar linha: proporcional com clamp e
   // a sobra varre as linhas que ainda têm saldo. No fim, um assert garante a
@@ -212,7 +278,12 @@ export async function startOnlinePaymentAction(
       somaItens,
       total: totals.total,
     });
-    return { ok: false, error: "Erro ao montar o pagamento. Tente de novo." };
+    await cancelaPedidoSemLink(admin, order.orderNumber);
+    return {
+      ok: false,
+      code: "payment",
+      error: "Erro ao montar o pagamento. Tente de novo.",
+    };
   }
 
   const items_ = lineCents
@@ -257,34 +328,16 @@ export async function startOnlinePaymentAction(
       : null,
   });
   if (!link.ok || !link.url) {
-    // O pedido já está gravado, mas sem link não há como pagar. Deixá-lo
-    // "pending" enche o painel de pedido fantasma — foi o que aconteceu com os
-    // nº 1007, 1008 e 1010 enquanto o handle esteve inválido. Cancelamos em vez
-    // de apagar: a tentativa frustrada é informação útil para a loja, e a falha
-    // em si já fica registrada como `payment.link_failed` em /admin/logs.
-    const { data: cancelado } = await admin
-      .from("orders")
-      .update({
-        payment_status: "canceled",
-        fulfillment_status: "canceled",
-        updated_at: new Date().toISOString(),
-      })
-      .eq("number", order.orderNumber)
-      .select("id")
-      .maybeSingle();
-
-    // Sem devolver, a peça ficaria presa até a expiração por um pedido que
-    // já nasceu morto — e a vitrine mostraria "esgotado" sem ninguém comprando.
-    if (cancelado) {
-      await liberarReserva(admin, cancelado.id);
-      updateTag(CACHE_TAGS.catalogo); // a peça voltou para a prateleira
-    }
+    // A falha em si já fica registrada como `payment.link_failed` em
+    // /admin/logs (ver `cancelaPedidoSemLink`).
+    await cancelaPedidoSemLink(admin, order.orderNumber);
 
     // Para o admin, mostra a resposta crua da InfinitePay — sem isso a tela só
     // diz "erro" e não dá para descobrir o que o provedor recusou.
     const adminUser = await getAdminUser();
     return {
       ok: false,
+      code: "payment",
       error:
         adminUser && link.detail
           ? `${link.error ?? "Erro ao gerar o pagamento."} [${link.detail}]`
@@ -387,12 +440,36 @@ async function excedeuLimite(
   }
 }
 
-/** Base pública do site (a InfinitePay precisa de URLs absolutas). */
-function siteUrl(): string {
-  const env = process.env.NEXT_PUBLIC_SITE_URL?.trim();
-  if (env) return env.replace(/\/$/, "");
-  const vercel = process.env.VERCEL_PROJECT_PRODUCTION_URL;
-  return vercel ? `https://${vercel}` : "https://uzzostore.com.br";
+/**
+ * Cancela (e libera a reserva de) um pedido online que não chegou a ter link
+ * de pagamento. O pedido é gravado ANTES do link, então qualquer saída de erro
+ * depois disso deixaria um "pending" que ninguém consegue pagar — enche o
+ * painel de pedido fantasma (foi o que aconteceu com os nº 1007, 1008 e 1010
+ * enquanto o handle esteve inválido) e, pior, prende a peça reservada até a
+ * expiração. Cancelar em vez de apagar: a tentativa frustrada é informação
+ * útil para a loja.
+ */
+async function cancelaPedidoSemLink(
+  admin: ReturnType<typeof createAdminClient>,
+  orderNumber: number,
+): Promise<void> {
+  const { data: cancelado } = await admin
+    .from("orders")
+    .update({
+      payment_status: "canceled",
+      fulfillment_status: "canceled",
+      updated_at: new Date().toISOString(),
+    })
+    .eq("number", orderNumber)
+    .select("id")
+    .maybeSingle();
+
+  // Sem devolver, a peça ficaria presa até a expiração por um pedido que
+  // já nasceu morto — e a vitrine mostraria "esgotado" sem ninguém comprando.
+  if (cancelado) {
+    await liberarReserva(admin, cancelado.id);
+    updateTag(CACHE_TAGS.catalogo); // a peça voltou para a prateleira
+  }
 }
 
 /**
@@ -433,9 +510,31 @@ async function stockShortages(
   return falta;
 }
 
+/**
+ * Pedido pelo WhatsApp — o ÚNICO canal que esta action exportada grava.
+ *
+ * Os parâmetros de canal e entrega continuam na assinatura só para a sacola
+ * compilar sem mudança, mas são IGNORADOS: server action é endpoint público, e
+ * aceitar `"online"` daqui deixava um visitante sem login gravar pedido online
+ * e RESERVAR estoque por 20 min, em laço, sem nunca pagar. Pedido online só
+ * nasce por `startOnlinePaymentAction`, que exige login e endereço do próprio
+ * cliente antes de chamar `criarPedido`.
+ */
 export async function createOrderAction(
   items: CheckoutItem[],
-  channel: "whatsapp" | "online" = "whatsapp",
+  _channel?: "whatsapp" | "online",
+  _shipping?: {
+    shippingMethod: "pickup" | "delivery";
+    shippingAddress: Record<string, unknown> | null;
+  },
+  extras?: OrderExtras,
+): Promise<CheckoutResult> {
+  return criarPedido(items, "whatsapp", undefined, extras);
+}
+
+async function criarPedido(
+  items: CheckoutItem[],
+  channel: "whatsapp" | "online",
   shipping?: {
     shippingMethod: "pickup" | "delivery";
     shippingAddress: Record<string, unknown> | null;
@@ -447,11 +546,15 @@ export async function createOrderAction(
       variantId: String(i?.variantId ?? ""),
       qty: Math.max(1, Math.min(99, Math.floor(Number(i?.qty) || 0))),
     }))
-    .filter((i) => i.variantId && i.qty > 0);
+    .filter((i) => i.variantId && i.qty > 0)
+    // Mesmo teto da cotação e do saldo: evita um `IN` gigante vindo de payload
+    // forjado.
+    .slice(0, 50);
 
-  if (clean.length === 0) return { ok: false, error: "Sacola vazia." };
+  if (clean.length === 0)
+    return { ok: false, code: "items", error: "Sacola vazia." };
   if (!process.env.SUPABASE_SERVICE_ROLE_KEY)
-    return { ok: false, error: "Loja indisponível no momento." };
+    return { ok: false, code: "config", error: "Loja indisponível no momento." };
 
   const admin = createAdminClient();
 
@@ -463,6 +566,7 @@ export async function createOrderAction(
   if (await excedeuLimite(admin)) {
     return {
       ok: false,
+      code: "rate",
       error: "Muitos pedidos seguidos. Aguarde alguns minutos e tente de novo.",
     };
   }
@@ -475,7 +579,8 @@ export async function createOrderAction(
       "id",
       clean.map((i) => i.variantId),
     );
-  if (error || !data) return { ok: false, error: "Erro ao montar o pedido." };
+  if (error || !data)
+    return { ok: false, code: "payment", error: "Erro ao montar o pedido." };
 
   const byId = new Map(
     (data as unknown as VariantRow[]).map((v) => [v.id, v] as const),
@@ -514,7 +619,11 @@ export async function createOrderAction(
   }
 
   if (rows.length === 0)
-    return { ok: false, error: "Os itens da sacola não estão mais à venda." };
+    return {
+      ok: false,
+      code: "items",
+      error: "Os itens da sacola não estão mais à venda.",
+    };
 
   // Estoque: a sacola vive no navegador do cliente e pode ficar dias parada —
   // a peça pode ter esgotado (inclusive vendida na loja física) nesse meio
@@ -528,7 +637,11 @@ export async function createOrderAction(
           : `${f.name}: só restam ${f.available}`,
       )
       .join("; ");
-    return { ok: false, error: `Estoque insuficiente — ${detalhe}.` };
+    return {
+      ok: false,
+      code: "stock",
+      error: `Estoque insuficiente — ${detalhe}.`,
+    };
   }
 
   const subtotal = rows.reduce((s, r) => s + r.unit_price * r.qty, 0);
@@ -541,7 +654,7 @@ export async function createOrderAction(
   let couponCode: string | null = null;
   if (extras?.couponCode) {
     const c = await checkCoupon(admin, extras.couponCode, subtotal);
-    if (!c.ok) return { ok: false, error: `Cupom: ${c.error}` };
+    if (!c.ok) return { ok: false, code: "coupon", error: `Cupom: ${c.error}` };
     discount = c.discount;
     couponCode = c.code;
   }
@@ -562,6 +675,7 @@ export async function createOrderAction(
     if (!quote)
       return {
         ok: false,
+        code: "freight_down",
         error:
           "A cotação de frete está fora do ar — tente de novo em instantes.",
       };
@@ -571,6 +685,7 @@ export async function createOrderAction(
     if (!opt)
       return {
         ok: false,
+        code: "freight_changed",
         error: "O frete mudou — recalcule na sacola antes de finalizar.",
       };
     // O preço exibido vem como REFERÊNCIA (nunca como fonte): se a recotação
@@ -582,6 +697,7 @@ export async function createOrderAction(
     )
       return {
         ok: false,
+        code: "freight_changed",
         error: "O frete mudou — recalcule na sacola antes de finalizar.",
       };
     shippingCost = opt.price;
@@ -596,8 +712,17 @@ export async function createOrderAction(
   if (channel === "online" && total < 1)
     return {
       ok: false,
+      code: "min_total",
       error: "O valor mínimo para pagamento online é R$ 1,00.",
     };
+
+  // A FK de `orders.customer_id` aponta para `customers`, e a linha só nasce
+  // na primeira visita à conta: logado sem ela (entrou e foi direto comprar)
+  // falharia ao gravar. Pelo admin, porque o pedido também é gravado por ele.
+  if (user)
+    await admin
+      .from("customers")
+      .upsert({ id: user.id }, { onConflict: "id", ignoreDuplicates: true });
 
   const { data: order, error: orderErr } = await admin
     .from("orders")
@@ -625,7 +750,11 @@ export async function createOrderAction(
     .select("id, number")
     .single();
   if (orderErr || !order)
-    return { ok: false, error: "Não foi possível registrar o pedido." };
+    return {
+      ok: false,
+      code: "payment",
+      error: "Não foi possível registrar o pedido.",
+    };
 
   const { error: itemsErr } = await admin.from("order_items").insert(
     // o peso serve só para a cotação — não é coluna de order_items
@@ -634,7 +763,11 @@ export async function createOrderAction(
   if (itemsErr) {
     // Sem itens o pedido é lixo: desfaz para não sujar o histórico/admin.
     await admin.from("orders").delete().eq("id", order.id);
-    return { ok: false, error: "Não foi possível registrar os itens." };
+    return {
+      ok: false,
+      code: "payment",
+      error: "Não foi possível registrar os itens.",
+    };
   }
 
   // Pedido online SEGURA a peça já aqui, por JANELA_PAGAMENTO_MIN. Sem isso
@@ -654,6 +787,7 @@ export async function createOrderAction(
       await admin.from("orders").delete().eq("id", order.id);
       return {
         ok: false,
+        code: "stock",
         error: `Estoque insuficiente — ${falta.join("; ")}.`,
       };
     }
