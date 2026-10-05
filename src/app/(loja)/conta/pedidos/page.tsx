@@ -5,6 +5,8 @@ import { createClient } from "@/lib/supabase/server";
 import { formatBRL } from "@/lib/format";
 import { situacaoCliente } from "@/lib/admin-orders";
 import { CancelOrderButton } from "./cancel-order-button";
+import { PayOrderButton } from "./pay-order-button";
+import { podePagarAgora } from "./pode-pagar";
 
 export const metadata: Metadata = { title: "Meus pedidos" };
 
@@ -16,6 +18,8 @@ type OrderRow = {
   number: number;
   payment_status: string;
   fulfillment_status: string;
+  channel: string;
+  expires_at: string | null;
   total: number;
   created_at: string;
   order_items: {
@@ -33,7 +37,7 @@ export default async function PedidosPage() {
   const { data } = await supabase
     .from("orders")
     .select(
-      "id, number, payment_status, fulfillment_status, total, created_at, order_items ( product_name, variant_label, unit_price, qty )",
+      "id, number, payment_status, fulfillment_status, channel, expires_at, total, created_at, order_items ( product_name, variant_label, unit_price, qty )",
     )
     .eq("customer_id", user.id)
     .order("created_at", { ascending: false });
@@ -108,6 +112,13 @@ export default async function PedidosPage() {
                   )}
               </div>
             </div>
+            {/* Pendente do pagamento online: dá para pagar daqui, sem montar
+                a sacola de novo. */}
+            {podePagarAgora(o) && (
+              <div className="mt-4 border-t border-border pt-4">
+                <PayOrderButton orderId={o.id} expiresAt={o.expires_at} />
+              </div>
+            )}
           </div>
         ))}
 

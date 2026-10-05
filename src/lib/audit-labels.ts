@@ -150,6 +150,15 @@ const ACOES: Record<string, Acao> = {
     frase: (c) =>
       `A InfinitePay recusou o link de pagamento ${c.item ? `do pedido ${c.item}` : ""}`.trim(),
   },
+  // Registro do link de pagamento gerado (é por ele que "pagar de novo"
+  // reaproveita o mesmo link em vez de abrir outro pedido). Automático.
+  "payment.link_created": {
+    area: "vendas",
+    auto: true,
+    rotulo: "Link de pagamento criado",
+    frase: (c) =>
+      `Link de pagamento criado ${c.item ? `para o pedido ${c.item}` : ""}`.trim(),
+  },
   "payment.pos_estorno": {
     area: "vendas",
     rotulo: "Pagamento depois do estorno",
@@ -197,6 +206,12 @@ const ACOES: Record<string, Acao> = {
     auto: true,
     rotulo: "Pagar pedido pendente",
     frase: () => "Um cliente abriu de novo o pagamento de um pedido pendente",
+  },
+  "payment.start": {
+    area: "vendas",
+    auto: true,
+    rotulo: "Pagamento iniciado",
+    frase: () => "Um cliente tocou em pagar no checkout",
   },
   "shipping.quote": {
     area: "vendas",

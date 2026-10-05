@@ -54,32 +54,9 @@ import { cartItemsForTrack, track } from "@/lib/track";
  *   só desfazendo a condição dele.
  */
 
-const RESERVA_MIN = 25; // reserva de 20 min + folga do pg_cron (roda a cada 5)
 const WHATSAPP_HREF = "/sacola"; // o fechamento pelo WhatsApp vive na sacola
 
 const assinaNada = () => () => {};
-
-const PAGAMENTO_INICIADO = "uzzo-pay-started";
-
-/** Marca a hora em que o cliente saiu para a InfinitePay (aba atual). */
-function marcarPagamentoIniciado() {
-  try {
-    sessionStorage.setItem(PAGAMENTO_INICIADO, String(Date.now()));
-  } catch {
-    /* sem sessionStorage: só perde o aviso de reserva própria */
-  }
-}
-
-/** O cliente iniciou um pagamento há pouco? Então a peça "sem estoque" pode
- * estar reservada para o PRÓPRIO pedido anterior dele. */
-function pagamentoRecente(): boolean {
-  try {
-    const t = Number(sessionStorage.getItem(PAGAMENTO_INICIADO));
-    return !!t && Date.now() - t < RESERVA_MIN * 60_000;
-  } catch {
-    return false;
-  }
-}
 
 type Perfil = { fullName: string; cpf: string; phone: string };
 
@@ -128,7 +105,6 @@ export function CheckoutFlow({
   const [saindo, setSaindo] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [errorKind, setErrorKind] = useState<PayErroKind | null>(null);
-  const [reservaPropria, setReservaPropria] = useState(false);
   const [aviso, setAviso] = useState<string | null>(null);
 
   const pendentes = useRef(new Set<string>());
@@ -463,7 +439,6 @@ export function CheckoutFlow({
         setError(res.error ?? "Uma peça da sacola não está mais disponível.");
         setErrorKind("stock");
         setStockTry((t) => t + 1);
-        setReservaPropria(pagamentoRecente());
         return;
       }
       case "coupon":
@@ -481,7 +456,6 @@ export function CheckoutFlow({
     if (method === "delivery" && !selectedAddress) return;
     setError(null);
     setErrorKind(null);
-    setReservaPropria(false);
     setAviso(null);
     setBusy(true);
     let saiu = false;
@@ -509,7 +483,6 @@ export function CheckoutFlow({
           coupon: coupon ?? undefined,
           items: cartItemsForTrack(items),
         });
-        marcarPagamentoIniciado();
         // A sacola NÃO é limpa: se o cliente voltar sem pagar, ela está aqui.
         saiu = true;
         setSaindo(true);
@@ -740,7 +713,6 @@ export function CheckoutFlow({
           onPay={handlePay}
           error={error}
           errorKind={errorKind}
-          reservaPropria={reservaPropria}
           onAjustarSacola={() => useCartUi.getState().openCart()}
           whatsappHref={WHATSAPP_HREF}
         />

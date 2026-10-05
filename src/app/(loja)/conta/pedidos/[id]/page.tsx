@@ -12,6 +12,8 @@ import {
   situacaoCliente,
 } from "@/lib/admin-orders";
 import { CancelOrderButton } from "../cancel-order-button";
+import { PayOrderButton } from "../pay-order-button";
+import { podePagarAgora } from "../pode-pagar";
 
 export const metadata: Metadata = { title: "Detalhes do pedido" };
 
@@ -43,6 +45,7 @@ type OrderRow = {
   shipping_total: number;
   total: number;
   created_at: string;
+  expires_at: string | null;
   order_items: {
     product_name: string;
     variant_label: string | null;
@@ -66,7 +69,7 @@ export default async function PedidoDetalhePage({
     .from("orders")
     .select(
       `id, number, payment_status, fulfillment_status, channel, shipping_method,
-       shipping_address, subtotal, shipping_total, total, created_at,
+       shipping_address, subtotal, shipping_total, total, created_at, expires_at,
        shipping_service, shipping_cost, coupon_code, discount, tracking_code,
        order_items ( product_name, variant_label, unit_price, qty )`,
     )
@@ -255,12 +258,20 @@ export default async function PedidoDetalhePage({
         </h2>
         <p className="text-muted">
           {o.channel === "online"
-            ? "Pago pelo site (Pix ou cartão)."
+            ? "Pelo site (Pix ou cartão)."
             : "Combinado pelo WhatsApp."}{" "}
           Situação: {PAYMENT_STATUS[
             o.payment_status as keyof typeof PAYMENT_STATUS
           ] ?? o.payment_status}.
         </p>
+        {/* Voltou da InfinitePay sem pagar: paga ESTE pedido (mesmo link),
+            sem montar a sacola de novo. O prazo é conferido no servidor; o
+            botão só mostra quanto falta. */}
+        {podePagarAgora(o) && (
+          <div className="mt-4">
+            <PayOrderButton orderId={o.id} expiresAt={o.expires_at} />
+          </div>
+        )}
       </div>
 
       {o.payment_status === "pending" &&

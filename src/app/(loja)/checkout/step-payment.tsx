@@ -56,7 +56,6 @@ export function StepPayment({
   onPay,
   error,
   errorKind,
-  reservaPropria,
   onAjustarSacola,
   whatsappHref,
 }: {
@@ -79,7 +78,6 @@ export function StepPayment({
   onPay: () => void;
   error: string | null;
   errorKind: PayErroKind | null;
-  reservaPropria: boolean;
   onAjustarSacola: () => void;
   whatsappHref: string;
 }) {
@@ -274,20 +272,6 @@ export function StepPayment({
             className="space-y-2 rounded-sm border border-red-600/40 bg-red-600/5 px-4 py-3 text-sm"
           >
             <p className="text-red-700 dark:text-red-400">{error}</p>
-            {errorKind === "stock" && reservaPropria && (
-              <p className="text-muted">
-                Se você acabou de iniciar um pagamento, a peça fica reservada
-                para ele por 20 minutos. Cancele o pedido anterior em{" "}
-                <Link
-                  href="/conta/pedidos"
-                  prefetch={false}
-                  className="underline underline-offset-4"
-                >
-                  Meus pedidos
-                </Link>{" "}
-                ou aguarde.
-              </p>
-            )}
             {errorKind === "stock" && (
               <button
                 type="button"

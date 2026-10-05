@@ -7,18 +7,19 @@ import { createPublicClient } from "@/lib/supabase/public";
 import { logAudit } from "@/lib/audit";
 import { getSessionUser } from "@/lib/session";
 import { getAdminUser } from "@/lib/admin";
-import { reservarParaPedido, liberarReserva } from "@/lib/stock";
+import { reservarParaPedido, cancelarPedidoPendente } from "@/lib/stock";
 import { CACHE_TAGS } from "@/lib/products";
 import { sendNewOrderAdminEmail } from "@/lib/email";
 import {
-  createPaymentLink,
   infinitepayHandle,
-  toCents,
+  linkDoPedido,
+  type LinkDoPedido,
 } from "@/lib/infinitepay";
+import { freiaIp } from "@/lib/rate-limit";
 import { quoteShipping, pesoDaPeca, shippingConfigured } from "@/lib/shipping";
 import { checkCoupon, consumeCoupon } from "@/lib/coupons";
 import { perfilCompleto } from "@/lib/customer-fields";
-import { siteUrl } from "@/lib/site-url";
+import { temFolgaParaPagar } from "@/app/(loja)/conta/pedidos/pode-pagar";
 
 /**
  * Registra o pedido no banco ao finalizar a compra.
@@ -127,6 +128,16 @@ export async function startOnlinePaymentAction(
       code: "login",
       error: "Entre para pagar.",
     };
+  // Freio barato ANTES de qualquer trabalho: daqui em diante a action valida
+  // cupom e cota frete, e um logado em laço testaria cupons sem passar pelo
+  // limite do `checkCouponAction`. Generoso para não pegar quem volta da
+  // InfinitePay e tenta de novo algumas vezes.
+  if (await freiaIp("payment.start", LIMITE_INICIO_PAGAMENTO))
+    return {
+      ok: false,
+      code: "rate",
+      error: "Muitas tentativas seguidas. Aguarde alguns minutos.",
+    };
   // Sem a service key o `createAdminClient` LANÇA, e a tela receberia uma
   // exceção crua em vez de uma recusa que ela sabe mostrar.
   if (!infinitepayHandle() || !process.env.SUPABASE_SERVICE_ROLE_KEY)
@@ -207,145 +218,235 @@ export async function startOnlinePaymentAction(
       error: "Escolha uma opção de frete.",
     };
 
-  const order = await criarPedido(
-    items,
-    "online",
-    {
-      shippingMethod: shipping.method,
-      shippingAddress,
-    },
-    { couponCode: extras?.couponCode ?? null, freight },
+  const clean = limparItens(items);
+  if (clean.length === 0)
+    return { ok: false, code: "items", error: "Sacola vazia." };
+
+  // Preço, cupom e frete RELIDOS no servidor antes de qualquer decisão — é
+  // com estes números (e não com os da tela) que o pedido pendente é comparado.
+  const montado = await montarPedido(admin0, clean, "online", {
+    couponCode: extras?.couponCode ?? null,
+    freight,
+  });
+  if (!montado.ok)
+    return {
+      ok: false,
+      code: montado.res.code ?? "payment",
+      error: montado.res.error ?? "Erro ao montar o pedido.",
+    };
+  const rascunho = montado.rascunho;
+  const entrega = { shippingMethod: shipping.method, shippingAddress };
+
+  // "Pagar de novo": quem foi à InfinitePay e voltou sem pagar ainda tem um
+  // pedido pendente SEGURANDO as peças. Criar outro em cima dele reservava a
+  // mesma peça duas vezes — na última unidade, o cliente era recusado pela
+  // própria reserva.
+  const pendentes = await pendentesOnline(admin0, user.id);
+  const agora = Date.now();
+  const igual = pendentes.find(
+    (p) =>
+      mesmoPedido(p, rascunho, entrega) &&
+      p.expires_at != null &&
+      temFolgaParaPagar(p.expires_at, agora),
   );
-  if (!order.ok || !order.orderNumber)
+
+  if (igual) {
+    // Pode virar chamada à InfinitePay (quando não há link guardado): freio
+    // por IP como toda action pública que custa algo.
+    if (await freiaIp("order.pay_again", LIMITE_PAGAR_DE_NOVO))
+      return {
+        ok: false,
+        code: "rate",
+        error: "Muitas tentativas seguidas. Aguarde alguns minutos.",
+      };
+    // Mesmo pedido: paga ELE (de preferência pelo mesmo link). Qualquer outro
+    // pendente do cliente é sobra de tentativa anterior e devolve a peça.
+    await cancelarPendentes(
+      admin0,
+      pendentes.filter((p) => p.id !== igual.id),
+    );
+    const link = await linkDoPedido(admin0, igual.id, {
+      email: user.email,
+      reaproveitar: true,
+    });
+    if (!link.ok || !link.url) {
+      // Mesma regra do pedido novo: pendente sem link não serve para nada e
+      // prenderia a peça até expirar.
+      await cancelaPedidoSemLink(admin0, igual.id);
+      return { ok: false, code: "payment", error: await erroDoLink(link) };
+    }
+    return { ok: true, url: link.url };
+  }
+
+  // Pedido diferente (mudou a sacola, o endereço, o frete, o cupom ou o preço)
+  // ou pendente quase vencendo: os pendentes antigos saem ANTES de o novo
+  // reservar — senão a peça que só o cliente segura daria "estoque
+  // insuficiente" para ele mesmo, e nunca há dois pendentes dele prendendo
+  // estoque ao mesmo tempo.
+  if (await excedeuLimite(admin0))
+    return {
+      ok: false,
+      code: "rate",
+      error: "Muitos pedidos seguidos. Aguarde alguns minutos e tente de novo.",
+    };
+  await cancelarPendentes(admin0, pendentes);
+
+  const order = await gravarPedido(admin0, rascunho, "online", entrega);
+  if (!order.ok || !order.orderId)
     return {
       ok: false,
       code: order.code ?? "payment",
       error: order.error ?? "Erro ao criar o pedido.",
     };
 
-  const admin = createAdminClient();
-  const { data: rows } = await admin
-    .from("order_items")
-    .select(
-      "product_name, variant_label, unit_price, qty, orders!inner ( number )",
-    )
-    .eq("orders.number", order.orderNumber);
-
-  // Cada linha vira UM item com o total da linha (quantity 1): é o único jeito
-  // de aplicar o desconto do cupom com precisão de centavo — desconto por
-  // unidade não fecha a soma, e a conferência do webhook exige que a soma dos
-  // itens seja EXATAMENTE o total do pedido.
-  const totals = order.totals!;
-  const lineCents = (rows ?? []).map((r) => ({
-    cents: toCents(Number(r.unit_price)) * r.qty,
-    description:
-      `${r.qty}× ` +
-      [r.product_name, r.variant_label].filter(Boolean).join(" — "),
-  }));
-  if (lineCents.length === 0) {
-    await cancelaPedidoSemLink(admin, order.orderNumber);
-    return { ok: false, code: "payment", error: "Pedido vazio." };
-  }
-
-  // Distribui o desconto SEM nunca negativar linha: proporcional com clamp e
-  // a sobra varre as linhas que ainda têm saldo. No fim, um assert garante a
-  // invariante que o webhook confere: soma dos itens === total do pedido.
-  const discountCents = toCents(totals.discount);
-  if (discountCents > 0) {
-    const somaOriginal = lineCents.reduce((s, l) => s + l.cents, 0);
-    let restante = discountCents;
-    for (let i = 0; i < lineCents.length && restante > 0; i++) {
-      const proporcional = Math.floor(
-        (lineCents[i].cents * discountCents) / somaOriginal,
-      );
-      const parte = Math.min(restante, proporcional, lineCents[i].cents);
-      lineCents[i].cents -= parte;
-      restante -= parte;
-    }
-    for (let i = 0; i < lineCents.length && restante > 0; i++) {
-      const parte = Math.min(restante, lineCents[i].cents);
-      lineCents[i].cents -= parte;
-      restante -= parte;
-    }
-  }
-
-  const somaItens =
-    lineCents.reduce((s, l) => s + l.cents, 0) + toCents(totals.shippingCost);
-  if (somaItens !== toCents(totals.total)) {
-    // Melhor abortar do que cobrar diferente do que o pedido registra — a
-    // conferência do webhook usa exatamente orders.total.
-    console.error("[checkout] soma dos itens difere do total", {
-      somaItens,
-      total: totals.total,
-    });
-    await cancelaPedidoSemLink(admin, order.orderNumber);
-    return {
-      ok: false,
-      code: "payment",
-      error: "Erro ao montar o pagamento. Tente de novo.",
-    };
-  }
-
-  const items_ = lineCents
-    .filter((l) => l.cents > 0)
-    .map((l) => ({ quantity: 1, price: l.cents, description: l.description }));
-  if (totals.shippingCost > 0) {
-    items_.push({
-      quantity: 1,
-      price: toCents(totals.shippingCost),
-      description: `Frete — ${totals.shippingName ?? "envio"}`,
-    });
-  }
-
-  const { data: profile } = await admin
-    .from("customers")
-    .select("full_name, phone")
-    .eq("id", user.id)
-    .maybeSingle();
-
-  const site = siteUrl();
-  const link = await createPaymentLink({
-    items: items_,
-    orderNsu: String(order.orderNumber),
-    redirectUrl: `${site}/pedido/confirmado`,
-    webhookUrl: `${site}/api/infinitepay/webhook`,
-    customer: {
-      name: profile?.full_name,
-      email: user.email,
-      phone: profile?.phone,
-    },
-    // Na entrega, repassa o endereço que o cliente já escolheu: sem isto ele
-    // redigita CEP e rua no checkout deles, logo depois de tê-los informado
-    // aqui para cotar o frete. Na retirada não existe endereço.
-    address: shippingAddress?.cep
-      ? {
-          cep: String(shippingAddress.cep),
-          street: (shippingAddress.street as string | null) ?? null,
-          neighborhood: (shippingAddress.district as string | null) ?? null,
-          number: (shippingAddress.number as string | null) ?? null,
-          complement: (shippingAddress.complement as string | null) ?? null,
-        }
-      : null,
+  const link = await linkDoPedido(admin0, order.orderId, {
+    email: user.email,
+    reaproveitar: false,
   });
   if (!link.ok || !link.url) {
     // A falha em si já fica registrada como `payment.link_failed` em
-    // /admin/logs (ver `cancelaPedidoSemLink`).
-    await cancelaPedidoSemLink(admin, order.orderNumber);
-
-    // Para o admin, mostra a resposta crua da InfinitePay — sem isso a tela só
-    // diz "erro" e não dá para descobrir o que o provedor recusou.
-    const adminUser = await getAdminUser();
-    return {
-      ok: false,
-      code: "payment",
-      error:
-        adminUser && link.detail
-          ? `${link.error ?? "Erro ao gerar o pagamento."} [${link.detail}]`
-          : (link.error ?? "Erro ao gerar o pagamento."),
-    };
+    // /admin/logs (ver `createPaymentLink`).
+    await cancelaPedidoSemLink(admin0, order.orderId);
+    return { ok: false, code: "payment", error: await erroDoLink(link) };
   }
 
   return { ok: true, url: link.url };
+}
+
+/**
+ * Frase de erro do link. Para o admin, anexa a resposta crua da InfinitePay —
+ * sem isso a tela só diz "erro" e não dá para descobrir o que o provedor
+ * recusou.
+ */
+async function erroDoLink(link: LinkDoPedido): Promise<string> {
+  const base = link.error ?? "Erro ao gerar o pagamento.";
+  if (!link.detail) return base;
+  const adminUser = await getAdminUser();
+  return adminUser ? `${base} [${link.detail}]` : base;
+}
+
+// A folga mínima para reaproveitar um pendente é `REUSO_MIN_RESTANTE_MIN`
+// (conta/pedidos/pode-pagar.ts), a MESMA do "Pagar agora" de Meus pedidos.
+// Abaixo dela sai mais barato cancelar e abrir um pedido novo com janela
+// cheia. O prazo do pendente NUNCA é esticado: reserva e expiração andam
+// juntas, e esticar a cada toque deixaria segurar uma peça para sempre.
+
+/** Quantas vezes o mesmo IP pode começar um pagamento online em 10 min. */
+const LIMITE_INICIO_PAGAMENTO = 15;
+
+/** Quantas vezes o mesmo IP pode pedir o link de um pedido existente. */
+const LIMITE_PAGAR_DE_NOVO = 10;
+
+/** Pedido online pendente, no formato que `mesmoPedido` compara. */
+type PendenteOnline = {
+  id: string;
+  expires_at: string | null;
+  shipping_method: string | null;
+  shipping_address: Record<string, unknown> | null;
+  shipping_service: string | null;
+  shipping_cost: number | null;
+  coupon_code: string | null;
+  discount: number | null;
+  subtotal: number | null;
+  total: number | null;
+  order_items: { variant_id: string; qty: number; unit_price: number }[];
+};
+
+/**
+ * Pedidos online ainda não pagos do cliente — inclusive os que já passaram do
+ * prazo e o pg_cron ainda não varreu (até 5 min): eles também seguram peça.
+ */
+async function pendentesOnline(
+  admin: ReturnType<typeof createAdminClient>,
+  customerId: string,
+): Promise<PendenteOnline[]> {
+  const { data } = await admin
+    .from("orders")
+    .select(
+      "id, expires_at, shipping_method, shipping_address, shipping_service, shipping_cost, coupon_code, discount, subtotal, total, order_items ( variant_id, qty, unit_price )",
+    )
+    .eq("customer_id", customerId)
+    .eq("channel", "online")
+    .eq("payment_status", "pending")
+    .order("created_at", { ascending: false })
+    .limit(10);
+  return (data ?? []) as unknown as PendenteOnline[];
+}
+
+/** Cancela os pendentes e devolve as peças; derruba o catálogo se algo voltou. */
+async function cancelarPendentes(
+  admin: ReturnType<typeof createAdminClient>,
+  pendentes: { id: string }[],
+): Promise<void> {
+  let devolveu = false;
+  for (const p of pendentes)
+    if (await cancelarPedidoPendente(admin, p.id)) devolveu = true;
+  if (devolveu) updateTag(CACHE_TAGS.catalogo); // a peça voltou para a vitrine
+}
+
+const centavos = (v: unknown) => Math.round(Number(v ?? 0) * 100);
+
+/** Itens como texto canônico: variante, quantidade somada e preço unitário. */
+function chaveItens(
+  itens: { variant_id: string; qty: number; unit_price: number }[],
+): string {
+  const porVariante = new Map<string, { qty: number; preco: number }>();
+  for (const i of itens) {
+    const atual = porVariante.get(i.variant_id);
+    porVariante.set(i.variant_id, {
+      qty: (atual?.qty ?? 0) + Number(i.qty),
+      preco: centavos(i.unit_price),
+    });
+  }
+  return [...porVariante.entries()]
+    .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
+    .map(([v, { qty, preco }]) => `${v}:${qty}:${preco}`)
+    .join("|");
+}
+
+const CAMPOS_ENDERECO = [
+  "label",
+  "cep",
+  "street",
+  "number",
+  "complement",
+  "district",
+  "city",
+  "state",
+] as const;
+
+function chaveEndereco(a: Record<string, unknown> | null | undefined): string {
+  if (!a) return "";
+  return CAMPOS_ENDERECO.map((k) => String(a[k] ?? "").trim()).join("|");
+}
+
+/**
+ * O pendente é o MESMO pedido que o cliente está pedindo agora? Compara o que
+ * define a cobrança — itens (variante + quantidade + preço), entrega,
+ * endereço, frete, cupom e totais —, sempre contra o rascunho RECALCULADO no
+ * servidor. Preço que mudou no catálogo conta como pedido diferente: o
+ * pendente cobraria o valor antigo.
+ */
+function mesmoPedido(
+  p: PendenteOnline,
+  r: Rascunho,
+  entrega: {
+    shippingMethod: "pickup" | "delivery";
+    shippingAddress: Record<string, unknown> | null;
+  },
+): boolean {
+  return (
+    (p.shipping_method ?? "") === entrega.shippingMethod &&
+    chaveEndereco(p.shipping_address) ===
+      chaveEndereco(entrega.shippingAddress) &&
+    (p.shipping_service ?? "") === (r.shippingService ?? "") &&
+    centavos(p.shipping_cost) === centavos(r.shippingCost) &&
+    (p.coupon_code ?? "") === (r.couponCode ?? "") &&
+    centavos(p.discount) === centavos(r.discount) &&
+    centavos(p.subtotal) === centavos(r.subtotal) &&
+    centavos(p.total) === centavos(r.total) &&
+    chaveItens(p.order_items ?? []) === chaveItens(r.rows)
+  );
 }
 
 /**
@@ -403,7 +504,52 @@ export async function cartStockAction(
   // Variante sem linha de estoque = sem saldo, não "saldo desconhecido".
   for (const id of ids)
     if (!(id in saldo)) saldo[id] = { qty: 0, reservado: false };
+
+  // A reserva pode ser do PRÓPRIO cliente: ele foi à InfinitePay, voltou sem
+  // pagar, e a peça está presa ao pedido pendente dele. Para ele essa peça
+  // está disponível — ao pagar, `startOnlinePaymentAction` reaproveita ou
+  // cancela aquele pendente. Sem somar de volta, a tela dizia "em processo de
+  // compra por outro cliente" e travava o botão de pagar.
+  // Independe da marca `reservado`: o pendente próprio já vencido e ainda não
+  // varrido pelo pg_cron (até 5 min) tem `reservado_ate` no passado, e sem
+  // isto aparecia como "esgotado". Custo: visitante sem sessão não consulta
+  // nada (a sessão é lida do cookie); logado faz uma consulta, e esta action
+  // só roda na sacola e no checkout — nunca por visita de vitrine.
+  for (const r of await reservasProprias(ids)) {
+    if (saldo[r.variant_id]) saldo[r.variant_id].qty += r.qty;
+  }
   return saldo;
+}
+
+/**
+ * Peças reservadas por pedidos online PENDENTES do cliente logado, entre as
+ * variantes pedidas. Inclui pendente já vencido que o pg_cron ainda não
+ * varreu: ele também é cancelado no próximo pagamento. Falha silenciosa
+ * (lista vazia) — é ajuste de exibição, o servidor decide de novo ao pagar.
+ */
+async function reservasProprias(
+  variantIds: string[],
+): Promise<{ variant_id: string; qty: number }[]> {
+  try {
+    if (!process.env.SUPABASE_SERVICE_ROLE_KEY) return [];
+    const user = await getSessionUser();
+    if (!user) return [];
+    // `reservations` não tem leitura pública: service_role, com o dono vindo
+    // da SESSÃO (nunca do navegador).
+    const admin = createAdminClient();
+    const { data } = await admin
+      .from("reservations")
+      .select("variant_id, qty, orders!inner ( customer_id, payment_status )")
+      .in("variant_id", variantIds)
+      .eq("orders.customer_id", user.id)
+      .eq("orders.payment_status", "pending");
+    return (data ?? []).map((r) => ({
+      variant_id: r.variant_id,
+      qty: Number(r.qty) || 0,
+    }));
+  } catch {
+    return [];
+  }
 }
 
 /** Quantos pedidos o mesmo IP pode abrir na janela abaixo. */
@@ -451,25 +597,12 @@ async function excedeuLimite(
  */
 async function cancelaPedidoSemLink(
   admin: ReturnType<typeof createAdminClient>,
-  orderNumber: number,
+  orderId: string,
 ): Promise<void> {
-  const { data: cancelado } = await admin
-    .from("orders")
-    .update({
-      payment_status: "canceled",
-      fulfillment_status: "canceled",
-      updated_at: new Date().toISOString(),
-    })
-    .eq("number", orderNumber)
-    .select("id")
-    .maybeSingle();
-
   // Sem devolver, a peça ficaria presa até a expiração por um pedido que
   // já nasceu morto — e a vitrine mostraria "esgotado" sem ninguém comprando.
-  if (cancelado) {
-    await liberarReserva(admin, cancelado.id);
+  if (await cancelarPedidoPendente(admin, orderId))
     updateTag(CACHE_TAGS.catalogo); // a peça voltou para a prateleira
-  }
 }
 
 /**
@@ -532,6 +665,39 @@ export async function createOrderAction(
   return criarPedido(items, "whatsapp", undefined, extras);
 }
 
+/** Normaliza os itens vindos do navegador (quantidade inteira entre 1 e 99). */
+function limparItens(items: CheckoutItem[]): CheckoutItem[] {
+  return (Array.isArray(items) ? items : [])
+    .map((i) => ({
+      variantId: String(i?.variantId ?? ""),
+      qty: Math.max(1, Math.min(99, Math.floor(Number(i?.qty) || 0))),
+    }))
+    .filter((i) => i.variantId && i.qty > 0)
+    // Mesmo teto da cotação e do saldo: evita um `IN` gigante vindo de payload
+    // forjado.
+    .slice(0, 50);
+}
+
+type LinhaPedido = {
+  variant_id: string;
+  product_name: string;
+  variant_label: string | null;
+  unit_price: number;
+  qty: number;
+  weight_grams: number;
+};
+
+/** O pedido calculado no servidor, ainda sem gravar. */
+type Rascunho = {
+  rows: LinhaPedido[];
+  subtotal: number;
+  discount: number;
+  couponCode: string | null;
+  shippingCost: number;
+  shippingService: string | null;
+  total: number;
+};
+
 async function criarPedido(
   items: CheckoutItem[],
   channel: "whatsapp" | "online",
@@ -541,16 +707,7 @@ async function criarPedido(
   },
   extras?: OrderExtras,
 ): Promise<CheckoutResult> {
-  const clean = (Array.isArray(items) ? items : [])
-    .map((i) => ({
-      variantId: String(i?.variantId ?? ""),
-      qty: Math.max(1, Math.min(99, Math.floor(Number(i?.qty) || 0))),
-    }))
-    .filter((i) => i.variantId && i.qty > 0)
-    // Mesmo teto da cotação e do saldo: evita um `IN` gigante vindo de payload
-    // forjado.
-    .slice(0, 50);
-
+  const clean = limparItens(items);
   if (clean.length === 0)
     return { ok: false, code: "items", error: "Sacola vazia." };
   if (!process.env.SUPABASE_SERVICE_ROLE_KEY)
@@ -570,6 +727,39 @@ async function criarPedido(
       error: "Muitos pedidos seguidos. Aguarde alguns minutos e tente de novo.",
     };
   }
+
+  const montado = await montarPedido(admin, clean, channel, extras);
+  if (!montado.ok) return montado.res;
+  const r = await gravarPedido(admin, montado.rascunho, channel, shipping);
+  // O id interno do pedido não volta ao navegador — a tela só usa o número.
+  return {
+    ok: r.ok,
+    error: r.error,
+    code: r.code,
+    orderNumber: r.orderNumber,
+    totals: r.totals,
+  };
+}
+
+/**
+ * Calcula o pedido SEM gravar: relê preço e nome pela variante, valida o
+ * cupom e recota o frete. Separado da gravação para o pagamento online poder
+ * comparar com um pedido pendente ANTES de decidir se cria outro.
+ *
+ * Não confere estoque: no "pagar de novo" a peça está reservada para o
+ * próprio pedido pendente do cliente, e a conferência daria "esgotado" para
+ * ele mesmo. Quem confere é `gravarPedido`.
+ */
+async function montarPedido(
+  admin: ReturnType<typeof createAdminClient>,
+  clean: CheckoutItem[],
+  channel: "whatsapp" | "online",
+  extras?: OrderExtras,
+): Promise<
+  { ok: true; rascunho: Rascunho } | { ok: false; res: CheckoutResult }
+> {
+  const falha = (res: CheckoutResult) => ({ ok: false as const, res });
+
   const { data, error } = await admin
     .from("product_variants")
     .select(
@@ -580,20 +770,17 @@ async function criarPedido(
       clean.map((i) => i.variantId),
     );
   if (error || !data)
-    return { ok: false, code: "payment", error: "Erro ao montar o pedido." };
+    return falha({
+      ok: false,
+      code: "payment",
+      error: "Erro ao montar o pedido.",
+    });
 
   const byId = new Map(
     (data as unknown as VariantRow[]).map((v) => [v.id, v] as const),
   );
 
-  const rows: {
-    variant_id: string;
-    product_name: string;
-    variant_label: string | null;
-    unit_price: number;
-    qty: number;
-    weight_grams: number;
-  }[] = [];
+  const rows: LinhaPedido[] = [];
 
   for (const item of clean) {
     const v = byId.get(item.variantId);
@@ -619,11 +806,139 @@ async function criarPedido(
   }
 
   if (rows.length === 0)
-    return {
+    return falha({
       ok: false,
       code: "items",
       error: "Os itens da sacola não estão mais à venda.",
-    };
+    });
+
+  const subtotal = rows.reduce((s, r) => s + r.unit_price * r.qty, 0);
+
+  // Cupom: validado AGORA, contra o subtotal relido — o que a sacola mostrou
+  // é cortesia. Cupom inválido barra o pedido em vez de seguir sem desconto:
+  // cobrar mais do que a tela prometeu é pior do que pedir para tentar de novo.
+  let discount = 0;
+  let couponCode: string | null = null;
+  if (extras?.couponCode) {
+    const c = await checkCoupon(admin, extras.couponCode, subtotal);
+    if (!c.ok)
+      return falha({ ok: false, code: "coupon", error: `Cupom: ${c.error}` });
+    discount = c.discount;
+    couponCode = c.code;
+  }
+
+  // Frete: RECOTADO no servidor pelo CEP + serviço escolhido. O preço que veio
+  // da sacola morre aqui — localStorage não decide dinheiro.
+  let shippingCost = 0;
+  let shippingService: string | null = null;
+  if (extras?.freight) {
+    const quote = await quoteShipping({
+      cepDestino: extras.freight.cep,
+      itens: rows.map((r) => ({
+        weightGrams: r.weight_grams,
+        price: r.unit_price,
+        qty: r.qty,
+      })),
+    });
+    if (!quote)
+      return falha({
+        ok: false,
+        code: "freight_down",
+        error:
+          "A cotação de frete está fora do ar — tente de novo em instantes.",
+      });
+    const opt = quote.options.find(
+      (o) => o.serviceId === extras.freight!.serviceId,
+    );
+    if (!opt)
+      return falha({
+        ok: false,
+        code: "freight_changed",
+        error: "O frete mudou — recalcule na sacola antes de finalizar.",
+      });
+    // O preço exibido vem como REFERÊNCIA (nunca como fonte): se a recotação
+    // ficou MAIS CARA que o que a tela prometeu, recusa em vez de cobrar a
+    // diferença em silêncio. Mais barato/igual segue.
+    if (
+      extras.freight.expectedPrice != null &&
+      opt.price > extras.freight.expectedPrice + 0.005
+    )
+      return falha({
+        ok: false,
+        code: "freight_changed",
+        error: "O frete mudou — recalcule na sacola antes de finalizar.",
+      });
+    shippingCost = opt.price;
+    shippingService = `${opt.name}${opt.company ? ` (${opt.company})` : ""}`;
+  }
+
+  const total = Math.max(0, subtotal - discount + shippingCost);
+
+  // A InfinitePay recusa cobrança abaixo de R$ 1,00 com um 422 GENÉRICO (o
+  // mesmo de handle inválido) — sem esta guarda, um cupom generoso num item
+  // barato criaria pedido cancelado fantasma com erro indiagnosticável.
+  if (channel === "online" && total < 1)
+    return falha({
+      ok: false,
+      code: "min_total",
+      error: "O valor mínimo para pagamento online é R$ 1,00.",
+    });
+
+  return {
+    ok: true,
+    rascunho: {
+      rows,
+      subtotal,
+      discount,
+      couponCode,
+      shippingCost,
+      shippingService,
+      total,
+    },
+  };
+}
+
+/**
+ * Grava o pedido calculado por `montarPedido`: confere o estoque, insere
+ * `orders`/`order_items`, reserva (online) e avisa (WhatsApp). Devolve também
+ * o `orderId`, que só circula no servidor.
+ */
+async function gravarPedido(
+  admin: ReturnType<typeof createAdminClient>,
+  rascunho: Rascunho,
+  channel: "whatsapp" | "online",
+  shipping?: {
+    shippingMethod: "pickup" | "delivery";
+    shippingAddress: Record<string, unknown> | null;
+  },
+): Promise<CheckoutResult & { orderId?: string }> {
+  const {
+    rows,
+    subtotal,
+    discount,
+    couponCode,
+    shippingCost,
+    shippingService,
+    total,
+  } = rascunho;
+
+  const user = await getSessionUser(); // pedido de visitante fica sem cliente
+
+  // WhatsApp de cliente logado que tem pagamento online pendente com as MESMAS
+  // peças: a reserva dele prenderia a peça contra ele mesmo (a sacola, que
+  // soma a reserva própria de volta, diria "disponível" e o servidor
+  // recusaria). Ele mudou de caminho; o pendente online sai antes da
+  // conferência. Só os pendentes que disputam alguma variante deste pedido —
+  // um pagamento online de OUTRAS peças, aberto noutra aba, segue vivo.
+  // (O online não passa aqui com pendentes: `startOnlinePaymentAction` já os
+  // reaproveitou ou cancelou.)
+  if (channel === "whatsapp" && user) {
+    const variantes = new Set(rows.map((r) => r.variant_id));
+    const disputam = (await pendentesOnline(admin, user.id)).filter((p) =>
+      (p.order_items ?? []).some((i) => variantes.has(i.variant_id)),
+    );
+    await cancelarPendentes(admin, disputam);
+  }
 
   // Estoque: a sacola vive no navegador do cliente e pode ficar dias parada —
   // a peça pode ter esgotado (inclusive vendida na loja física) nesse meio
@@ -643,78 +958,6 @@ async function criarPedido(
       error: `Estoque insuficiente — ${detalhe}.`,
     };
   }
-
-  const subtotal = rows.reduce((s, r) => s + r.unit_price * r.qty, 0);
-  const user = await getSessionUser(); // pedido de visitante fica sem cliente
-
-  // Cupom: validado AGORA, contra o subtotal relido — o que a sacola mostrou
-  // é cortesia. Cupom inválido barra o pedido em vez de seguir sem desconto:
-  // cobrar mais do que a tela prometeu é pior do que pedir para tentar de novo.
-  let discount = 0;
-  let couponCode: string | null = null;
-  if (extras?.couponCode) {
-    const c = await checkCoupon(admin, extras.couponCode, subtotal);
-    if (!c.ok) return { ok: false, code: "coupon", error: `Cupom: ${c.error}` };
-    discount = c.discount;
-    couponCode = c.code;
-  }
-
-  // Frete: RECOTADO no servidor pelo CEP + serviço escolhido. O preço que veio
-  // da sacola morre aqui — localStorage não decide dinheiro.
-  let shippingCost = 0;
-  let shippingService: string | null = null;
-  if (extras?.freight) {
-    const quote = await quoteShipping({
-      cepDestino: extras.freight.cep,
-      itens: rows.map((r) => ({
-        weightGrams: r.weight_grams,
-        price: r.unit_price,
-        qty: r.qty,
-      })),
-    });
-    if (!quote)
-      return {
-        ok: false,
-        code: "freight_down",
-        error:
-          "A cotação de frete está fora do ar — tente de novo em instantes.",
-      };
-    const opt = quote.options.find(
-      (o) => o.serviceId === extras.freight!.serviceId,
-    );
-    if (!opt)
-      return {
-        ok: false,
-        code: "freight_changed",
-        error: "O frete mudou — recalcule na sacola antes de finalizar.",
-      };
-    // O preço exibido vem como REFERÊNCIA (nunca como fonte): se a recotação
-    // ficou MAIS CARA que o que a tela prometeu, recusa em vez de cobrar a
-    // diferença em silêncio. Mais barato/igual segue.
-    if (
-      extras.freight.expectedPrice != null &&
-      opt.price > extras.freight.expectedPrice + 0.005
-    )
-      return {
-        ok: false,
-        code: "freight_changed",
-        error: "O frete mudou — recalcule na sacola antes de finalizar.",
-      };
-    shippingCost = opt.price;
-    shippingService = `${opt.name}${opt.company ? ` (${opt.company})` : ""}`;
-  }
-
-  const total = Math.max(0, subtotal - discount + shippingCost);
-
-  // A InfinitePay recusa cobrança abaixo de R$ 1,00 com um 422 GENÉRICO (o
-  // mesmo de handle inválido) — sem esta guarda, um cupom generoso num item
-  // barato criaria pedido cancelado fantasma com erro indiagnosticável.
-  if (channel === "online" && total < 1)
-    return {
-      ok: false,
-      code: "min_total",
-      error: "O valor mínimo para pagamento online é R$ 1,00.",
-    };
 
   // A FK de `orders.customer_id` aponta para `customers`, e a linha só nasce
   // na primeira visita à conta: logado sem ela (entrou e foi direto comprar)
@@ -852,6 +1095,7 @@ async function criarPedido(
 
   return {
     ok: true,
+    orderId: order.id,
     orderNumber: order.number,
     totals: {
       subtotal,

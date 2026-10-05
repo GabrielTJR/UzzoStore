@@ -129,11 +129,11 @@ export async function consumirReserva(
     .select("variant_id")
     .eq("order_id", orderId);
   await admin.from("reservations").delete().eq("order_id", orderId);
-  // Vendida de vez: não está mais "em processo de compra".
-  await marcarReserva(
+  // Vendida de vez: não está mais "em processo de compra" — a não ser que
+  // outro pedido ainda segure a mesma variante.
+  await recalcularMarca(
     admin,
-    (reservas ?? []).map((r) => ({ variant_id: r.variant_id, qty: 0 })),
-    null,
+    (reservas ?? []).map((r) => r.variant_id),
   );
 }
 
@@ -156,7 +156,82 @@ export async function liberarReserva(
 
   await devolverEstoque(admin, reservas as ItemEstoque[]);
   await admin.from("reservations").delete().eq("order_id", orderId);
-  await marcarReserva(admin, reservas as ItemEstoque[], null);
+  await recalcularMarca(
+    admin,
+    reservas.map((r) => r.variant_id),
+  );
+}
+
+/**
+ * Cancela um pedido AINDA NÃO PAGO e devolve a reserva dele. Devolve `true`
+ * quando foi esta chamada que cancelou (quem chama então derruba a etiqueta
+ * do catálogo — a peça voltou para a prateleira).
+ *
+ * A troca de situação vem PRIMEIRO e é condicional (`payment_status =
+ * 'pending'` dentro do UPDATE): só quem vence a troca devolve o estoque. Na
+ * ordem inversa, duas chamadas simultâneas (dois toques, duas abas) leriam as
+ * mesmas linhas de `reservations` e devolveriam a peça duas vezes — estoque
+ * fantasma, que é o oversell por outro caminho. Pedido pago ou já encerrado
+ * (expirado pelo pg_cron, cancelado antes) fica intocado.
+ */
+export async function cancelarPedidoPendente(
+  admin: Admin,
+  orderId: string,
+): Promise<boolean> {
+  const { data: cancelado } = await admin
+    .from("orders")
+    .update({
+      payment_status: "canceled",
+      fulfillment_status: "canceled",
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", orderId)
+    .eq("payment_status", "pending")
+    .select("id")
+    .maybeSingle();
+  if (!cancelado) return false;
+  await liberarReserva(admin, orderId);
+  return true;
+}
+
+/**
+ * Recalcula o aviso de compra em curso das variantes depois que uma reserva
+ * saiu: `max(expires_at)` das reservas que SOBRARAM, ou nulo se nenhuma.
+ * Zerar direto apagaria o aviso de uma reserva viva de OUTRO cliente, e a
+ * vitrine diria "esgotado" de uma peça que pode voltar em minutos. É a mesma
+ * regra que o pg_cron aplica na expiração (migração 0021).
+ */
+async function recalcularMarca(
+  admin: Admin,
+  variantIds: string[],
+): Promise<void> {
+  const ids = [...new Set(variantIds)];
+  if (ids.length === 0) return;
+  const { data: restantes, error } = await admin
+    .from("reservations")
+    .select("variant_id, expires_at")
+    .in("variant_id", ids);
+  // Sem conseguir ler, não mexe: marca velha some sozinha na próxima passada
+  // do cron; marca apagada por engano esconde reserva viva.
+  if (error) return;
+
+  const ate = new Map<string, string>();
+  for (const r of restantes ?? []) {
+    if (!r.variant_id || !r.expires_at) continue;
+    const atual = ate.get(r.variant_id);
+    if (!atual || Date.parse(r.expires_at) > Date.parse(atual))
+      ate.set(r.variant_id, r.expires_at);
+  }
+
+  const semReserva = ids.filter((id) => !ate.has(id));
+  if (semReserva.length > 0)
+    await marcarReserva(
+      admin,
+      semReserva.map((variant_id) => ({ variant_id })),
+      null,
+    );
+  for (const [variant_id, expira] of ate)
+    await marcarReserva(admin, [{ variant_id }], expira);
 }
 
 /** Liga/desliga o aviso de compra em curso na linha de estoque. */

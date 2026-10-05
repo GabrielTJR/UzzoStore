@@ -10,6 +10,7 @@ import {
 import { logAudit } from "@/lib/audit";
 import { consumirReserva, baixarEstoque, itensDoPedido } from "@/lib/stock";
 import { consumeCoupon } from "@/lib/coupons";
+import { siteUrl } from "@/lib/site-url";
 
 /**
  * Pagamento online via InfinitePay (Checkout Integrado).
@@ -38,6 +39,26 @@ export function infinitepayHandle(): string | null {
 /** Reais -> centavos (a API cobra em centavos). */
 export function toCents(value: number): number {
   return Math.round(value * 100);
+}
+
+/**
+ * A URL é mesmo do checkout da InfinitePay? https e host `infinitepay.io` ou
+ * subdomínio dele. O cliente é mandado direto para esta URL com a compra na
+ * mão: uma resposta adulterada (ou um registro guardado mexido) não pode
+ * virar redirecionamento para outro site.
+ */
+export function urlInfinitepay(url: unknown): url is string {
+  if (typeof url !== "string") return false;
+  try {
+    const u = new URL(url);
+    const host = u.hostname.toLowerCase();
+    return (
+      u.protocol === "https:" &&
+      (host === "infinitepay.io" || host.endsWith(".infinitepay.io"))
+    );
+  } catch {
+    return false;
+  }
 }
 
 export type LinkItem = { quantity: number; price: number; description: string };
@@ -154,14 +175,14 @@ export async function createPaymentLink(params: {
       (data.checkout_url as string) ??
       ((data.data as Record<string, unknown> | undefined)?.url as string);
 
-    if (!url) {
-      console.error("[infinitepay] resposta sem URL", text);
+    if (!urlInfinitepay(url)) {
+      console.error("[infinitepay] resposta sem URL válida", text);
       await logAudit(null, {
         action: "payment.link_failed",
         entityType: "order",
         entityLabel: `nº ${params.orderNsu}`,
         metadata: {
-          motivo: "resposta sem URL",
+          motivo: "resposta sem URL válida da InfinitePay",
           resposta: text.slice(0, 500),
           handle,
         },
@@ -180,6 +201,230 @@ export async function createPaymentLink(params: {
       detail: err instanceof Error ? err.message : String(err),
     };
   }
+}
+
+/**
+ * Monta os itens do link a partir do pedido JÁ GRAVADO. Função pura.
+ *
+ * Cada linha vira UM item com o total da linha (quantity 1): é o único jeito
+ * de aplicar o desconto do cupom com precisão de centavo — desconto por
+ * unidade não fecha a soma, e a conferência do webhook exige que a soma dos
+ * itens seja EXATAMENTE o total do pedido.
+ *
+ * O desconto é distribuído SEM nunca negativar linha: proporcional com clamp,
+ * e a sobra varre as linhas que ainda têm saldo. O frete entra como item
+ * próprio. Devolve `null` quando a soma não bate com `totalCents` — melhor
+ * abortar do que cobrar diferente do que o pedido registra.
+ */
+export function itensDoLink(params: {
+  linhas: { cents: number; description: string }[];
+  descontoCents: number;
+  freteCents: number;
+  freteNome: string | null;
+  totalCents: number;
+}): LinkItem[] | null {
+  const linhas = params.linhas.map((l) => ({ ...l }));
+  if (linhas.length === 0) return null;
+
+  const discountCents = params.descontoCents;
+  if (discountCents > 0) {
+    const somaOriginal = linhas.reduce((s, l) => s + l.cents, 0);
+    let restante = discountCents;
+    for (let i = 0; i < linhas.length && restante > 0; i++) {
+      const proporcional = Math.floor(
+        (linhas[i].cents * discountCents) / somaOriginal,
+      );
+      const parte = Math.min(restante, proporcional, linhas[i].cents);
+      linhas[i].cents -= parte;
+      restante -= parte;
+    }
+    for (let i = 0; i < linhas.length && restante > 0; i++) {
+      const parte = Math.min(restante, linhas[i].cents);
+      linhas[i].cents -= parte;
+      restante -= parte;
+    }
+  }
+
+  const soma = linhas.reduce((s, l) => s + l.cents, 0) + params.freteCents;
+  if (soma !== params.totalCents) return null;
+
+  const items: LinkItem[] = linhas
+    .filter((l) => l.cents > 0)
+    .map((l) => ({ quantity: 1, price: l.cents, description: l.description }));
+  if (params.freteCents > 0)
+    items.push({
+      quantity: 1,
+      price: params.freteCents,
+      description: `Frete — ${params.freteNome ?? "envio"}`,
+    });
+  return items;
+}
+
+/**
+ * Onde o link de cada pedido fica guardado: no próprio `audit_log`, como o
+ * evento "link criado" (com a URL nos metadados). Sem coluna nova em `orders`
+ * e sem migração — e o evento já seria útil no /admin/logs de qualquer jeito.
+ * O índice (entity_type, entity_id) da migração 0003 cobre a busca.
+ */
+const ACAO_LINK_CRIADO = "payment.link_created";
+
+async function linkGuardado(
+  admin: ReturnType<typeof createAdminClient>,
+  orderId: string,
+  totalCents: number,
+): Promise<string | null> {
+  const { data } = await admin
+    .from("audit_log")
+    .select("metadata")
+    .eq("entity_type", "order")
+    .eq("entity_id", orderId)
+    .eq("action", ACAO_LINK_CRIADO)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  const m = (data?.metadata ?? null) as {
+    url?: unknown;
+    total_centavos?: unknown;
+  } | null;
+  // Só reaproveita link do MESMO valor: o pedido não muda depois de gravado,
+  // mas se um dia mudar, cobrar pelo link antigo seria cobrar outro total.
+  if (urlInfinitepay(m?.url) && m.total_centavos === totalCents) return m.url;
+  return null;
+}
+
+export type LinkDoPedido = {
+  ok: boolean;
+  url?: string;
+  error?: string;
+  /** resposta crua do provedor — só para o admin ver */
+  detail?: string;
+  /** a URL é a que já existia (nenhum link novo foi criado) */
+  reaproveitado?: boolean;
+};
+
+/**
+ * Link de pagamento de um pedido online JÁ GRAVADO, montado só com o que está
+ * no banco (o pedido é o snapshot: preço, cupom e frete foram decididos na
+ * criação e não são recalculados aqui).
+ *
+ * `reaproveitar`: devolve o link criado antes para este pedido, se houver. É o
+ * caminho preferido para "pagar de novo": o link da InfinitePay não expira
+ * (não mandamos prazo) e continua pagável, então gerar outro deixaria DOIS
+ * links vivos para o mesmo pedido — e cada pagamento é uma transação própria,
+ * que a trava de `payments` (por transação) não reconhece como repetida. Só
+ * quando não há link guardado (pedido anterior a esta mudança, ou o registro
+ * falhou) criamos outro com o MESMO `order_nsu`: o `confirmPayment` confere
+ * pedido + transação + slug, então o segundo link confirma do mesmo jeito.
+ *
+ * Quem chama decide o que fazer na falha (a regra da casa é cancelar e
+ * devolver a reserva — pedido pendente sem link não serve para nada).
+ */
+export async function linkDoPedido(
+  admin: ReturnType<typeof createAdminClient>,
+  orderId: string,
+  opts: { email?: string | null; reaproveitar: boolean },
+): Promise<LinkDoPedido> {
+  const { data } = await admin
+    .from("orders")
+    .select(
+      "id, number, total, discount, shipping_cost, shipping_service, shipping_method, shipping_address, customer_id, order_items ( product_name, variant_label, unit_price, qty )",
+    )
+    .eq("id", orderId)
+    .maybeSingle();
+  if (!data) return { ok: false, error: "Pedido não encontrado." };
+  const order = data as unknown as {
+    id: string;
+    number: number;
+    total: number;
+    discount: number | null;
+    shipping_cost: number | null;
+    shipping_service: string | null;
+    shipping_method: string | null;
+    shipping_address: {
+      cep?: string | null;
+      street?: string | null;
+      district?: string | null;
+      number?: string | null;
+      complement?: string | null;
+    } | null;
+    customer_id: string | null;
+    order_items: {
+      product_name: string;
+      variant_label: string | null;
+      unit_price: number;
+      qty: number;
+    }[];
+  };
+  const totalCents = toCents(Number(order.total));
+
+  if (opts.reaproveitar) {
+    const url = await linkGuardado(admin, order.id, totalCents);
+    if (url) return { ok: true, url, reaproveitado: true };
+  }
+
+  const items = itensDoLink({
+    linhas: (order.order_items ?? []).map((r) => ({
+      cents: toCents(Number(r.unit_price)) * r.qty,
+      description:
+        `${r.qty}× ` +
+        [r.product_name, r.variant_label].filter(Boolean).join(" — "),
+    })),
+    descontoCents: toCents(Number(order.discount ?? 0)),
+    freteCents: toCents(Number(order.shipping_cost ?? 0)),
+    freteNome: order.shipping_service,
+    totalCents,
+  });
+  if (!items) {
+    console.error("[infinitepay] itens do pedido não fecham o total", {
+      pedido: order.number,
+      total: order.total,
+    });
+    return { ok: false, error: "Erro ao montar o pagamento. Tente de novo." };
+  }
+
+  const { data: profile } = order.customer_id
+    ? await admin
+        .from("customers")
+        .select("full_name, phone")
+        .eq("id", order.customer_id)
+        .maybeSingle()
+    : { data: null };
+
+  const addr =
+    order.shipping_method === "delivery" ? order.shipping_address : null;
+  const link = await createPaymentLink({
+    items,
+    orderNsu: String(order.number),
+    redirectUrl: `${siteUrl()}/pedido/confirmado`,
+    webhookUrl: `${siteUrl()}/api/infinitepay/webhook`,
+    customer: {
+      name: profile?.full_name,
+      email: opts.email,
+      phone: profile?.phone,
+    },
+    // Na entrega, repassa o endereço que o cliente já escolheu: sem isto ele
+    // redigita CEP e rua no checkout deles, logo depois de tê-los informado
+    // aqui para cotar o frete. Na retirada não existe endereço.
+    address: addr?.cep
+      ? {
+          cep: String(addr.cep),
+          street: addr.street ?? null,
+          neighborhood: addr.district ?? null,
+          number: addr.number ?? null,
+          complement: addr.complement ?? null,
+        }
+      : null,
+  });
+
+  if (link.ok && link.url)
+    await logAudit(null, {
+      action: ACAO_LINK_CRIADO,
+      entityType: "order",
+      entityId: order.id,
+      entityLabel: `nº ${order.number}`,
+      metadata: { url: link.url, total_centavos: totalCents },
+    });
+  return link;
 }
 
 export type PaymentCheck = {
