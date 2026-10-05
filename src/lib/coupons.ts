@@ -9,7 +9,13 @@ import type { createAdminClient } from "@/lib/supabase/admin";
  */
 export type CouponCheck =
   | { ok: true; code: string; percentOff: number; discount: number }
-  | { ok: false; error: string };
+  | {
+      ok: false;
+      error: string;
+      /** Recusa do FREIO, não do cupom: a tela mantém o cupom aplicado (o
+       * pedido revalida de qualquer jeito) em vez de apagá-lo como inválido. */
+      rateLimited?: boolean;
+    };
 
 export async function checkCoupon(
   admin: ReturnType<typeof createAdminClient>,

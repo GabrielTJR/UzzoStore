@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
+import { onlyDigits } from "@/lib/customer-fields";
 
 export type CartItem = {
   variantId: string;
@@ -27,11 +28,21 @@ type CartState = {
   items: CartItem[];
   coupon: string | null;
   shipping: CartShipping | null;
+  /**
+   * Último CEP que o cliente COTOU (8 dígitos), na sacola ou na página do
+   * produto. Serve só para pré-preencher o endereço do checkout — quem já
+   * digitou o CEP uma vez não deveria digitar de novo. Não decide frete: o
+   * checkout cota pelo endereço salvo. Diferente de `shipping`, sobrevive a
+   * mudanças na sacola (o CEP de quem compra não muda porque a sacola mudou).
+   */
+  cep: string | null;
   addItem: (item: Omit<CartItem, "qty">, qty?: number) => void;
   removeItem: (variantId: string) => void;
   setQty: (variantId: string, qty: number) => void;
   setCoupon: (code: string | null) => void;
   setShipping: (s: CartShipping | null) => void;
+  /** Guarda só CEP completo; incompleto é ignorado (não apaga o que já havia). */
+  setCep: (cep: string | null) => void;
   clear: () => void;
 };
 
@@ -41,6 +52,7 @@ export const useCart = create<CartState>()(
       items: [],
       coupon: null,
       shipping: null,
+      cep: null,
       addItem: (item, qty = 1) =>
         set((state) => {
           const existing = state.items.find(
@@ -74,7 +86,12 @@ export const useCart = create<CartState>()(
         })),
       setCoupon: (code) => set({ coupon: code }),
       setShipping: (s) => set({ shipping: s }),
-      clear: () => set({ items: [], coupon: null, shipping: null }),
+      setCep: (cep) => {
+        if (cep == null) return set({ cep: null });
+        const d = onlyDigits(cep);
+        if (d.length === 8) set({ cep: d });
+      },
+      clear: () => set({ items: [], coupon: null, shipping: null, cep: null }),
     }),
     { name: "uzzo-cart" },
   ),
