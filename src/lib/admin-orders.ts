@@ -64,14 +64,18 @@ export function nextFulfillmentStatus(
   return steps[i + 1] ?? null;
 }
 
-/** Rótulo do botão que avança o atendimento. */
+/**
+ * Rótulo do botão que avança o atendimento — o mesmo no quadro, no modal e na
+ * lista. Diz o que a pessoa vai FAZER ("Começar a separar"), não o estado em
+ * que o pedido vai ficar, e cabe numa linha no cartão mais estreito do quadro.
+ */
 export function fulfillmentLabel(next: FulfillmentStatus): string {
   return {
     pending: "Voltar para aguardando",
-    preparing: "Marcar como separando",
-    ready: "Marcar como pronto p/ retirada",
+    preparing: "Começar a separar",
+    ready: "Marcar pronto para retirada",
     shipped: "Marcar como enviado",
-    done: "Marcar como concluído",
+    done: "Concluir pedido",
     canceled: "Cancelar",
   }[next];
 }

@@ -1,52 +1,52 @@
 import Link from "next/link";
 import type { Metadata } from "next";
 import { requireAdmin } from "@/lib/admin";
-import {
-  getAdminOrders,
-  PAYMENT_STATUS,
-  FULFILLMENT_STATUS,
-  fulfillmentSteps,
-  nextFulfillmentStatus,
-  fulfillmentLabel,
-  podeAvancarAtendimento,
-  aceitaPagamentoManual,
-  situacaoCliente,
-  type PaymentStatus,
-} from "@/lib/admin-orders";
+import { getAdminOrders } from "@/lib/admin-orders";
 import { formatBRL } from "@/lib/format";
-import {
-  updateFulfillmentAction,
-  updatePaymentStatusAction,
-  markOrdersSeenAction,
-  updateOrderTrackingAction,
-} from "../actions";
+import { markOrdersSeenAction } from "../actions";
 import { SubmitButton } from "@/components/submit-button";
-import { PedidosKanban } from "./kanban";
 import { PageHeader } from "../admin-ui";
+import { PedidosKanban } from "./kanban";
+import { OrderDetail } from "./order-detail";
+import { OrderModal } from "./order-modal";
+import { pedidosHref } from "./href";
 
 export const metadata: Metadata = { title: "Pedidos" };
 
-const PAGAMENTO_STYLE: Record<string, string> = {
-  pending: "border-amber-500 text-amber-700 dark:text-amber-400",
-  paid: "border-green-600 text-green-700 dark:text-green-400",
-  expired: "border-border text-muted line-through",
-  refunded: "border-blue-500 text-blue-700 dark:text-blue-400",
-  canceled: "border-border text-muted line-through",
-};
+/** Sinal de pedido novo — o mesmo do quadro e da Visão geral. */
+const seloNovo =
+  "rounded-xs bg-accent px-1.5 py-0.5 text-[0.7rem] font-bold leading-none text-accent-foreground";
 
 export default async function PedidosAdminPage({
   searchParams,
 }: {
-  searchParams: Promise<{ vista?: string }>;
+  searchParams: Promise<{
+    vista?: string | string[];
+    pedido?: string | string[];
+  }>;
 }) {
   await requireAdmin();
   const orders = await getAdminOrders();
   const novos = orders.filter((o) => o.isNew).length;
+  const sp = await searchParams;
   // O QUADRO é a visão padrão (out/2026, pedido do dono): responde "em que
   // etapa está cada pedido e o que fazer agora". A lista (`?vista=lista`)
-  // responde "o que houve com o pedido X" — detalhe completo, rastreio,
-  // cancelados. A vista vive na URL para o admin poder fixar a que usa.
-  const kanban = (await searchParams).vista !== "lista";
+  // responde "o que houve com o pedido X" — histórico completo, cancelados,
+  // expirados. A vista vive na URL para o admin poder fixar a que usa.
+  const kanban = sp.vista !== "lista";
+  const vista = kanban ? "quadro" : "lista";
+
+  // Pedido aberto no modal (`?pedido=<número>`). Sai da MESMA leitura que já
+  // alimenta a tela — nenhuma consulta a mais — e só ELE vira detalhe no HTML.
+  // Número que não existe (ou texto qualquer no parâmetro) é ignorado: a tela
+  // abre normal, sem modal e sem erro.
+  const numero =
+    typeof sp.pedido === "string" && /^\d{1,9}$/.test(sp.pedido)
+      ? Number(sp.pedido)
+      : null;
+  const aberto =
+    numero === null ? null : (orders.find((o) => o.number === numero) ?? null);
+
   const aba = (ativa: boolean) =>
     `inline-flex h-10 items-center px-4 text-sm ${
       ativa
@@ -75,7 +75,7 @@ export default async function PedidosAdminPage({
             CSS dobrava o HTML de toda visita. */}
         <div className="flex overflow-hidden rounded-xs border border-border">
           <Link
-            href="/admin/pedidos"
+            href={pedidosHref("quadro")}
             prefetch={false}
             aria-current={kanban ? "page" : undefined}
             className={aba(kanban)}
@@ -83,7 +83,7 @@ export default async function PedidosAdminPage({
             Quadro
           </Link>
           <Link
-            href="/admin/pedidos?vista=lista"
+            href={pedidosHref("lista")}
             prefetch={false}
             aria-current={kanban ? undefined : "page"}
             className={`${aba(!kanban)} border-l border-border`}
@@ -97,277 +97,38 @@ export default async function PedidosAdminPage({
 
       {!kanban && (
         <div className="max-w-5xl space-y-4">
-          {orders.map((o) => {
-            const next = nextFulfillmentStatus(
-              o.fulfillmentStatus,
-              o.shippingMethod,
-            );
-            // O eixo físico não anda sem o dinheiro dentro.
-            const travado = !podeAvancarAtendimento(o.paymentStatus);
-            return (
-              <div
-                key={o.id}
-                // Âncora dos cartões do quadro ("nº 1007" leva para cá).
-                id={`pedido-${o.number}`}
-                className={`scroll-mt-6 rounded-sm border bg-background p-5 ${
-                  o.isNew
-                    ? "border-accent shadow-[inset_3px_0_0_var(--accent)]"
-                    : "border-border"
-                }`}
-              >
-                <div className="flex flex-wrap items-baseline justify-between gap-3">
-                  <div>
-                    <p className="font-medium">
-                      {o.isNew && (
-                        <span className="mr-2 rounded-full bg-red-600 px-2 py-0.5 text-xs font-medium text-white">
-                          NOVO
-                        </span>
-                      )}
-                      Pedido nº {o.number}
-                      <span
-                        className={`ml-3 rounded-full border px-2 py-0.5 text-xs font-normal ${
-                          PAGAMENTO_STYLE[o.paymentStatus] ??
-                          "border-border text-muted"
-                        }`}
-                      >
-                        {situacaoCliente(o.paymentStatus, o.fulfillmentStatus)}
-                      </span>
-                    </p>
-                    <p className="mt-1 text-xs text-muted">
-                      {new Date(o.createdAt).toLocaleString("pt-BR")} ·{" "}
-                      {o.customerName ?? "visitante sem conta"}
-                      {o.customerPhone ? ` · ${o.customerPhone}` : ""}
-                      {o.channel === "online"
-                        ? " · pago no site"
-                        : " · WhatsApp"}
-                    </p>
-                  </div>
-                  <p className="text-lg font-medium">{formatBRL(o.total)}</p>
-                </div>
+          {orders.map((o) => (
+            <article
+              key={o.id}
+              // Âncora do pedido na lista (`/admin/pedidos?vista=lista#pedido-1007`).
+              id={`pedido-${o.number}`}
+              aria-labelledby={`pedido-${o.number}-titulo`}
+              className={`scroll-mt-6 rounded-sm border bg-background p-5 ${
+                o.isNew
+                  ? "border-accent shadow-[inset_3px_0_0_var(--accent)]"
+                  : "border-border"
+              }`}
+            >
+              <header className="mb-4 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-b border-border pb-4">
+                <h2
+                  id={`pedido-${o.number}-titulo`}
+                  className="flex flex-wrap items-center gap-x-2.5 gap-y-1 font-semibold"
+                >
+                  Pedido nº {o.number}
+                  {o.isNew && <span className={seloNovo}>novo</span>}
+                  <span className="font-normal text-muted">
+                    {o.customerName ?? "Visitante sem conta"}
+                  </span>
+                </h2>
+                <p className="text-lg font-semibold tabular-nums">
+                  {formatBRL(o.total)}
+                </p>
+              </header>
 
-                <ul className="mt-3 space-y-1 text-sm text-muted">
-                  {o.items.map((i, k) => (
-                    <li key={k}>
-                      {i.qty}× {i.productName}
-                      {i.variantLabel ? ` — ${i.variantLabel}` : ""} ·{" "}
-                      {formatBRL(i.unitPrice * i.qty)}
-                    </li>
-                  ))}
-                </ul>
-
-                {/* Entrega: sem isso não dá para saber se retira ou para onde enviar */}
-                {o.shippingMethod === "pickup" && (
-                  <p className="mt-3 rounded-xs border border-border px-3 py-2 text-sm">
-                    <span className="font-medium">Retirada na loja</span>
-                  </p>
-                )}
-                {o.shippingMethod === "delivery" && o.shippingAddress && (
-                  <p className="mt-3 rounded-xs border border-border px-3 py-2 text-sm">
-                    <span className="font-medium">Entrega</span>
-                    <span className="block text-muted">
-                      {o.shippingAddress.street}
-                      {o.shippingAddress.number
-                        ? `, ${o.shippingAddress.number}`
-                        : ""}
-                      {o.shippingAddress.complement
-                        ? ` — ${o.shippingAddress.complement}`
-                        : ""}
-                      {o.shippingAddress.district
-                        ? `, ${o.shippingAddress.district}`
-                        : ""}{" "}
-                      · {o.shippingAddress.city}/{o.shippingAddress.state} · CEP{" "}
-                      {o.shippingAddress.cep}
-                    </span>
-                    {o.customerCpf && (
-                      <span className="block text-muted">
-                        CPF do cliente: {o.customerCpf}
-                      </span>
-                    )}
-                    {o.shippingService && (
-                      <span className="block text-muted">
-                        Frete: {o.shippingService} —{" "}
-                        {o.shippingCost > 0
-                          ? formatBRL(o.shippingCost)
-                          : "grátis"}
-                      </span>
-                    )}
-                    {o.couponCode && (
-                      <span className="block text-muted">
-                        Cupom {o.couponCode}: −{formatBRL(o.discount)}
-                      </span>
-                    )}
-                  </p>
-                )}
-
-                {/* Rastreio: salve ANTES de avançar para "enviado" — o e-mail ao
-                cliente sai com o link do código que estiver salvo aqui. */}
-                {o.shippingMethod === "delivery" &&
-                  o.fulfillmentStatus !== "canceled" && (
-                    <form
-                      action={updateOrderTrackingAction}
-                      className="mt-3 flex flex-wrap items-center gap-2 text-sm"
-                    >
-                      <input type="hidden" name="orderId" value={o.id} />
-                      <label
-                        htmlFor={`tracking-${o.id}`}
-                        className="text-muted"
-                      >
-                        Rastreio:
-                      </label>
-                      <input
-                        id={`tracking-${o.id}`}
-                        name="tracking"
-                        defaultValue={o.trackingCode ?? ""}
-                        placeholder="AA123456789BR"
-                        className="h-9 w-44 rounded-xs border border-border bg-transparent px-3 font-mono text-xs uppercase outline-none focus:border-foreground"
-                      />
-                      <SubmitButton
-                        pendingText="…"
-                        className="h-9 rounded-xs border border-border px-4 text-xs font-medium hover:border-foreground"
-                      >
-                        Salvar
-                      </SubmitButton>
-                    </form>
-                  )}
-
-                {/* Dois eixos separados: o dinheiro e o trabalho físico. Um botão
-                só para os dois foi o que produziu pedido "pago" sem pagamento. */}
-                <div className="mt-4 space-y-4 border-t border-border pt-4">
-                  <div className="flex flex-wrap items-center gap-3 text-sm">
-                    <span className="text-muted">Pagamento:</span>
-                    <span
-                      className={`rounded-full border px-2 py-0.5 text-xs ${
-                        PAGAMENTO_STYLE[o.paymentStatus] ??
-                        "border-border text-muted"
-                      }`}
-                    >
-                      {PAYMENT_STATUS[o.paymentStatus as PaymentStatus] ??
-                        o.paymentStatus}
-                    </span>
-
-                    {aceitaPagamentoManual(o.channel) ? (
-                      o.paymentStatus !== "paid" && (
-                        <form action={updatePaymentStatusAction}>
-                          <input type="hidden" name="orderId" value={o.id} />
-                          <input type="hidden" name="status" value="paid" />
-                          <SubmitButton
-                            pendingText="Salvando…"
-                            className="h-8 rounded-xs border border-green-600 px-4 text-xs font-medium text-green-700 hover:bg-green-600 hover:text-white dark:text-green-400"
-                          >
-                            Confirmar pagamento
-                          </SubmitButton>
-                        </form>
-                      )
-                    ) : (
-                      <span className="text-xs text-muted">
-                        automático — quem confirma é a InfinitePay
-                      </span>
-                    )}
-
-                    {o.expiresAt && o.paymentStatus === "pending" && (
-                      <span className="text-xs text-muted">
-                        expira {new Date(o.expiresAt).toLocaleString("pt-BR")}
-                      </span>
-                    )}
-                  </div>
-
-                  <ol className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs">
-                    {fulfillmentSteps(o.shippingMethod).map((s, i, arr) => {
-                      const done =
-                        arr.indexOf(
-                          o.fulfillmentStatus as (typeof arr)[number],
-                        ) >= i && o.fulfillmentStatus !== "canceled";
-                      const current = o.fulfillmentStatus === s;
-                      return (
-                        <li key={s} className="flex items-center gap-2">
-                          <span
-                            className={
-                              current
-                                ? "font-medium text-foreground"
-                                : done
-                                  ? "text-green-700 dark:text-green-400"
-                                  : "text-muted"
-                            }
-                          >
-                            {done && !current ? "✓ " : ""}
-                            {FULFILLMENT_STATUS[s]}
-                          </span>
-                          {i < arr.length - 1 && (
-                            <span className="text-muted">→</span>
-                          )}
-                        </li>
-                      );
-                    })}
-                    {o.fulfillmentStatus === "canceled" && (
-                      <li className="font-medium text-red-600">Cancelado</li>
-                    )}
-                  </ol>
-
-                  <div className="flex flex-wrap items-center gap-3">
-                    {next && travado && (
-                      <p className="text-xs text-amber-700 dark:text-amber-400">
-                        O atendimento só avança depois do pagamento confirmado.
-                      </p>
-                    )}
-                    {next && !travado && (
-                      <form action={updateFulfillmentAction}>
-                        <input type="hidden" name="orderId" value={o.id} />
-                        <input type="hidden" name="status" value={next} />
-                        <SubmitButton
-                          pendingText="Salvando…"
-                          className="h-9 rounded-xs bg-foreground px-5 text-sm font-medium text-background hover:opacity-90"
-                        >
-                          {fulfillmentLabel(next)}
-                        </SubmitButton>
-                      </form>
-                    )}
-
-                    {o.fulfillmentStatus !== "canceled" &&
-                      o.fulfillmentStatus !== "done" && (
-                        <form action={updateFulfillmentAction}>
-                          <input type="hidden" name="orderId" value={o.id} />
-                          <input type="hidden" name="status" value="canceled" />
-                          <SubmitButton
-                            pendingText="…"
-                            className="text-sm text-red-600 underline-offset-4 hover:underline dark:text-red-400"
-                          >
-                            Cancelar pedido
-                          </SubmitButton>
-                        </form>
-                      )}
-
-                    {/* Correção manual do ATENDIMENTO. O pagamento não entra aqui:
-                    no online ele é do provedor, e no WhatsApp já tem o botão
-                    próprio acima. */}
-                    <details className="ml-auto text-xs text-muted">
-                      <summary className="cursor-pointer select-none hover:text-foreground">
-                        corrigir atendimento
-                      </summary>
-                      <div className="mt-2 flex flex-wrap gap-2">
-                        {(
-                          Object.keys(
-                            FULFILLMENT_STATUS,
-                          ) as (keyof typeof FULFILLMENT_STATUS)[]
-                        ).map((s) => (
-                          <form key={s} action={updateFulfillmentAction}>
-                            <input type="hidden" name="orderId" value={o.id} />
-                            <input type="hidden" name="status" value={s} />
-                            <SubmitButton
-                              disabled={o.fulfillmentStatus === s}
-                              pendingText="…"
-                              className="h-7 rounded-xs border border-border px-3 text-xs hover:border-foreground disabled:opacity-40"
-                            >
-                              {FULFILLMENT_STATUS[s]}
-                            </SubmitButton>
-                          </form>
-                        ))}
-                      </div>
-                    </details>
-                  </div>
-                </div>
-              </div>
-            );
-          })}
+              {/* O MESMO detalhe que o modal do quadro abre — fonte única. */}
+              <OrderDetail order={o} idPrefix="lista" />
+            </article>
+          ))}
 
           {orders.length === 0 && (
             <p className="rounded-sm border border-dashed border-border p-6 text-sm text-muted">
@@ -376,6 +137,31 @@ export default async function PedidosAdminPage({
             </p>
           )}
         </div>
+      )}
+
+      {/* Depois de uma ação (avançar, salvar rastreio…) o modal CONTINUA
+          aberto: as server actions só revalidam `/admin/pedidos`, sem
+          redirecionar, então a tela se refaz no mesmo endereço — com o
+          `?pedido=` — e o detalhe já vem na nova situação. A `key` troca a
+          instância se o endereço passar de um pedido para outro. */}
+      {aberto && (
+        <OrderModal
+          key={aberto.id}
+          number={aberto.number}
+          title={`Pedido nº ${aberto.number}`}
+          subtitle={aberto.customerName ?? "Visitante sem conta"}
+          closeHref={pedidosHref(vista)}
+          aside={
+            <>
+              {aberto.isNew && <span className={seloNovo}>novo</span>}
+              <span className="whitespace-nowrap font-semibold tabular-nums">
+                {formatBRL(aberto.total)}
+              </span>
+            </>
+          }
+        >
+          <OrderDetail order={aberto} idPrefix="modal" />
+        </OrderModal>
       )}
     </section>
   );
