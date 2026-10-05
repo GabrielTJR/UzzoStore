@@ -312,3 +312,363 @@ export async function getAudience(): Promise<AudienceResult> {
     };
   }
 }
+
+/* ======================================================================
+ * DETALHE DOS CARDS — o modal que abre ao clicar num card de audiência.
+ *
+ * Mesmo desenho da visão geral: só roda quando um admin ABRE o detalhe, e o
+ * resultado fica 15 min no cache (1 min para "agora"), por tipo + período. A
+ * URL (`?detalhe=&periodo=`) é a única entrada, e os dois valores passam por
+ * lista fechada antes de chegar aqui — nada vindo da URL vira parâmetro livre
+ * da consulta ao Google.
+ *
+ * O formato de saída é genérico (seções com colunas tipadas) para o modal ser
+ * um só: acrescentar um detalhe novo é acrescentar um caso aqui, não uma tela.
+ * ==================================================================== */
+
+export const DETALHES = {
+  visitantes: "Visitantes",
+  paginas: "Páginas",
+  origens: "De onde vieram",
+  aparelhos: "Aparelhos",
+  agora: "No site agora",
+} as const;
+export type DetalheKind = keyof typeof DETALHES;
+
+export const PERIODOS_DETALHE = [7, 28, 90] as const;
+export type PeriodoDetalhe = (typeof PERIODOS_DETALHE)[number];
+
+export function isDetalheKind(v: unknown): v is DetalheKind {
+  return typeof v === "string" && v in DETALHES;
+}
+export function toPeriodoDetalhe(v: unknown): PeriodoDetalhe {
+  const n = Number(v);
+  return (PERIODOS_DETALHE as readonly number[]).includes(n)
+    ? (n as PeriodoDetalhe)
+    : 28;
+}
+
+/** Tipo de cada coluna — decide o alinhamento e a formatação no modal. */
+export type ColunaTipo = "texto" | "numero" | "percentual" | "duracao" | "data";
+export type DetalheSecao = {
+  titulo: string;
+  colunas: { rotulo: string; tipo: ColunaTipo }[];
+  linhas: (string | number)[][];
+  /** Linha discreta sob o título. */
+  nota?: string;
+};
+export type AudienceDetail = {
+  kind: DetalheKind;
+  periodo: PeriodoDetalhe | null; // null = tempo real
+  secoes: DetalheSecao[];
+  fetchedAt: string;
+};
+
+async function fetchDetail(
+  kind: DetalheKind,
+  dias: PeriodoDetalhe,
+): Promise<AudienceDetail> {
+  const cfg = config();
+  if (!cfg) throw new Error("Google Analytics não configurado");
+  const dateRanges = [{ startDate: `${dias - 1}daysAgo`, endDate: "today" }];
+  const agoraIso = new Date().toISOString();
+
+  if (kind === "agora") {
+    const tempoReal = (dimension: string, limit: number) =>
+      gaPost<GaReport>(cfg, "runRealtimeReport", {
+        dimensions: [{ name: dimension }],
+        metrics: [{ name: "activeUsers" }],
+        orderBys: [{ metric: { metricName: "activeUsers" }, desc: true }],
+        limit,
+      });
+    const [telas, cidades, aparelhos] = await Promise.all([
+      tempoReal("unifiedScreenName", 20),
+      tempoReal("city", 15),
+      tempoReal("deviceCategory", 5),
+    ]);
+    const tabela = (r: GaReport, map?: Record<string, string>) =>
+      (r.rows ?? []).map((x) => [map?.[dim(x)] ?? dim(x), num(x)]);
+    const duas = (rotulo: string) => [
+      { rotulo, tipo: "texto" as const },
+      { rotulo: "Visitantes", tipo: "numero" as const },
+    ];
+    return {
+      kind,
+      periodo: null,
+      secoes: [
+        {
+          titulo: "Página em que estão",
+          nota: "Últimos 30 minutos. O nome é o título da página.",
+          colunas: duas("Página"),
+          linhas: tabela(telas),
+        },
+        { titulo: "Cidade", colunas: duas("Cidade"), linhas: tabela(cidades) },
+        {
+          titulo: "Aparelho",
+          colunas: duas("Aparelho"),
+          linhas: tabela(aparelhos, APARELHOS),
+        },
+      ],
+      fetchedAt: agoraIso,
+    };
+  }
+
+  const porMetrica = (metricName: string) => [
+    { metric: { metricName }, desc: true },
+  ];
+  const pedidos: Record<Exclude<DetalheKind, "agora">, object[]> = {
+    visitantes: [
+      {
+        dateRanges,
+        dimensions: [{ name: "date" }],
+        metrics: [
+          { name: "activeUsers" },
+          { name: "newUsers" },
+          { name: "sessions" },
+          { name: "screenPageViews" },
+        ],
+        orderBys: [{ dimension: { dimensionName: "date" }, desc: true }],
+      },
+      {
+        dateRanges,
+        dimensions: [{ name: "city" }, { name: "region" }],
+        metrics: [{ name: "activeUsers" }],
+        orderBys: porMetrica("activeUsers"),
+        limit: 25,
+      },
+    ],
+    paginas: [
+      {
+        dateRanges,
+        dimensions: [{ name: "pagePath" }],
+        metrics: [
+          { name: "screenPageViews" },
+          { name: "activeUsers" },
+          { name: "userEngagementDuration" },
+        ],
+        orderBys: porMetrica("screenPageViews"),
+        limit: 50,
+      },
+      {
+        dateRanges,
+        dimensions: [{ name: "landingPage" }],
+        metrics: [{ name: "sessions" }, { name: "bounceRate" }],
+        orderBys: porMetrica("sessions"),
+        limit: 20,
+      },
+    ],
+    origens: [
+      {
+        dateRanges,
+        dimensions: [{ name: "sessionDefaultChannelGroup" }],
+        metrics: [
+          { name: "sessions" },
+          { name: "activeUsers" },
+          { name: "engagementRate" },
+        ],
+        orderBys: porMetrica("sessions"),
+      },
+      {
+        dateRanges,
+        dimensions: [{ name: "sessionSource" }, { name: "sessionMedium" }],
+        metrics: [{ name: "sessions" }],
+        orderBys: porMetrica("sessions"),
+        limit: 30,
+      },
+    ],
+    aparelhos: [
+      {
+        dateRanges,
+        dimensions: [{ name: "deviceCategory" }],
+        metrics: [{ name: "activeUsers" }, { name: "engagementRate" }],
+        orderBys: porMetrica("activeUsers"),
+      },
+      {
+        dateRanges,
+        dimensions: [{ name: "operatingSystem" }],
+        metrics: [{ name: "activeUsers" }],
+        orderBys: porMetrica("activeUsers"),
+        limit: 10,
+      },
+      {
+        dateRanges,
+        dimensions: [{ name: "browser" }],
+        metrics: [{ name: "activeUsers" }],
+        orderBys: porMetrica("activeUsers"),
+        limit: 10,
+      },
+    ],
+  };
+
+  const { reports = [] } = await gaPost<{ reports?: GaReport[] }>(
+    cfg,
+    "batchRunReports",
+    { requests: pedidos[kind] },
+  );
+  const linhas = (i: number) => reports[i]?.rows ?? [];
+  const ymd = (v: string) =>
+    v.length === 8 ? `${v.slice(0, 4)}-${v.slice(4, 6)}-${v.slice(6)}` : v;
+
+  let secoes: DetalheSecao[] = [];
+  if (kind === "visitantes") {
+    secoes = [
+      {
+        titulo: "Por dia",
+        nota: "Dias sem nenhuma visita não aparecem.",
+        colunas: [
+          { rotulo: "Dia", tipo: "data" },
+          { rotulo: "Visitantes", tipo: "numero" },
+          { rotulo: "Novos", tipo: "numero" },
+          { rotulo: "Sessões", tipo: "numero" },
+          { rotulo: "Páginas vistas", tipo: "numero" },
+        ],
+        linhas: linhas(0).map((r) => [
+          ymd(dim(r)),
+          num(r, 0),
+          num(r, 1),
+          num(r, 2),
+          num(r, 3),
+        ]),
+      },
+      {
+        titulo: "Cidades",
+        nota: "As 25 com mais visitantes.",
+        colunas: [
+          { rotulo: "Cidade", tipo: "texto" },
+          { rotulo: "Estado", tipo: "texto" },
+          { rotulo: "Visitantes", tipo: "numero" },
+        ],
+        linhas: linhas(1).map((r) => [dim(r, 0), dim(r, 1), num(r)]),
+      },
+    ];
+  } else if (kind === "paginas") {
+    secoes = [
+      {
+        titulo: "Páginas mais vistas",
+        nota: "As 50 mais vistas. Tempo médio é o tempo com a página aberta na tela, por visitante.",
+        colunas: [
+          { rotulo: "Página", tipo: "texto" },
+          { rotulo: "Visualizações", tipo: "numero" },
+          { rotulo: "Visitantes", tipo: "numero" },
+          { rotulo: "Tempo médio", tipo: "duracao" },
+        ],
+        linhas: linhas(0).map((r) => {
+          const usuarios = num(r, 1);
+          return [
+            dim(r),
+            num(r, 0),
+            usuarios,
+            usuarios > 0 ? num(r, 2) / usuarios : 0,
+          ];
+        }),
+      },
+      {
+        titulo: "Por onde entraram",
+        nota: "A primeira página da visita. Rejeição é quem saiu sem interagir.",
+        colunas: [
+          { rotulo: "Página de entrada", tipo: "texto" },
+          { rotulo: "Sessões", tipo: "numero" },
+          { rotulo: "Rejeição", tipo: "percentual" },
+        ],
+        linhas: linhas(1).map((r) => [dim(r), num(r, 0), num(r, 1)]),
+      },
+    ];
+  } else if (kind === "origens") {
+    secoes = [
+      {
+        titulo: "Canal",
+        nota: "Engajamento é a parte das visitas com 10 s ou mais, ou 2 páginas ou mais.",
+        colunas: [
+          { rotulo: "Canal", tipo: "texto" },
+          { rotulo: "Sessões", tipo: "numero" },
+          { rotulo: "Visitantes", tipo: "numero" },
+          { rotulo: "Engajamento", tipo: "percentual" },
+        ],
+        linhas: linhas(0).map((r) => [
+          CANAIS[dim(r)] ?? dim(r),
+          num(r, 0),
+          num(r, 1),
+          num(r, 2),
+        ]),
+      },
+      {
+        titulo: "Origem detalhada",
+        nota: "Site e meio de onde a visita veio, por exemplo instagram.com e referral.",
+        colunas: [
+          { rotulo: "Origem", tipo: "texto" },
+          { rotulo: "Meio", tipo: "texto" },
+          { rotulo: "Sessões", tipo: "numero" },
+        ],
+        linhas: linhas(1).map((r) => [dim(r, 0), dim(r, 1), num(r)]),
+      },
+    ];
+  } else {
+    secoes = [
+      {
+        titulo: "Tipo de aparelho",
+        colunas: [
+          { rotulo: "Aparelho", tipo: "texto" },
+          { rotulo: "Visitantes", tipo: "numero" },
+          { rotulo: "Engajamento", tipo: "percentual" },
+        ],
+        linhas: linhas(0).map((r) => [
+          APARELHOS[dim(r)] ?? dim(r),
+          num(r, 0),
+          num(r, 1),
+        ]),
+      },
+      {
+        titulo: "Sistema",
+        colunas: [
+          { rotulo: "Sistema", tipo: "texto" },
+          { rotulo: "Visitantes", tipo: "numero" },
+        ],
+        linhas: linhas(1).map((r) => [dim(r), num(r)]),
+      },
+      {
+        titulo: "Navegador",
+        nota: "Safari (in-app) e Android Webview costumam ser o navegador de dentro do Instagram.",
+        colunas: [
+          { rotulo: "Navegador", tipo: "texto" },
+          { rotulo: "Visitantes", tipo: "numero" },
+        ],
+        linhas: linhas(2).map((r) => [dim(r), num(r)]),
+      },
+    ];
+  }
+
+  return { kind, periodo: dias, secoes, fetchedAt: agoraIso };
+}
+
+const cachedDetail = unstable_cache(fetchDetail, ["ga-detalhe"], {
+  revalidate: 900,
+});
+const cachedDetailAgora = unstable_cache(fetchDetail, ["ga-detalhe-agora"], {
+  revalidate: 60,
+});
+
+export type AudienceDetailResult =
+  | { status: "ok"; data: AudienceDetail }
+  | { status: "unconfigured" }
+  | { status: "error"; message: string };
+
+/** Detalhe de um card. Nunca lança (mesmo contrato de `getAudience`). */
+export async function getAudienceDetail(
+  kind: DetalheKind,
+  periodo: PeriodoDetalhe,
+): Promise<AudienceDetailResult> {
+  if (!analyticsConfigured()) return { status: "unconfigured" };
+  try {
+    const data =
+      kind === "agora"
+        ? await cachedDetailAgora(kind, 28)
+        : await cachedDetail(kind, periodo);
+    return { status: "ok", data };
+  } catch (e) {
+    console.error("[analytics] detalhe do Google Analytics falhou", e);
+    return {
+      status: "error",
+      message: e instanceof Error ? e.message : "erro desconhecido",
+    };
+  }
+}

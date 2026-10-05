@@ -1,5 +1,30 @@
-import type { AudienceData, AudienceResult } from "@/lib/analytics";
+import Link from "next/link";
+import type {
+  AudienceData,
+  AudienceResult,
+  DetalheKind,
+} from "@/lib/analytics";
 import { Panel } from "./admin-ui";
+
+/** Endereço do detalhe de um card (o modal abre por URL). */
+export function detalheHref(kind: DetalheKind, periodo?: number): string {
+  return `/admin?detalhe=${kind}${periodo ? `&periodo=${periodo}` : ""}`;
+}
+
+/** "Ver detalhes" no canto de um painel. Sem prefetch: cada abertura é uma
+ * consulta ao Google, e o prefetch dispararia uma para cada card à vista. */
+function VerDetalhes({ kind, periodo }: { kind: DetalheKind; periodo?: number }) {
+  return (
+    <Link
+      href={detalheHref(kind, periodo)}
+      scroll={false}
+      prefetch={false}
+      className="shrink-0 text-xs font-medium underline underline-offset-4 hover:text-muted"
+    >
+      Ver detalhes
+    </Link>
+  );
+}
 
 const nf = new Intl.NumberFormat("pt-BR");
 const fmt = (n: number) => nf.format(n);
@@ -14,17 +39,34 @@ function Stat({
   label,
   value,
   detail,
+  href,
 }: {
   label: string;
   value: string;
   detail?: string;
+  /** Com endereço, o card inteiro abre o detalhe. */
+  href?: string;
 }) {
-  return (
-    <Panel className="p-4 lg:p-5">
-      <p className="text-sm text-muted">{label}</p>
+  const conteudo = (
+    <>
+      <p className="flex items-baseline justify-between gap-2 text-sm text-muted">
+        {label}
+        {href && <span className="text-xs underline underline-offset-4">detalhes</span>}
+      </p>
       <p className="mt-1 text-3xl font-semibold leading-none">{value}</p>
       {detail && <p className="mt-2 text-xs text-muted">{detail}</p>}
-    </Panel>
+    </>
+  );
+  if (!href) return <Panel className="p-4 lg:p-5">{conteudo}</Panel>;
+  return (
+    <Link
+      href={href}
+      scroll={false}
+      prefetch={false}
+      className="block rounded-sm border border-border bg-background p-4 transition-colors hover:border-foreground lg:p-5"
+    >
+      {conteudo}
+    </Link>
   );
 }
 
@@ -109,7 +151,6 @@ function Ranking({
   );
 }
 
-const subtitulo = "mb-4 text-sm font-semibold";
 
 /**
  * Audiência do site (Google Analytics) na Visão geral do painel.
@@ -182,6 +223,7 @@ export function Audience({ result }: { result: AudienceResult }) {
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4 lg:gap-4">
         <Stat
           label="No site agora"
+          href={detalheHref("agora")}
           value={agora == null ? "—" : fmt(agora)}
           detail="visitantes nos últimos 30 minutos"
         />
@@ -189,6 +231,7 @@ export function Audience({ result }: { result: AudienceResult }) {
           <Stat
             key={p.key}
             label={p.label}
+            href={detalheHref("visitantes", p.key === "28d" ? 28 : 7)}
             value={fmt(p.visitors)}
             detail={`visitantes, ${fmt(p.views)} páginas vistas`}
           />
@@ -197,11 +240,17 @@ export function Audience({ result }: { result: AudienceResult }) {
 
       <div className="grid gap-4 xl:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
         <Panel className="p-4 lg:p-5">
-          <h3 className={subtitulo}>Visitantes por dia, últimos 28 dias</h3>
+          <div className="mb-4 flex items-baseline justify-between gap-3">
+            <h3 className="text-sm font-semibold">Visitantes por dia, últimos 28 dias</h3>
+            <VerDetalhes kind="visitantes" periodo={28} />
+          </div>
           <DailyBars daily={data.daily} />
         </Panel>
         <Panel className="p-4 lg:p-5">
-          <h3 className={subtitulo}>Páginas mais vistas, últimos 7 dias</h3>
+          <div className="mb-4 flex items-baseline justify-between gap-3">
+            <h3 className="text-sm font-semibold">Páginas mais vistas, últimos 7 dias</h3>
+            <VerDetalhes kind="paginas" periodo={7} />
+          </div>
           <Ranking
             rows={data.pages.map((p) => ({ name: p.path, value: p.views }))}
             vazio="Nenhuma página vista no período."
@@ -211,7 +260,10 @@ export function Audience({ result }: { result: AudienceResult }) {
 
       <div className="grid gap-4 md:grid-cols-2">
         <Panel className="p-4 lg:p-5">
-          <h3 className={subtitulo}>De onde vieram, últimos 7 dias</h3>
+          <div className="mb-4 flex items-baseline justify-between gap-3">
+            <h3 className="text-sm font-semibold">De onde vieram, últimos 7 dias</h3>
+            <VerDetalhes kind="origens" periodo={7} />
+          </div>
           <Ranking
             rows={data.channels.map((c) => ({
               name: c.name,
@@ -221,7 +273,10 @@ export function Audience({ result }: { result: AudienceResult }) {
           />
         </Panel>
         <Panel className="p-4 lg:p-5">
-          <h3 className={subtitulo}>Aparelho, últimos 7 dias</h3>
+          <div className="mb-4 flex items-baseline justify-between gap-3">
+            <h3 className="text-sm font-semibold">Aparelho, últimos 7 dias</h3>
+            <VerDetalhes kind="aparelhos" periodo={7} />
+          </div>
           <Ranking
             rows={data.devices.map((d) => ({
               name:
