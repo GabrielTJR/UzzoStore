@@ -116,7 +116,7 @@ export function OverviewView({
               hint="Ainda não vistos pela loja"
             />
             <Pendencia
-              href="/admin/pedidos?vista=kanban"
+              href="/admin/pedidos"
               n={overview.aPreparar}
               label="Pagos, a preparar"
               hint="Separar para envio ou retirada"

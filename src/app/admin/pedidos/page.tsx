@@ -22,6 +22,7 @@ import {
 } from "../actions";
 import { SubmitButton } from "@/components/submit-button";
 import { PedidosKanban } from "./kanban";
+import { PageHeader } from "../admin-ui";
 
 export const metadata: Metadata = { title: "Pedidos" };
 
@@ -41,61 +42,61 @@ export default async function PedidosAdminPage({
   await requireAdmin();
   const orders = await getAdminOrders();
   const novos = orders.filter((o) => o.isNew).length;
-  // A lista responde "o que houve com o pedido X"; o quadro responde "o que
-  // fazer agora". A vista vive na URL para o admin poder fixar a que usa.
-  const kanban = (await searchParams).vista === "kanban";
+  // O QUADRO é a visão padrão (out/2026, pedido do dono): responde "em que
+  // etapa está cada pedido e o que fazer agora". A lista (`?vista=lista`)
+  // responde "o que houve com o pedido X" — detalhe completo, rastreio,
+  // cancelados. A vista vive na URL para o admin poder fixar a que usa.
+  const kanban = (await searchParams).vista !== "lista";
+  const aba = (ativa: boolean) =>
+    `inline-flex h-10 items-center px-4 text-sm ${
+      ativa
+        ? "bg-foreground font-semibold text-background"
+        : "bg-background text-muted hover:text-foreground"
+    }`;
 
   return (
     <section>
-      <h1 className="font-display text-2xl font-bold lg:text-3xl">
-        Pedidos
-      </h1>
-      <p className="mt-2 text-sm text-muted">
-        Pedidos feitos pelo site. Quem fecha pelo WhatsApp também aparece aqui,
-        com o número que o cliente citou na conversa.
-      </p>
-
-      {novos > 0 && (
-        <form action={markOrdersSeenAction} className="mt-6">
-          <SubmitButton
-            pendingText="Marcando…"
-            className="h-9 rounded-xs border border-border px-5 text-sm font-medium hover:border-foreground"
+      <PageHeader
+        title="Pedidos"
+        description="Pedidos do site e os fechados pelo WhatsApp, com o número que o cliente citou na conversa."
+      >
+        {novos > 0 && (
+          <form action={markOrdersSeenAction}>
+            <SubmitButton
+              pendingText="Marcando…"
+              className="h-10 rounded-xs border border-border bg-background px-4 text-sm font-medium hover:border-foreground"
+            >
+              Marcar {novos} {novos === 1 ? "novo" : "novos"} como visto
+              {novos === 1 ? "" : "s"}
+            </SubmitButton>
+          </form>
+        )}
+        {/* Só UMA das vistas é renderizada: mandar as duas escondendo uma com
+            CSS dobrava o HTML de toda visita. */}
+        <div className="flex overflow-hidden rounded-xs border border-border">
+          <Link
+            href="/admin/pedidos"
+            prefetch={false}
+            aria-current={kanban ? "page" : undefined}
+            className={aba(kanban)}
           >
-            Marcar {novos} {novos === 1 ? "pedido novo" : "pedidos novos"} como
-            visto{novos === 1 ? "" : "s"}
-          </SubmitButton>
-        </form>
-      )}
-
-      <div className="mt-6 flex gap-2 text-sm">
-        <Link
-          href="/admin/pedidos"
-          prefetch={false}
-          className={`rounded-xs border px-4 py-1.5 ${
-            kanban
-              ? "border-border text-muted hover:border-foreground hover:text-foreground"
-              : "border-foreground font-medium"
-          }`}
-        >
-          Lista
-        </Link>
-        <Link
-          href="/admin/pedidos?vista=kanban"
-          prefetch={false}
-          className={`rounded-xs border px-4 py-1.5 ${
-            kanban
-              ? "border-foreground font-medium"
-              : "border-border text-muted hover:border-foreground hover:text-foreground"
-          }`}
-        >
-          Quadro
-        </Link>
-      </div>
+            Quadro
+          </Link>
+          <Link
+            href="/admin/pedidos?vista=lista"
+            prefetch={false}
+            aria-current={kanban ? undefined : "page"}
+            className={`${aba(!kanban)} border-l border-border`}
+          >
+            Lista
+          </Link>
+        </div>
+      </PageHeader>
 
       {kanban && <PedidosKanban orders={orders} />}
 
       {!kanban && (
-        <div className="mt-8 space-y-4">
+        <div className="max-w-5xl space-y-4">
           {orders.map((o) => {
             const next = nextFulfillmentStatus(
               o.fulfillmentStatus,
@@ -106,8 +107,12 @@ export default async function PedidosAdminPage({
             return (
               <div
                 key={o.id}
-                className={`rounded-sm border p-5 ${
-                  o.isNew ? "border-red-500/60 bg-red-500/5" : "border-border"
+                // Âncora dos cartões do quadro ("nº 1007" leva para cá).
+                id={`pedido-${o.number}`}
+                className={`scroll-mt-6 rounded-sm border bg-background p-5 ${
+                  o.isNew
+                    ? "border-accent shadow-[inset_3px_0_0_var(--accent)]"
+                    : "border-border"
                 }`}
               >
                 <div className="flex flex-wrap items-baseline justify-between gap-3">
