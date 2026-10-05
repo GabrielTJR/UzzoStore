@@ -27,8 +27,12 @@ import { WHATSAPP_URL } from "@/lib/store-info";
  * ⚠️ Ao trocar de conta do Google, este ID e o `GA_PROPERTY_ID` (env, usado
  * pelos cards de audiência do painel) precisam apontar para a MESMA
  * propriedade — senão o site mede numa conta e o painel lê de outra.
+ *
+ * Trocado em 05/10/2026 (conta nova do dono): era G-8RY0N74PG7. O painel do
+ * Google entrega um trecho <script> para colar no <head> — NÃO cole: aqui só o
+ * ID muda, e quem injeta o gtag.js continua sendo o `CookieConsent`.
  */
-const GA_MEASUREMENT_ID = "G-8RY0N74PG7";
+const GA_MEASUREMENT_ID = "G-6BTDTZEJ51";
 
 /**
  * Casca da LOJA: faixa de avisos, cabeçalho, sacola, rodapé e cookies.
