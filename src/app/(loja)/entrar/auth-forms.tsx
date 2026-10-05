@@ -7,11 +7,19 @@ import { createClient } from "@/lib/supabase/client";
 import { EmailCodeForm } from "@/components/email-code-form";
 import { emailAlreadyRegistered } from "./actions";
 
+// Mesmos campos do checkout (`email-code-form.tsx`): 48px de altura para o
+// dedo e `text-base` no celular — com 14px o iPhone dá zoom ao focar o campo
+// e a tela "pula".
 const field =
-  "w-full rounded-xs border border-border bg-transparent px-4 py-2.5 text-sm outline-none focus:border-foreground";
+  "h-12 w-full rounded-xs border border-border bg-transparent px-4 text-base outline-none transition-colors focus:border-foreground aria-[invalid=true]:border-red-600 sm:text-sm";
 const label = "block text-sm font-medium";
 const primary =
-  "inline-flex h-11 w-full items-center justify-center rounded-xs bg-foreground px-8 text-sm font-medium text-background transition-opacity hover:opacity-90 disabled:opacity-50";
+  "inline-flex h-12 w-full items-center justify-center rounded-xs bg-foreground px-8 text-sm font-medium text-background transition-opacity hover:opacity-90 disabled:opacity-50";
+const secondary =
+  "inline-flex h-12 w-full items-center justify-center rounded-xs border border-border px-6 text-sm font-medium transition-colors hover:border-foreground";
+const linkMuted =
+  "inline-flex min-h-11 items-center text-sm text-muted underline-offset-4 hover:text-foreground hover:underline";
+const errorCls = "text-sm text-red-600 dark:text-red-400";
 
 /**
  * Caminho interno seguro para voltar depois do login (evita open-redirect).
@@ -41,8 +49,46 @@ function safeNext(v: string | null): string {
   }
 }
 
+/** Senha com "Mostrar": no celular, errar uma letra às cegas é o motivo nº 1
+ * de "senha incorreta" de quem sabe a senha. */
+function PasswordInput({
+  id,
+  autoComplete,
+  invalid,
+  describedBy,
+}: {
+  id: string;
+  autoComplete: "current-password" | "new-password";
+  invalid?: boolean;
+  describedBy?: string;
+}) {
+  const [show, setShow] = useState(false);
+  return (
+    <div className="relative">
+      <input
+        id={id}
+        name="password"
+        type={show ? "text" : "password"}
+        required
+        minLength={autoComplete === "new-password" ? 8 : undefined}
+        autoComplete={autoComplete}
+        aria-invalid={invalid || undefined}
+        aria-describedby={describedBy}
+        className={`${field} pr-20`}
+      />
+      <button
+        type="button"
+        onClick={() => setShow((s) => !s)}
+        aria-pressed={show}
+        className="absolute inset-y-0 right-0 px-4 text-sm text-muted hover:text-foreground"
+      >
+        {show ? "Ocultar" : "Mostrar"}
+      </button>
+    </div>
+  );
+}
+
 export function LoginForm() {
-  const router = useRouter();
   const params = useSearchParams();
   const next = safeNext(params.get("next"));
   const [busy, setBusy] = useState(false);
@@ -53,12 +99,16 @@ export function LoginForm() {
   // Se essa pessoa abre /entrar e só encontra "Senha", fica trancada do lado
   // de fora de uma conta que é dela. O modo "codigo" é a porta para ela — e
   // também para quem esqueceu a senha e não quer esperar o link de troca.
-  const [modo, setModo] = useState<"senha" | "codigo">("senha");
+  // Por isso os dois modos ficam lado a lado, com o mesmo peso, no topo.
+  // `?modo=codigo` abre direto no código (link de "Esqueci a senha").
+  const [modo, setModo] = useState<"senha" | "codigo">(() =>
+    params.get("modo") === "codigo" ? "codigo" : "senha",
+  );
 
-  function irParaCodigo() {
+  function trocarModo(m: "senha" | "codigo") {
     setError(null);
     setSenhaErrada(false);
-    setModo("codigo");
+    setModo(m);
   }
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
@@ -83,13 +133,55 @@ export function LoginForm() {
     window.location.assign(next);
   }
 
+  const abas = (
+    <div
+      role="group"
+      aria-label="Como entrar"
+      className="grid grid-cols-2 gap-1 rounded-xs bg-surface p-1"
+    >
+      {(
+        [
+          ["senha", "Com senha"],
+          ["codigo", "Com código"],
+        ] as const
+      ).map(([m, rotulo]) => (
+        <button
+          key={m}
+          type="button"
+          onClick={() => trocarModo(m)}
+          aria-pressed={modo === m}
+          className={`h-10 rounded-xs text-sm transition-colors ${
+            modo === m
+              ? "bg-background font-semibold text-foreground shadow-sm"
+              : "text-muted hover:text-foreground"
+          }`}
+        >
+          {rotulo}
+        </button>
+      ))}
+    </div>
+  );
+
+  const rodape = (
+    <p className="border-t border-border pt-5 text-sm text-muted">
+      Primeira vez aqui?{" "}
+      <Link
+        href={`/cadastro?next=${encodeURIComponent(next)}`}
+        className="font-medium text-foreground underline underline-offset-4"
+      >
+        Criar conta
+      </Link>
+    </p>
+  );
+
   if (modo === "codigo") {
     return (
-      <div className="space-y-5">
+      <div className="space-y-6">
+        {abas}
         {/* Mesmo componente do checkout: rascunho no localStorage, foco no
             campo do código dentro do toque (iOS) e detector de laço já vêm
-            prontos. `senhaHref` fica nulo porque a volta para a senha é o
-            botão abaixo, que troca o modo sem recarregar a página. O destino
+            prontos. `senhaHref` fica nulo porque a volta para a senha é a
+            aba acima, que troca o modo sem recarregar a página. O destino
             é o mesmo `next` saneado do login por senha, e com RECARGA
             COMPLETA pelo mesmo motivo (cookie de sessão recém-criado). */}
         <EmailCodeForm
@@ -97,114 +189,83 @@ export function LoginForm() {
           senhaHref={null}
           onVerified={() => window.location.assign(next)}
         />
-        <div className="flex items-center justify-between text-sm">
-          <button
-            type="button"
-            onClick={() => setModo("senha")}
-            className="inline-flex min-h-11 items-center text-muted underline-offset-4 hover:text-foreground hover:underline"
-          >
-            Entrar com senha
-          </button>
-          <Link
-            href={`/cadastro?next=${encodeURIComponent(next)}`}
-            className="text-muted underline-offset-4 hover:text-foreground hover:underline"
-          >
-            Criar conta
-          </Link>
-        </div>
+        {rodape}
       </div>
     );
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-5">
-      {/* Chega aqui vindo de um link de e-mail que não valeu mais (expirou,
-          foi aberto em outro aparelho ou já tinha sido usado). Sem isto a
-          pessoa cairia na tela de login sem entender por quê. */}
-      {params.get("erro") === "link-invalido" && (
-        <div className="rounded-xs border border-border bg-black/5 px-4 py-3 text-sm dark:bg-white/5">
-          Esse link expirou ou foi aberto em outro aparelho. Entre com sua senha
-          ou{" "}
-          <Link href="/esqueci-senha" className="underline underline-offset-4">
-            peça um novo link
-          </Link>
-          .
+    <div className="space-y-6">
+      {abas}
+      <form onSubmit={handleSubmit} className="space-y-4">
+        {/* Chega aqui vindo de um link de e-mail que não valeu mais (expirou,
+            foi aberto em outro aparelho ou já tinha sido usado). Sem isto a
+            pessoa cairia na tela de login sem entender por quê. */}
+        {params.get("erro") === "link-invalido" && (
+          <div className="rounded-xs bg-surface px-4 py-3 text-sm">
+            Esse link expirou ou foi aberto em outro aparelho. Entre com sua
+            senha, com um código ou{" "}
+            <Link href="/esqueci-senha" className="underline underline-offset-4">
+              peça um novo link
+            </Link>
+            .
+          </div>
+        )}
+        <div className="space-y-1.5">
+          <label className={label} htmlFor="email">
+            E-mail
+          </label>
+          <input
+            id="email"
+            name="email"
+            type="email"
+            required
+            autoComplete="email"
+            inputMode="email"
+            className={field}
+          />
         </div>
-      )}
-      <div className="space-y-1.5">
-        <label className={label} htmlFor="email">
-          E-mail
-        </label>
-        <input
-          id="email"
-          name="email"
-          type="email"
-          required
-          autoComplete="email"
-          className={field}
-        />
-      </div>
-      <div className="space-y-1.5">
-        <label className={label} htmlFor="password">
-          Senha
-        </label>
-        <input
-          id="password"
-          name="password"
-          type="password"
-          required
-          autoComplete="current-password"
-          className={field}
-        />
-      </div>
-      {error && (
-        <p className="text-sm text-red-600">
-          {error}
-          {/* Quem errou a senha talvez nunca tenha tido uma (conta criada no
-              checkout). A saída fica no próprio aviso, onde o olho já está. */}
-          {senhaErrada && (
-            <>
-              {" "}
-              <button
-                type="button"
-                onClick={irParaCodigo}
-                className="underline underline-offset-4"
-              >
-                Você também pode entrar com um código por e-mail.
-              </button>
-            </>
-          )}
-        </p>
-      )}
-      <button type="submit" disabled={busy} className={primary}>
-        {busy ? "Entrando…" : "Entrar"}
-      </button>
-      {/* Botão (não link): troca o modo na mesma tela, sem navegar. */}
-      <p className="text-sm text-muted">
-        Não tem senha ou esqueceu?{" "}
-        <button
-          type="button"
-          onClick={irParaCodigo}
-          className="inline-flex min-h-11 items-center align-middle text-foreground underline underline-offset-4"
-        >
-          Entrar com código por e-mail
+        <div className="space-y-1.5">
+          <div className="flex items-baseline justify-between gap-3">
+            <label className={label} htmlFor="password">
+              Senha
+            </label>
+            <Link href="/esqueci-senha" className="text-sm text-muted underline-offset-4 hover:text-foreground hover:underline">
+              Esqueci a senha
+            </Link>
+          </div>
+          <PasswordInput
+            id="password"
+            autoComplete="current-password"
+            invalid={senhaErrada}
+            describedBy={error ? "login-erro" : undefined}
+          />
+        </div>
+        {error && (
+          <p id="login-erro" role="alert" className={errorCls}>
+            {error}
+            {/* Quem errou a senha talvez nunca tenha tido uma (conta criada no
+                checkout). A saída fica no próprio aviso, onde o olho já está. */}
+            {senhaErrada && (
+              <>
+                {" "}
+                <button
+                  type="button"
+                  onClick={() => trocarModo("codigo")}
+                  className="underline underline-offset-4"
+                >
+                  Comprou sem criar senha? Entre com um código por e-mail.
+                </button>
+              </>
+            )}
+          </p>
+        )}
+        <button type="submit" disabled={busy} className={primary}>
+          {busy ? "Entrando…" : "Entrar"}
         </button>
-      </p>
-      <div className="flex items-center justify-between text-sm">
-        <Link
-          href="/esqueci-senha"
-          className="text-muted underline-offset-4 hover:text-foreground hover:underline"
-        >
-          Esqueci minha senha
-        </Link>
-        <Link
-          href={`/cadastro?next=${encodeURIComponent(next)}`}
-          className="text-muted underline-offset-4 hover:text-foreground hover:underline"
-        >
-          Criar conta
-        </Link>
-      </div>
-    </form>
+      </form>
+      {rodape}
+    </div>
   );
 }
 
@@ -261,30 +322,22 @@ export function SignupForm() {
 
   if (existing) {
     return (
-      <div className="space-y-3 rounded-sm border border-border p-5 text-sm">
-        <p className="font-medium">Este e-mail já tem conta</p>
-        <p className="text-muted">
-          Entre com sua senha ou, se não lembrar, crie uma nova.
-        </p>
-        <div className="flex flex-wrap gap-3 pt-1">
-          <Link
-            href={`/entrar?next=${encodeURIComponent(next)}`}
-            className="inline-flex h-10 items-center justify-center rounded-xs bg-foreground px-6 text-sm font-medium text-background hover:opacity-90"
-          >
+      <div className="space-y-4 rounded-sm bg-surface p-5 text-sm">
+        <div>
+          <p className="font-semibold">Este e-mail já tem conta</p>
+          <p className="mt-1 text-muted">
+            Entre com sua senha ou, se não tiver uma, com um código por e-mail.
+          </p>
+        </div>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <Link href={`/entrar?next=${encodeURIComponent(next)}`} className={primary}>
             Entrar
           </Link>
-          <Link
-            href="/esqueci-senha"
-            className="inline-flex h-10 items-center justify-center rounded-xs border border-border px-6 text-sm font-medium hover:border-foreground"
-          >
+          <Link href="/esqueci-senha" className={`${secondary} bg-background`}>
             Esqueci minha senha
           </Link>
         </div>
-        <button
-          type="button"
-          onClick={() => setExisting(false)}
-          className="text-sm text-muted underline underline-offset-4 hover:text-foreground"
-        >
+        <button type="button" onClick={() => setExisting(false)} className={linkMuted}>
           Usar outro e-mail
         </button>
       </div>
@@ -293,21 +346,19 @@ export function SignupForm() {
 
   if (sent) {
     return (
-      <div className="space-y-3 rounded-sm border border-border p-5 text-sm">
-        <p className="font-medium">Confira seu e-mail 📬</p>
+      <div role="status" className="space-y-2 rounded-sm bg-surface p-5 text-sm">
+        <p className="font-semibold">Confira seu e-mail</p>
         <p className="text-muted">
           Enviamos um link para confirmar sua conta. Depois de confirmar, você
           já entra direto.
         </p>
-        <p className="text-xs text-muted">
-          Não achou? Veja também no lixo eletrônico.
-        </p>
+        <p className="text-muted">Não achou? Veja também no lixo eletrônico.</p>
       </div>
     );
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-5">
+    <form onSubmit={handleSubmit} className="space-y-4">
       <div className="space-y-1.5">
         <label className={label} htmlFor="fullName">
           Nome completo
@@ -330,6 +381,7 @@ export function SignupForm() {
           type="email"
           required
           autoComplete="email"
+          inputMode="email"
           className={field}
         />
       </div>
@@ -337,26 +389,28 @@ export function SignupForm() {
         <label className={label} htmlFor="password">
           Senha
         </label>
-        <input
+        <PasswordInput
           id="password"
-          name="password"
-          type="password"
-          required
-          minLength={8}
           autoComplete="new-password"
-          className={field}
+          describedBy="senha-dica"
         />
-        <p className="text-xs text-muted">Mínimo de 8 caracteres.</p>
+        <p id="senha-dica" className="text-sm text-muted">
+          Mínimo de 8 caracteres.
+        </p>
       </div>
-      {error && <p className="text-sm text-red-600">{error}</p>}
+      {error && (
+        <p role="alert" className={errorCls}>
+          {error}
+        </p>
+      )}
       <button type="submit" disabled={busy} className={primary}>
         {busy ? "Criando…" : "Criar conta"}
       </button>
-      <p className="text-sm text-muted">
+      <p className="border-t border-border pt-5 text-sm text-muted">
         Já tem conta?{" "}
         <Link
           href={`/entrar?next=${encodeURIComponent(next)}`}
-          className="underline underline-offset-4 hover:text-foreground"
+          className="font-medium text-foreground underline underline-offset-4"
         >
           Entrar
         </Link>
@@ -392,15 +446,18 @@ export function ForgotPasswordForm() {
 
   if (sent) {
     return (
-      <p className="rounded-sm border border-border p-5 text-sm text-muted">
-        Se existir uma conta com esse e-mail, enviamos um link para criar uma
-        nova senha.
-      </p>
+      <div role="status" className="space-y-2 rounded-sm bg-surface p-5 text-sm">
+        <p className="font-semibold">Confira seu e-mail</p>
+        <p className="text-muted">
+          Se existir uma conta com esse e-mail, enviamos um link para criar uma
+          nova senha. Abra o link neste mesmo aparelho.
+        </p>
+      </div>
     );
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-5">
+    <form onSubmit={handleSubmit} className="space-y-4">
       <div className="space-y-1.5">
         <label className={label} htmlFor="email">
           E-mail da conta
@@ -410,10 +467,16 @@ export function ForgotPasswordForm() {
           name="email"
           type="email"
           required
+          autoComplete="email"
+          inputMode="email"
           className={field}
         />
       </div>
-      {error && <p className="text-sm text-red-600">{error}</p>}
+      {error && (
+        <p role="alert" className={errorCls}>
+          {error}
+        </p>
+      )}
       <button type="submit" disabled={busy} className={primary}>
         {busy ? "Enviando…" : "Enviar link"}
       </button>
@@ -447,22 +510,26 @@ export function NewPasswordForm() {
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-5">
+    <form onSubmit={handleSubmit} className="space-y-4">
       <div className="space-y-1.5">
         <label className={label} htmlFor="password">
           Nova senha
         </label>
-        <input
+        <PasswordInput
           id="password"
-          name="password"
-          type="password"
-          required
-          minLength={8}
           autoComplete="new-password"
-          className={field}
+          invalid={!!error}
+          describedBy="nova-senha-dica"
         />
+        <p id="nova-senha-dica" className={error ? errorCls : "text-sm text-muted"}>
+          {error ?? "Mínimo de 8 caracteres."}
+        </p>
       </div>
-      {error && <p className="text-sm text-red-600">{error}</p>}
+      {error && error.startsWith("O link") && (
+        <Link href="/esqueci-senha" className={secondary}>
+          Pedir um novo link
+        </Link>
+      )}
       <button type="submit" disabled={busy} className={primary}>
         {busy ? "Salvando…" : "Salvar senha"}
       </button>

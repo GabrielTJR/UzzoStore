@@ -113,9 +113,12 @@ export function situacaoCliente(
   // "Cancelado" — a loja ainda vai resolver, com estorno ou reposição.
   if (paymentStatus === "paid" && fulfillmentStatus === "canceled")
     return "Pagamento confirmado — em revisão pela loja";
+  // Expirado ANTES de cancelado: o pg_cron marca o pedido vencido como
+  // `expired` + atendimento `canceled`, e a ordem inversa fazia o cliente ler
+  // "Cancelado" num pedido que só não foi pago a tempo.
+  if (paymentStatus === "expired") return "Expirado por falta de pagamento";
   if (fulfillmentStatus === "canceled" || paymentStatus === "canceled")
     return "Cancelado";
-  if (paymentStatus === "expired") return "Expirado por falta de pagamento";
   if (paymentStatus === "refunded") return "Estornado";
   if (paymentStatus !== "paid") return "Aguardando pagamento";
   return (

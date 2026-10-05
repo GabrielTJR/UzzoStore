@@ -1,27 +1,31 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { ForgotPasswordForm } from "../entrar/auth-forms";
+import { AuthShell } from "../entrar/auth-shell";
 
 export const metadata: Metadata = { title: "Esqueci minha senha" };
 
 export default function EsqueciSenhaPage() {
   return (
-    <section className="mx-auto max-w-sm px-6 py-16">
-      <h1 className="font-display text-3xl font-bold">
-        Esqueci minha senha
-      </h1>
-      <p className="mt-2 mb-8 text-sm text-muted">
-        Informe o e-mail da conta e enviamos um link para criar uma nova senha.
-      </p>
+    <AuthShell
+      title="Esqueci a senha"
+      description="Informe o e-mail da conta e enviamos um link para criar uma nova senha."
+      footer={
+        <div className="space-y-1 border-t border-border pt-5 text-sm text-muted">
+          <p>
+            Com pressa?{" "}
+            <Link
+              href="/entrar?modo=codigo"
+              className="font-medium text-foreground underline underline-offset-4"
+            >
+              Entre com um código por e-mail
+            </Link>{" "}
+            — chega na hora, sem precisar de senha.
+          </p>
+        </div>
+      }
+    >
       <ForgotPasswordForm />
-      <p className="mt-6 text-sm">
-        <Link
-          href="/entrar"
-          className="text-muted underline-offset-4 hover:text-foreground hover:underline"
-        >
-          ← Voltar para entrar
-        </Link>
-      </p>
-    </section>
+    </AuthShell>
   );
 }

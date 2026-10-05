@@ -1,60 +1,37 @@
-import Link from "next/link";
 import type { Metadata } from "next";
-import { requireCustomer, getCustomerProfile } from "@/lib/customer";
-import { ProfileForm, PasswordForm, SignOutButton } from "./account-forms";
+import {
+  requireCustomer,
+  getCustomerProfile,
+  getCustomerAddresses,
+} from "@/lib/customer";
+import { getWishlistIds } from "@/lib/wishlist";
+import { getCustomerOrders } from "./order-data";
+import { ResumoView } from "./resumo-view";
 
 export const metadata: Metadata = { title: "Minha conta" };
 
-const tab =
-  "rounded-xs border border-border px-4 py-1.5 text-sm text-muted transition-colors hover:border-foreground hover:text-foreground";
+/** Quantos pedidos o resumo lê: o bastante para achar os em andamento sem
+ * trazer o histórico inteiro (a lista completa é /conta/pedidos). */
+const PEDIDOS_NO_RESUMO = 5;
 
 export default async function ContaPage() {
-  await requireCustomer();
-  const profile = await getCustomerProfile();
+  const user = await requireCustomer();
+  // Tudo com o client de cookie (RLS) e em paralelo; dado de sessão, nada
+  // disso pode ir para cache público.
+  const [profile, orders, addresses, favoritos] = await Promise.all([
+    getCustomerProfile(),
+    getCustomerOrders(user.id, PEDIDOS_NO_RESUMO),
+    getCustomerAddresses(),
+    getWishlistIds(),
+  ]);
   if (!profile) return null;
 
   return (
-    <section className="mx-auto max-w-3xl space-y-10 px-6 py-12">
-      <header className="flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <h1 className="font-display text-3xl font-bold">
-            Minha conta
-          </h1>
-          <p className="mt-1 text-sm text-muted">
-            Olá{profile.fullName ? `, ${profile.fullName.split(" ")[0]}` : ""}!
-          </p>
-        </div>
-        <SignOutButton />
-      </header>
-
-      <nav className="flex flex-wrap gap-2">
-        <span className="rounded-xs border border-foreground bg-foreground px-4 py-1.5 text-sm font-medium text-background">
-          Dados
-        </span>
-        <Link href="/conta/enderecos" className={tab}>
-          Endereços
-        </Link>
-        <Link href="/conta/pedidos" className={tab}>
-          Pedidos
-        </Link>
-        <Link href="/conta/favoritos" className={tab}>
-          Favoritos
-        </Link>
-      </nav>
-
-      <div>
-        <h2 className="mb-4 text-sm font-medium text-muted">
-          Dados pessoais
-        </h2>
-        <ProfileForm profile={profile} />
-      </div>
-
-      <div>
-        <h2 className="mb-4 text-sm font-medium text-muted">
-          Senha
-        </h2>
-        <PasswordForm />
-      </div>
-    </section>
+    <ResumoView
+      profile={profile}
+      orders={orders}
+      addresses={addresses}
+      favoritos={favoritos.size}
+    />
   );
 }
