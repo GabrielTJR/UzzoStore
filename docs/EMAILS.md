@@ -50,28 +50,75 @@ resolve, em ordem de impacto:
 Authentication → **Emails** → aba do modelo → cole no corpo. As variáveis
 `{{ .ConfirmationURL }}` são preenchidas pelo Supabase.
 
-### Confirm signup — assunto: `Confirme seu e-mail — Uzzo Store`
+> ⚠️ **Desde out/2026 os dois modelos abaixo levam o CÓDIGO (`{{ .Token }}`).** O
+> checkout identifica o cliente por um código de 6 dígitos por e-mail
+> (`signInWithOtp`): para e-mail NOVO o Supabase manda o "Confirm signup", para
+> e-mail que já tem conta manda o "Magic Link". Se algum dos dois sair sem o
+> código, o passo 1 do checkout só funciona pelo link, no mesmo navegador —
+> exatamente o que quebrava a compra vinda do Instagram. Troque os dois LOGO
+> depois do deploy do checkout novo.
+>
+> Também no painel (Authentication): **Email OTP Length = 6**; validade do
+> código entre 900 e 3600 s; Rate Limit de e-mails por hora ACIMA de 60 (o teto
+> global do site, em `src/lib/rate-limit.ts`); "Confirm email" continua ligado.
+
+### Confirm signup — assunto: `{{ .Token }} é o seu código — Uzzo Store`
+
+Usado pelo código de e-mail NOVO e pelo cadastro com senha de `/cadastro`; por
+isso mantém o link de confirmação, em segundo plano. Se o painel recusar
+variável no assunto, use `Seu código de acesso — Uzzo Store`.
 
 ```html
 <div style="font-family:Arial,Helvetica,sans-serif;max-width:480px;margin:0 auto;padding:32px 24px;color:#111">
-  <h1 style="font-size:22px;margin:0 0 16px">Bem-vindo à Uzzo Store</h1>
-  <p style="font-size:15px;line-height:1.6;margin:0 0 24px">
-    Falta só confirmar seu e-mail para ativar sua conta.
+  <h1 style="font-size:22px;margin:0 0 16px">Seu código da Uzzo Store</h1>
+  <p style="font-size:15px;line-height:1.6;margin:0 0 20px">
+    Digite este código na página da loja para continuar sua compra:
   </p>
-  <p style="margin:0 0 28px">
-    <a href="{{ .ConfirmationURL }}"
-       style="display:inline-block;background:#0a0a0a;color:#fff;text-decoration:none;padding:14px 28px;border-radius:999px;font-size:15px">
-      Confirmar meu e-mail
-    </a>
+  <p style="font-size:34px;font-weight:700;letter-spacing:6px;text-align:center;margin:0 0 20px;padding:16px 0;background:#f2f2f3;border-radius:2px">
+    {{ .Token }}
   </p>
-  <p style="font-size:13px;line-height:1.6;color:#666;margin:0 0 8px">
-    Se o botão não funcionar, copie e cole este endereço no navegador:
+  <p style="font-size:13px;line-height:1.6;color:#666;margin:0 0 24px">
+    Volte para a página em que você estava e digite os números. O código vale
+    por alguns minutos e só pode ser usado uma vez. Se pediu mais de um, vale o
+    mais recente.
   </p>
-  <p style="font-size:12px;color:#666;word-break:break-all;margin:0 0 24px">
-    {{ .ConfirmationURL }}
+  <p style="font-size:13px;line-height:1.6;color:#666;margin:0 0 8px;border-top:1px solid #eee;padding-top:16px">
+    Criou sua conta com senha pelo site? Então confirme seu e-mail por aqui, no
+    mesmo navegador em que fez o cadastro:
   </p>
-  <p style="font-size:13px;color:#666;margin:0">
-    Não foi você que criou a conta? É só ignorar este e-mail.
+  <p style="margin:0 0 24px">
+    <a href="{{ .ConfirmationURL }}" style="font-size:14px;color:#111">Confirmar meu e-mail</a>
+  </p>
+  <p style="font-size:13px;line-height:1.6;color:#666;margin:0">
+    Ninguém da Uzzo Store pede este código por telefone, WhatsApp ou Instagram.
+    Se não foi você que pediu, é só ignorar este e-mail.
+  </p>
+</div>
+```
+
+### Magic Link — assunto: `{{ .Token }} é o seu código — Uzzo Store`
+
+Usado pelo código de quem JÁ tem conta. Sem link, de propósito: o link abriria
+fora do navegador do Instagram, onde a sacola não existe.
+
+```html
+<div style="font-family:Arial,Helvetica,sans-serif;max-width:480px;margin:0 auto;padding:32px 24px;color:#111">
+  <h1 style="font-size:22px;margin:0 0 16px">Seu código da Uzzo Store</h1>
+  <p style="font-size:15px;line-height:1.6;margin:0 0 20px">
+    Digite este código na página da loja para entrar e continuar sua compra:
+  </p>
+  <p style="font-size:34px;font-weight:700;letter-spacing:6px;text-align:center;margin:0 0 20px;padding:16px 0;background:#f2f2f3;border-radius:2px">
+    {{ .Token }}
+  </p>
+  <p style="font-size:13px;line-height:1.6;color:#666;margin:0 0 24px">
+    Volte para a página em que você estava e digite os números. O código vale
+    por alguns minutos e só pode ser usado uma vez. Se pediu mais de um, vale o
+    mais recente. Não precisa abrir nenhum link.
+  </p>
+  <p style="font-size:13px;line-height:1.6;color:#666;margin:0">
+    Ninguém da Uzzo Store pede este código por telefone, WhatsApp ou Instagram.
+    Se não foi você que pediu, é só ignorar este e-mail: ninguém entra na sua
+    conta sem o código.
   </p>
 </div>
 ```
