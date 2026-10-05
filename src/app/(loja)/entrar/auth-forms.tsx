@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import { EmailCodeForm } from "@/components/email-code-form";
 import { emailAlreadyRegistered } from "./actions";
 
 const field =
@@ -46,10 +47,24 @@ export function LoginForm() {
   const next = safeNext(params.get("next"));
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  /** Senha errada (e não outra falha): é quando vale oferecer o código. */
+  const [senhaErrada, setSenhaErrada] = useState(false);
+  // Quem comprou pelo checkout ganhou conta por CÓDIGO, sem senha nenhuma.
+  // Se essa pessoa abre /entrar e só encontra "Senha", fica trancada do lado
+  // de fora de uma conta que é dela. O modo "codigo" é a porta para ela — e
+  // também para quem esqueceu a senha e não quer esperar o link de troca.
+  const [modo, setModo] = useState<"senha" | "codigo">("senha");
+
+  function irParaCodigo() {
+    setError(null);
+    setSenhaErrada(false);
+    setModo("codigo");
+  }
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setError(null);
+    setSenhaErrada(false);
     setBusy(true);
     const form = new FormData(e.currentTarget);
     const supabase = createClient();
@@ -59,12 +74,46 @@ export function LoginForm() {
     });
     if (error) {
       setError("E-mail ou senha incorretos.");
+      setSenhaErrada(true);
       setBusy(false);
       return;
     }
     // Navegação com recarga completa: uma transição de client pode renderizar a
     // página antes do servidor enxergar o cookie de sessão recém-criado.
     window.location.assign(next);
+  }
+
+  if (modo === "codigo") {
+    return (
+      <div className="space-y-5">
+        {/* Mesmo componente do checkout: rascunho no localStorage, foco no
+            campo do código dentro do toque (iOS) e detector de laço já vêm
+            prontos. `senhaHref` fica nulo porque a volta para a senha é o
+            botão abaixo, que troca o modo sem recarregar a página. O destino
+            é o mesmo `next` saneado do login por senha, e com RECARGA
+            COMPLETA pelo mesmo motivo (cookie de sessão recém-criado). */}
+        <EmailCodeForm
+          origem="entrar"
+          senhaHref={null}
+          onVerified={() => window.location.assign(next)}
+        />
+        <div className="flex items-center justify-between text-sm">
+          <button
+            type="button"
+            onClick={() => setModo("senha")}
+            className="inline-flex min-h-11 items-center text-muted underline-offset-4 hover:text-foreground hover:underline"
+          >
+            Entrar com senha
+          </button>
+          <Link
+            href={`/cadastro?next=${encodeURIComponent(next)}`}
+            className="text-muted underline-offset-4 hover:text-foreground hover:underline"
+          >
+            Criar conta
+          </Link>
+        </div>
+      </div>
+    );
   }
 
   return (
@@ -108,10 +157,39 @@ export function LoginForm() {
           className={field}
         />
       </div>
-      {error && <p className="text-sm text-red-600">{error}</p>}
+      {error && (
+        <p className="text-sm text-red-600">
+          {error}
+          {/* Quem errou a senha talvez nunca tenha tido uma (conta criada no
+              checkout). A saída fica no próprio aviso, onde o olho já está. */}
+          {senhaErrada && (
+            <>
+              {" "}
+              <button
+                type="button"
+                onClick={irParaCodigo}
+                className="underline underline-offset-4"
+              >
+                Você também pode entrar com um código por e-mail.
+              </button>
+            </>
+          )}
+        </p>
+      )}
       <button type="submit" disabled={busy} className={primary}>
         {busy ? "Entrando…" : "Entrar"}
       </button>
+      {/* Botão (não link): troca o modo na mesma tela, sem navegar. */}
+      <p className="text-sm text-muted">
+        Não tem senha ou esqueceu?{" "}
+        <button
+          type="button"
+          onClick={irParaCodigo}
+          className="inline-flex min-h-11 items-center align-middle text-foreground underline underline-offset-4"
+        >
+          Entrar com código por e-mail
+        </button>
+      </p>
       <div className="flex items-center justify-between text-sm">
         <Link
           href="/esqueci-senha"

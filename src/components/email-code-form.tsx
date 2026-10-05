@@ -369,7 +369,7 @@ export function EmailCodeForm({
             className={campo}
           />
           <p className="text-sm text-muted">
-            Enviamos um código de {OTP_DIGITOS} dígitos para o seu e-mail. Sem
+            Vamos enviar um código de {OTP_DIGITOS} dígitos para o seu e-mail. Sem
             senha.
           </p>
         </div>
