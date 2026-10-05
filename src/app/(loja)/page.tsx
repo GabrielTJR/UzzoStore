@@ -46,7 +46,7 @@ function CategoryStrip({ categories }: { categories: CategoryCover[] }) {
             {/* Endereço de faceta (/produtos?…): sem prefetch — ver "Armadilha
                 de faceta" no CLAUDE.md. */}
             <Link
-              href={`/produtos?departamento=masculino&categorias=${categorySlug(c.name)}`}
+              href={`/masculino/${categorySlug(c.name)}`}
               prefetch={false}
               className="group block"
             >

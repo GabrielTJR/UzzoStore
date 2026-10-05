@@ -18,7 +18,7 @@ export type NavCategory = { name: string; slug: string };
 
 /** Endereço do catálogo já filtrado por uma categoria do Masculino. */
 function categoriaHref(slug: string): string {
-  return `/produtos?departamento=masculino&categorias=${slug}`;
+  return `/masculino/${slug}`;
 }
 
 // Sem classe de display aqui: quem usa decide (`inline-flex` ou

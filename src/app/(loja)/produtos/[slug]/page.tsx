@@ -82,7 +82,7 @@ export default async function ProdutoPage({
               {/* Categoria clicável: leva ao catálogo já filtrado. É endereço
                   de faceta, então sem prefetch. */}
               <Link
-                href={`/produtos?categorias=${categorySlug(product.category)}`}
+                href={`/${product.department}/${categorySlug(product.category)}`}
                 prefetch={false}
                 className="hover:text-foreground"
               >

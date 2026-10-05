@@ -66,6 +66,8 @@ export type ProductDetail = {
   brand: string | null;
   reference: string | null;
   category: string | null;
+  /** Seção da peça (unissex conta como masculino para o caminho). */
+  department: "masculino" | "feminino";
   description: string | null;
   metaTitle: string | null;
   metaDescription: string | null;
@@ -551,6 +553,7 @@ async function queryProductBySlug(slug: string): Promise<ProductDetail | null> {
     .select(
       `slug, featured, rich_description, meta_title, meta_description,
        products!inner ( id, name, brand, reference, price, promo_price, category_name,
+         ${DEPARTMENT_COLUMN_READY ? "department," : ""}
          measurement_models ( name, columns, rows, note_top, note_bottom ),
          product_colors ( id, sort_order, gallery,
            colors ( name, hex ),
@@ -600,6 +603,10 @@ async function queryProductBySlug(slug: string): Promise<ProductDetail | null> {
     brand: row.products.brand,
     reference: row.products.reference,
     category: row.products.category_name,
+    department:
+      (row.products as { department?: string | null }).department === "feminino"
+        ? "feminino"
+        : "masculino",
     description: row.rich_description,
     metaTitle: row.meta_title,
     metaDescription: row.meta_description,

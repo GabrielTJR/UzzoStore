@@ -1,5 +1,6 @@
 import type { MetadataRoute } from "next";
-import { getProducts } from "@/lib/products";
+import { getCategoryCovers, getProducts } from "@/lib/products";
+import { categorySlug } from "@/lib/categories";
 
 /**
  * sitemap.xml — o Google descobre os produtos sem depender de rastrear link a
@@ -21,12 +22,21 @@ function siteUrl(): string {
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const base = siteUrl();
-  const { items } = await getProducts({});
+  const [{ items }, categorias] = await Promise.all([
+    getProducts({}),
+    getCategoryCovers(),
+  ]);
 
   return [
     { url: base, changeFrequency: "daily", priority: 1 },
     { url: `${base}/masculino`, changeFrequency: "daily", priority: 0.9 },
     { url: `${base}/feminino`, changeFrequency: "weekly", priority: 0.6 },
+    // Categorias com peça ativa, em endereço limpo (`/masculino/polos`).
+    ...categorias.map((c) => ({
+      url: `${base}/masculino/${categorySlug(c.name)}`,
+      changeFrequency: "daily" as const,
+      priority: 0.8,
+    })),
     { url: `${base}/ofertas`, changeFrequency: "daily", priority: 0.8 },
     { url: `${base}/produtos`, changeFrequency: "daily", priority: 0.8 },
     ...items.map((p) => ({
