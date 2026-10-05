@@ -1,6 +1,12 @@
 import "server-only";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { sendOrderPaidEmail, sendNewOrderAdminEmail } from "@/lib/email";
+import {
+  sendOrderPaidEmail,
+  sendNewOrderAdminEmail,
+  linhaEndereco,
+  linhaFreteLoja,
+  type OrderEmailAddress,
+} from "@/lib/email";
 import { logAudit } from "@/lib/audit";
 import { consumirReserva, baixarEstoque, itensDoPedido } from "@/lib/stock";
 import { consumeCoupon } from "@/lib/coupons";
@@ -364,7 +370,7 @@ async function notifyPaid(orderId: string, orderNumber: number): Promise<void> {
     const { data: order } = await admin
       .from("orders")
       .select(
-        "customer_id, total, shipping_method, shipping_address, order_items ( product_name, variant_label, unit_price, qty )",
+        "customer_id, total, subtotal, discount, coupon_code, shipping_method, shipping_address, shipping_cost, shipping_service, order_items ( product_name, variant_label, unit_price, qty )",
       )
       .eq("id", orderId)
       .maybeSingle();
@@ -399,22 +405,35 @@ async function notifyPaid(orderId: string, orderNumber: number): Promise<void> {
       qty: i.qty,
     }));
 
+    const shippingMethod =
+      order.shipping_method === "pickup" || order.shipping_method === "delivery"
+        ? order.shipping_method
+        : null;
+    // Retirada não tem endereço de entrega, mesmo que algo tenha sido gravado.
+    const addr =
+      shippingMethod === "delivery"
+        ? (order.shipping_address as OrderEmailAddress | null)
+        : null;
+
+    // O e-mail descreve o frete a partir do que FOI gravado no pedido
+    // (cobrado, grátis ou a combinar) — ver `fretePedido`.
     await sendOrderPaidEmail({
       to,
       customerName: profile?.full_name ?? null,
       orderNumber,
-      total: Number(order.total),
       items,
-      pickup: order.shipping_method === "pickup",
+      subtotal: Number(order.subtotal ?? 0),
+      discount: Number(order.discount ?? 0),
+      couponCode: order.coupon_code ?? null,
+      shippingMethod,
+      shippingCost: Number(order.shipping_cost ?? 0),
+      shippingService: order.shipping_service ?? null,
+      address: addr,
+      total: Number(order.total),
     });
 
-    // A loja também precisa saber que entrou venda.
-    const addr = order.shipping_address as {
-      street?: string;
-      number?: string | null;
-      city?: string;
-      state?: string;
-    } | null;
+    // A loja também precisa saber que entrou venda — com o nome cru do serviço
+    // de frete, que é o que ela procura no Melhor Envio para comprar a etiqueta.
     await sendNewOrderAdminEmail({
       orderNumber,
       total: Number(order.total),
@@ -423,9 +442,8 @@ async function notifyPaid(orderId: string, orderNumber: number): Promise<void> {
       customerPhone: profile?.phone ?? null,
       channel: "online",
       shipping: (order.shipping_method as "pickup" | "delivery" | null) ?? null,
-      addressLine: addr
-        ? `${addr.street ?? ""}${addr.number ? `, ${addr.number}` : ""} — ${addr.city ?? ""}/${addr.state ?? ""}`
-        : null,
+      addressLine: linhaEndereco(addr),
+      shippingLine: linhaFreteLoja(order),
     });
   } catch (err) {
     console.error("[infinitepay] falha ao avisar pagamento", err);

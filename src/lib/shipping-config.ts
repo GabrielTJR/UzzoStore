@@ -180,6 +180,54 @@ export function linkRastreio(
   return { url: null, transportadora };
 }
 
+/** Transportadora gravada no parêntese final de `orders.shipping_service`
+ * ("SEDEX (Correios)" → "Correios"). Mesma regra de `linkRastreio`. */
+function transportadoraDoServico(servico: string | null | undefined): string | null {
+  return (servico ?? "").match(/\(([^)]+)\)\s*$/)?.[1]?.trim() || null;
+}
+
+export type FretePedido = {
+  tipo: "retirada" | "cobrado" | "gratis" | "a_combinar";
+  valor: number;
+  transportadora: string | null;
+};
+
+/**
+ * O que aconteceu com o frete de um pedido JÁ GRAVADO — fonte única para a
+ * tela de confirmação e o e-mail de pedido pago.
+ *
+ * Antes os dois diziam sempre "o frete é acertado à parte", inclusive para quem
+ * acabou de pagar o frete no site: o cliente achava que ia ser cobrado de novo.
+ * A regra lê o que o servidor gravou na criação do pedido:
+ *   - retirada → nada de frete;
+ *   - entrega SEM serviço → o frete não foi cotado (Melhor Envio fora/sem
+ *     token) e a entrega é combinada pelo WhatsApp — o ÚNICO caso em que essa
+ *     frase pode aparecer;
+ *   - entrega com serviço → cobrado (custo > 0) ou grátis (custo 0, frete
+ *     grátis da loja).
+ *
+ * Só a TRANSPORTADORA sai daqui: o nome cru do serviço (".Package
+ * Centralizado") é jargão interno do Melhor Envio e não vai para o cliente. O
+ * pedido não grava o id do serviço, então não dá para usar `nomeServicoFrete`.
+ */
+export function fretePedido(o: {
+  shipping_method: string | null;
+  shipping_cost: number | string | null;
+  shipping_service: string | null;
+}): FretePedido {
+  if (o.shipping_method === "pickup")
+    return { tipo: "retirada", valor: 0, transportadora: null };
+
+  const servico = (o.shipping_service ?? "").trim();
+  if (!servico) return { tipo: "a_combinar", valor: 0, transportadora: null };
+
+  const valor = Number(o.shipping_cost ?? 0);
+  const transportadora = transportadoraDoServico(servico);
+  return Number.isFinite(valor) && valor > 0
+    ? { tipo: "cobrado", valor, transportadora }
+    : { tipo: "gratis", valor: 0, transportadora };
+}
+
 export function nomeServicoFrete(
   serviceId: number,
   name: string,

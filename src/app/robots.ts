@@ -30,6 +30,8 @@ export default function robots(): MetadataRoute.Robots {
         "/conta",
         "/sacola",
         "/checkout",
+        // Volta do pagamento: página pessoal, sem nada para indexar.
+        "/pedido",
         "/api/",
         "/entrar",
         "/cadastro",
