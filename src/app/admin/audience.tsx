@@ -308,15 +308,26 @@ export function Audience({ result }: { result: AudienceResult }) {
           value={agora == null ? "—" : fmt(agora)}
           detail="visitantes nos últimos 30 minutos"
         />
-        {data.periods.map((p) => (
-          <Stat
-            key={p.key}
-            label={p.label}
-            href={detalheHref("visitantes", p.key === "28d" ? 28 : 7)}
-            value={fmt(p.visitors)}
-            detail={`visitantes, ${fmt(p.views)} páginas vistas`}
-          />
-        ))}
+        {/* Os relatórios por período chegam com HORAS de atraso (o Google
+            processa antes de liberar); só o "agora" é imediato. Zero com gente
+            no site agora não é "ninguém veio": é o Google ainda processando —
+            mostrar "0" fazia parecer que a loja não teve acesso nenhum. */}
+        {data.periods.map((p) => {
+          const processando = p.visitors === 0 && (agora ?? 0) > 0;
+          return (
+            <Stat
+              key={p.key}
+              label={p.label}
+              href={detalheHref("visitantes", p.key === "28d" ? 28 : 7)}
+              value={processando ? "—" : fmt(p.visitors)}
+              detail={
+                processando
+                  ? "o Google ainda está processando estas visitas"
+                  : `visitantes, ${fmt(p.views)} páginas vistas`
+              }
+            />
+          );
+        })}
       </div>
 
       <div className="grid gap-4 xl:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
@@ -374,7 +385,7 @@ export function Audience({ result }: { result: AudienceResult }) {
       <Funil funnel={data.funnel} whatsapp={data.whatsapp} />
 
       <p className="max-w-[90ch] text-xs text-muted">
-        Fonte: Google Analytics, atualizado a cada 15 minutos. O site só mede
+        Fonte: Google Analytics. "No site agora" é imediato; os demais números chegam com algumas horas de atraso (o Google processa antes de liberar) e são atualizados aqui a cada 15 minutos. O site só mede
         quem aceita os cookies de medição, então o movimento real é maior que
         estes números.
       </p>
