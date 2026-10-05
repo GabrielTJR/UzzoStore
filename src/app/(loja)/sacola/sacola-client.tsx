@@ -627,16 +627,19 @@ export function SacolaClient({
 
           {error && <p className="text-sm text-red-600">{error}</p>}
 
+          {/* O botão CHEIO é o pagamento no site — decisão do dono em
+              out/2026: é o caminho que fecha sozinho. O WhatsApp continua,
+              como segunda opção (antes era o inverso). */}
           <div className="flex w-full flex-col gap-3 md:items-end">
             {!error && !busy && !temFalta ? (
               <Link
                 href="/checkout"
-                className="inline-flex h-12 w-full items-center justify-center rounded-xs border border-border px-8 text-sm font-medium hover:border-foreground md:w-auto"
+                className="inline-flex h-13 w-full items-center justify-center rounded-xs bg-foreground px-8 text-[0.95rem] font-semibold text-background hover:opacity-90 md:w-auto md:min-w-72"
               >
                 Pagar com Pix ou cartão
               </Link>
             ) : (
-              <span className="inline-flex h-12 w-full cursor-not-allowed items-center justify-center rounded-xs border border-border px-8 text-sm font-medium opacity-60 md:w-auto">
+              <span className="inline-flex h-13 w-full cursor-not-allowed items-center justify-center rounded-xs bg-foreground px-8 text-[0.95rem] font-semibold text-background opacity-40 md:w-auto md:min-w-72">
                 Pagar com Pix ou cartão
               </span>
             )}
@@ -645,9 +648,9 @@ export function SacolaClient({
               type="button"
               onClick={handleWhatsapp}
               disabled={busy || !!error || temFalta}
-              className="inline-flex h-12 w-full items-center justify-center rounded-xs bg-foreground px-8 text-sm font-medium text-background hover:opacity-90 disabled:opacity-60 md:w-auto"
+              className="inline-flex h-12 w-full items-center justify-center rounded-xs border border-foreground px-8 text-sm font-medium hover:bg-surface disabled:opacity-50 md:w-auto md:min-w-72"
             >
-              {busy ? "Registrando pedido…" : "Finalizar no WhatsApp"}
+              {busy ? "Registrando pedido…" : "Fechar pelo WhatsApp"}
             </button>
           </div>
         </div>
