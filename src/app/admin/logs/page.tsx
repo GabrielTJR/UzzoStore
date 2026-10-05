@@ -1,144 +1,83 @@
-import Link from "next/link";
 import type { Metadata } from "next";
 import { requireAdmin } from "@/lib/admin";
-import { getAuditLog, getAuditActions } from "@/lib/audit-queries";
+import { isArea } from "@/lib/audit-labels";
+import {
+  LOGS_POR_PAGINA,
+  PERIODO_PADRAO,
+  getAuditEvent,
+  getAuditLog,
+  getAuditPessoas,
+  isPeriodo,
+} from "@/lib/audit-queries";
+import { LogsView } from "./logs-view";
+import { LogModal } from "./log-modal";
+import { LogDetail } from "./log-detail";
+import { logsHref } from "./href";
 
-export const metadata: Metadata = { title: "Logs" };
+export const metadata: Metadata = { title: "Registro de atividades" };
 
-const ACTION_LABELS: Record<string, string> = {
-  "product.create": "Produto criado",
-  "product.update": "Produto editado",
-  "product.delete": "Produto excluído",
-  "variant.save": "Variante salva",
-  "variant.delete": "Variante excluída",
-  "photo.add": "Foto adicionada",
-  "photo.remove": "Foto removida",
-  "auth.login": "Login",
-  "admin.invite": "Admin convidado",
-  "admin.remove": "Admin removido",
-  "admin.password_reset": "Senha redefinida",
-};
+type Sp = Record<string, string | string[] | undefined>;
+const um = (v: string | string[] | undefined) =>
+  typeof v === "string" ? v : undefined;
 
-function actionLabel(a: string): string {
-  return ACTION_LABELS[a] ?? a;
-}
-
-function fmtDate(iso: string): string {
-  return new Date(iso).toLocaleString("pt-BR", {
-    dateStyle: "short",
-    timeStyle: "medium",
-    timeZone: "America/Sao_Paulo",
-  });
-}
-
-function FilterChip({
-  href,
-  active,
-  children,
-}: {
-  href: string;
-  active: boolean;
-  children: React.ReactNode;
-}) {
-  return (
-    <Link
-      href={href}
-      className={`rounded-xs border px-3 py-1 text-xs transition-colors ${
-        active
-          ? "border-foreground bg-foreground text-background"
-          : "border-border text-muted hover:border-foreground hover:text-foreground"
-      }`}
-    >
-      {children}
-    </Link>
-  );
-}
-
+/**
+ * Registro de atividades. Autorização e consultas aqui; o desenho em
+ * `logs-view.tsx`.
+ *
+ * Tudo o que vem da URL passa por lista fechada ou validação (área, período,
+ * página, id do evento). `quem` é comparado por igualdade e a busca é limpa
+ * em `audit-queries` antes de entrar no filtro.
+ */
 export default async function LogsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ action?: string }>;
+  searchParams: Promise<Sp>;
 }) {
   await requireAdmin();
-  const { action } = await searchParams;
+  const sp = await searchParams;
 
-  const [rows, actions] = await Promise.all([
-    getAuditLog({ action, limit: 200 }),
-    getAuditActions(),
+  const areaSp = um(sp.area);
+  const area = isArea(areaSp) ? areaSp : null;
+  const periodoSp = um(sp.periodo);
+  const periodo = isPeriodo(periodoSp) ? periodoSp : PERIODO_PADRAO;
+  const quem = um(sp.quem)?.slice(0, 200) || null;
+  const busca = um(sp.busca)?.trim().slice(0, 80) ?? "";
+  const auto = um(sp.auto) === "1";
+  const paginaNum = Number(um(sp.pagina));
+  const pagina =
+    Number.isInteger(paginaNum) && paginaNum > 1 && paginaNum < 10_000
+      ? paginaNum
+      : 1;
+  const eventoNum = Number(um(sp.evento));
+  const eventoId =
+    Number.isInteger(eventoNum) && eventoNum > 0 ? eventoNum : null;
+
+  const filtros = { area, quem, periodo, busca, auto, pagina };
+  const [{ eventos, total }, pessoas, evento] = await Promise.all([
+    getAuditLog(filtros),
+    getAuditPessoas(),
+    eventoId ? getAuditEvent(eventoId) : null,
   ]);
 
   return (
-    <section>
-      <header className="mb-8">
-        <h1 className="font-display text-2xl font-bold lg:text-3xl">
-          Logs de auditoria
-        </h1>
-        <p className="mt-1 text-sm text-muted">
-          Registro de quem fez o quê no painel.
-        </p>
-      </header>
-
-      {actions.length > 0 && (
-        <div className="mb-6 flex flex-wrap gap-2">
-          <FilterChip href="/admin/logs" active={!action}>
-            Todas
-          </FilterChip>
-          {actions.map((a) => (
-            <FilterChip
-              key={a}
-              href={`/admin/logs?action=${encodeURIComponent(a)}`}
-              active={action === a}
-            >
-              {actionLabel(a)}
-            </FilterChip>
-          ))}
-        </div>
+    <>
+      <LogsView
+        busca={filtros}
+        eventos={eventos}
+        total={total}
+        porPagina={LOGS_POR_PAGINA}
+        pessoas={pessoas}
+        automaticosOcultos={!auto}
+      />
+      {evento && (
+        <LogModal
+          key={evento.id}
+          title={evento.frase}
+          closeHref={logsHref(filtros)}
+        >
+          <LogDetail e={evento} />
+        </LogModal>
       )}
-
-      <div className="overflow-x-auto rounded-sm border border-border">
-        <table className="w-full text-sm">
-          <thead className="border-b border-border text-left text-xs text-muted">
-            <tr>
-              <th className="px-4 py-3 font-medium">Quando</th>
-              <th className="px-4 py-3 font-medium">Quem</th>
-              <th className="px-4 py-3 font-medium">Ação</th>
-              <th className="px-4 py-3 font-medium">Item</th>
-              <th className="px-4 py-3 font-medium">IP</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-border">
-            {rows.map((r) => (
-              <tr key={r.id}>
-                <td className="whitespace-nowrap px-4 py-3 text-muted">
-                  {fmtDate(r.created_at)}
-                </td>
-                <td className="px-4 py-3">{r.actor_email ?? "sistema"}</td>
-                <td className="px-4 py-3">{actionLabel(r.action)}</td>
-                <td className="px-4 py-3 text-muted">
-                  {r.entity_type === "product" && r.entity_id ? (
-                    <Link
-                      href={`/admin/produtos/${r.entity_id}`}
-                      className="underline-offset-4 hover:text-foreground hover:underline"
-                    >
-                      {r.entity_label ?? r.entity_id.slice(0, 8)}
-                    </Link>
-                  ) : (
-                    (r.entity_label ?? "—")
-                  )}
-                </td>
-                <td className="px-4 py-3 text-muted">{r.ip ?? "—"}</td>
-              </tr>
-            ))}
-            {rows.length === 0 && (
-              <tr>
-                <td colSpan={5} className="px-4 py-8 text-center text-muted">
-                  Nenhum registro ainda.
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-      </div>
-    </section>
+    </>
   );
 }
