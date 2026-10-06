@@ -1,4 +1,7 @@
+"use client";
+
 import Link from "next/link";
+import { useViewer } from "@/lib/viewer";
 import { FeaturedStar } from "./featured-star";
 
 const overlayButton =
@@ -27,7 +30,9 @@ function PencilIcon() {
 /**
  * Atalhos de admin sobrepostos no canto superior direito de uma foto de produto:
  * estrela (liga/desliga destaque na home) + lápis (vai para a edição). O pai
- * precisa ser `position: relative`. Renderize apenas quando o usuário é admin.
+ * precisa ser `position: relative`. Some sozinho para quem não é admin (o
+ * `useViewer` é preenchido no navegador; a estrela e o painel conferem de novo
+ * no servidor).
  */
 export function AdminProductOverlay({
   productId,
@@ -36,6 +41,8 @@ export function AdminProductOverlay({
   productId: string;
   featured: boolean;
 }) {
+  const admin = useViewer((s) => s.admin);
+  if (!admin) return null;
   return (
     <div className="absolute right-2 top-2 z-10 flex gap-1.5">
       <FeaturedStar productId={productId} featured={featured} />

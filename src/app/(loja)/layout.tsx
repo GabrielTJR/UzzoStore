@@ -4,7 +4,7 @@ import { CookieConsent } from "@/components/cookie-consent";
 import { SiteFooter } from "@/components/site-footer";
 import { SiteHeader } from "@/components/site-header";
 import { WhatsappFab } from "@/components/whatsapp-fab";
-import { getAdminUser } from "@/lib/admin";
+import { ViewerLoader } from "@/components/viewer-loader";
 import { getHomeConfig } from "@/lib/home-config-server";
 import { categorySlug } from "@/lib/categories";
 import {
@@ -12,7 +12,6 @@ import {
   hasDepartmentProducts,
   type CategoryCover,
 } from "@/lib/products";
-import { getSessionUser } from "@/lib/session";
 import { shippingConfigured } from "@/lib/shipping";
 import { WHATSAPP_URL } from "@/lib/store-info";
 
@@ -56,14 +55,15 @@ function paraMenu(covers: CategoryCover[]) {
 export default async function LojaLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
+  // NADA aqui lê a sessão (cookie): o layout envolve toda a vitrine, e uma
+  // leitura de cookie tornaria TODAS as páginas dinâmicas — montadas de novo a
+  // cada visita. Logado/admin/favoritos vêm do navegador (`ViewerLoader`).
   // As categorias do menu saem das CAPAS (categorias com peça ativa, por
   // departamento), não do cadastro inteiro: é a mesma leitura cacheada que a
   // home usa (memoizada por requisição — uma ida ao cache para as duas).
   // As mensagens da faixa vêm da página inicial publicada no painel (cache com
   // a etiqueta da decoração; memoizada — a home lê a mesma configuração).
-  const [adminUser, sessionUser, covers, temFeminino, home] = await Promise.all([
-    getAdminUser(),
-    getSessionUser(),
+  const [covers, temFeminino, home] = await Promise.all([
     getCategoryCovers(),
     hasDepartmentProducts("feminino"),
     getHomeConfig(),
@@ -74,8 +74,6 @@ export default async function LojaLayout({
     <>
       <AnnouncementBar avisos={home.avisos} freteAtivo={freteAtivo} />
       <SiteHeader
-        isLogged={!!sessionUser} // cliente OU admin
-        isAdmin={!!adminUser}
         categories={{
           masculino: paraMenu(covers.masculino),
           feminino: paraMenu(covers.feminino),
@@ -84,6 +82,7 @@ export default async function LojaLayout({
         whatsappUrl={WHATSAPP_URL}
       />
 
+      <ViewerLoader />
       <main className="flex-1">{children}</main>
 
       {/* Gaveta da sacola (client, zustand) + WhatsApp flutuante. Montados

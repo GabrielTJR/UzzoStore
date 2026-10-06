@@ -4,7 +4,6 @@ import { FilterPanel } from "@/components/filter-panel";
 import { FilterSection } from "@/components/filter-section";
 import { ProductCard } from "@/components/product-card";
 import { SortSelect } from "@/components/sort-select";
-import { getAdminUser } from "@/lib/admin";
 import { catalogHref, type CatalogState } from "@/lib/catalog-url";
 import { categorySlug } from "@/lib/categories";
 import { displayColor } from "@/lib/color-name";
@@ -18,8 +17,6 @@ import {
   hasDepartmentProducts,
   PRODUCTS_PER_PAGE,
 } from "@/lib/products";
-import { getSessionUser } from "@/lib/session";
-import { getWishlistIds } from "@/lib/wishlist";
 
 /** Números de página com reticências: 1 … 4 [5] 6 … 12 */
 function pageWindow(current: number, total: number): (number | "…")[] {
@@ -60,25 +57,12 @@ export async function Catalog({
   /** Para onde "limpar filtros" volta: o endereço limpo desta seção. */
   homePath?: string;
 }) {
-  const [
-    categories,
-    covers,
-    storeColors,
-    adminUser,
-    sessionUser,
-    favorites,
-    temFeminino,
-  ] = await Promise.all([
+  const [categories, covers, storeColors, temFeminino] = await Promise.all([
     getCategories(),
     getCategoryCovers(),
     getStoreColors(),
-    getAdminUser(),
-    getSessionUser(),
-    getWishlistIds(),
     hasDepartmentProducts("feminino"),
   ]);
-  const isAdmin = !!adminUser;
-  const isLogged = !!sessionUser;
 
   // Valida o que veio na URL contra o cadastro (ignora o que não existe).
   const bySlug = new Map(categories.map((c) => [categorySlug(c.name), c]));
@@ -105,8 +89,7 @@ export async function Catalog({
   const categoriasDoFiltro = doDepartamento
     ? categories.filter(
         (c) =>
-          doDepartamento.has(c.id) ||
-          categorias.includes(categorySlug(c.name)),
+          doDepartamento.has(c.id) || categorias.includes(categorySlug(c.name)),
       )
     : categories;
   /** Mesmo estado com alterações — e sempre de volta à página 1. */
@@ -125,8 +108,7 @@ export async function Catalog({
 
   const totalPages = Math.max(1, Math.ceil(total / PRODUCTS_PER_PAGE));
   const page = Math.min(state.pagina, totalPages);
-  const activeCount =
-    categorias.length + cores.length + (state.promo ? 1 : 0);
+  const activeCount = categorias.length + cores.length + (state.promo ? 1 : 0);
   const aquiHref = catalogHref(state);
 
   const heading =
@@ -343,7 +325,8 @@ export async function Catalog({
 
   const pageLink =
     "flex h-10 min-w-10 items-center justify-center rounded-xs border px-3 text-sm transition-colors";
-  const pageHref = (p: number) => `${catalogHref({ ...state, pagina: p })}#lista`;
+  const pageHref = (p: number) =>
+    `${catalogHref({ ...state, pagina: p })}#lista`;
 
   return (
     <section className="px-page pb-16 pt-6 lg:pb-24 lg:pt-10">
@@ -392,14 +375,7 @@ export async function Catalog({
                 className="grid scroll-mt-32 grid-cols-2 gap-x-3 gap-y-8 md:grid-cols-3 lg:gap-x-5 lg:gap-y-10 xl:grid-cols-4 2xl:grid-cols-5"
               >
                 {products.map((p) => (
-                  <ProductCard
-                    key={p.slug}
-                    product={p}
-                    isAdmin={isAdmin}
-                    isLogged={isLogged}
-                    isFavorite={favorites.has(p.id)}
-                    backTo={aquiHref}
-                  />
+                  <ProductCard key={p.slug} product={p} backTo={aquiHref} />
                 ))}
               </div>
 

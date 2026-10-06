@@ -46,11 +46,8 @@ export function ProductView({
   basePrice,
   promoPrice,
   featured,
-  isAdmin = false,
   colors,
   measurement,
-  isLogged = false,
-  isFavorite = false,
 }: {
   productId: string;
   slug: string;
@@ -60,11 +57,8 @@ export function ProductView({
   basePrice: number | null;
   promoPrice: number | null;
   featured: boolean;
-  isAdmin?: boolean;
   colors: ProductColor[];
   measurement: MeasurementChart | null;
-  isLogged?: boolean;
-  isFavorite?: boolean;
 }) {
   const addItem = useCart((s) => s.addItem);
   const itensNaSacola = useCart((s) => s.items);
@@ -115,9 +109,8 @@ export function ProductView({
   // Serve só para cotar frete antes de o cliente escolher tamanho: o peso é do
   // PRODUTO, então qualquer variante vendável devolve o mesmo valor.
   const primeiraVarianteCotavel =
-    colors
-      .flatMap((c) => c.variants)
-      .find((v) => variantBuyable(v, price))?.id ?? null;
+    colors.flatMap((c) => c.variants).find((v) => variantBuyable(v, price))
+      ?.id ?? null;
 
   function selectColor(id: string) {
     setSelectedColorId(id);
@@ -213,7 +206,9 @@ export function ProductView({
   useEffect(() => {
     track("view_item", {
       value: price ?? undefined,
-      items: [{ item_id: productId, item_name: name, price: price ?? undefined }],
+      items: [
+        { item_id: productId, item_name: name, price: price ?? undefined },
+      ],
     });
   }, [productId, name, price]);
 
@@ -269,9 +264,7 @@ export function ProductView({
               onNext={() => setImageIndex((i) => (i + 1) % gallery.length)}
             />
           )}
-          {isAdmin && (
-            <AdminProductOverlay productId={productId} featured={featured} />
-          )}
+          <AdminProductOverlay productId={productId} featured={featured} />
         </div>
         {gallery.length > 1 && (
           <div className="scrollbar-hide mt-3 flex gap-2 overflow-x-auto lg:mt-0 lg:max-h-[clamp(30rem,calc(100svh-var(--header-h)-7rem),57rem)] lg:w-16 lg:shrink-0 lg:flex-col lg:overflow-y-auto">
@@ -309,8 +302,6 @@ export function ProductView({
           </h1>
           <WishlistHeart
             productId={productId}
-            initialFavorite={isFavorite}
-            isLogged={isLogged}
             backTo={`/produtos/${slug}`}
             className="mt-1 shrink-0"
           />

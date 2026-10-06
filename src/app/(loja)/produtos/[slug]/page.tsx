@@ -7,9 +7,14 @@ import { RelatedProducts } from "@/components/related-products";
 import { BenefitsStrip } from "@/components/benefits-strip";
 import { shippingConfigured } from "@/lib/shipping";
 import { categorySlug } from "@/lib/categories";
-import { getAdminUser } from "@/lib/admin";
-import { getSessionUser } from "@/lib/session";
-import { getWishlistIds } from "@/lib/wishlist";
+
+/**
+ * Lista vazia = nenhuma página no build, e cada uma é gerada na PRIMEIRA visita
+ * e guardada pronta (ISR). Sem esta função a rota seria montada a cada visita.
+ */
+export async function generateStaticParams() {
+  return [];
+}
 
 export async function generateMetadata({
   params,
@@ -49,20 +54,23 @@ export async function generateMetadata({
   };
 }
 
+/**
+ * Estática por produto: gerada na primeira visita e guardada pronta, derrubada
+ * pela etiqueta `catalogo` (mutação de produto, estoque, pagamento). Nada aqui
+ * depende de quem olha — coração e atalhos de admin vêm do navegador
+ * (`lib/viewer.ts`). 5 min é o teto para a expiração de reserva pelo pg_cron,
+ * que não consegue avisar o cache.
+ */
+export const revalidate = 300;
+
 export default async function ProdutoPage({
   params,
 }: {
   params: Promise<{ slug: string }>;
 }) {
   const { slug } = await params;
-  const [product, adminUser, sessionUser, favorites] = await Promise.all([
-    getProductBySlug(slug),
-    getAdminUser(),
-    getSessionUser(),
-    getWishlistIds(),
-  ]);
+  const product = await getProductBySlug(slug);
   if (!product) notFound();
-  const isAdmin = !!adminUser;
 
   return (
     <>
@@ -101,20 +109,14 @@ export default async function ProdutoPage({
           basePrice={product.basePrice}
           promoPrice={product.promoPrice}
           featured={product.featured}
-          isAdmin={isAdmin}
           colors={product.colors}
           measurement={product.measurement}
-          isLogged={!!sessionUser}
-          isFavorite={favorites.has(product.id)}
         />
 
         <RelatedProducts
           categoryName={product.category}
           excludeId={product.id}
           backTo={`/produtos/${product.slug}`}
-          isAdmin={isAdmin}
-          isLogged={!!sessionUser}
-          favorites={favorites}
         />
       </article>
       <BenefitsStrip freteAtivo={shippingConfigured()} />

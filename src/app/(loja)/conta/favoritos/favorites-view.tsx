@@ -24,13 +24,7 @@ export function FavoritesView({ items }: { items: ProductListItem[] }) {
       ) : (
         <div className="grid grid-cols-2 gap-x-3 gap-y-8 sm:gap-x-5 lg:grid-cols-3 xl:grid-cols-4">
           {items.map((p) => (
-            <ProductCard
-              key={p.slug}
-              product={p}
-              isLogged
-              isFavorite
-              backTo="/conta/favoritos"
-            />
+            <ProductCard key={p.slug} product={p} backTo="/conta/favoritos" />
           ))}
         </div>
       )}

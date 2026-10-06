@@ -1,8 +1,9 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toggleWishlistAction } from "@/app/(loja)/produtos/wishlist-actions";
+import { useViewer } from "@/lib/viewer";
 
 function HeartIcon({ filled }: { filled: boolean }) {
   return (
@@ -28,34 +29,40 @@ function HeartIcon({ filled }: { filled: boolean }) {
  * confirma no servidor — a ida ao banco leva ~200ms e travar o botão nesse
  * tempo faz o site parecer lento. Se falhar, volta ao estado anterior.
  * Visitante sem conta é levado para o login, guardando de onde veio.
+ *
+ * Logado e favoritos vêm do `useViewer` (navegador), não de props do servidor:
+ * é o que deixa as páginas da vitrine estáticas. O estado é compartilhado, então
+ * o mesmo produto em dois lugares da tela (card e relacionados) acende junto.
  */
 export function WishlistHeart({
   productId,
-  initialFavorite,
-  isLogged,
   backTo = "/produtos",
   className = "",
 }: {
   productId: string;
-  initialFavorite: boolean;
-  isLogged: boolean;
   backTo?: string;
   className?: string;
 }) {
   const router = useRouter();
-  const [favorite, setFavorite] = useState(initialFavorite);
+  const ready = useViewer((s) => s.ready);
+  const logged = useViewer((s) => s.logged);
+  const favorite = useViewer((s) => s.favorites.includes(productId));
+  const setFavorite = useViewer((s) => s.setFavorite);
   const [, startTransition] = useTransition();
 
   function handleClick() {
-    if (!isLogged) {
+    // Ainda descobrindo quem é (logado, com a chamada em voo): mandar para o
+    // login quem já está logado seria pior que ignorar um toque.
+    if (!ready) return;
+    if (!logged) {
       router.push(`/entrar?next=${encodeURIComponent(backTo)}`);
       return;
     }
     const next = !favorite;
-    setFavorite(next); // otimista
+    setFavorite(productId, next); // otimista
     startTransition(async () => {
       const res = await toggleWishlistAction(productId, next);
-      if (!res.ok) setFavorite(!next); // desfaz se o servidor recusou
+      if (!res.ok) setFavorite(productId, !next); // desfaz se o servidor recusou
     });
   }
 

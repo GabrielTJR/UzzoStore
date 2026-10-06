@@ -26,15 +26,9 @@ function discountPercent(product: ProductListItem): number | null {
  */
 export function ProductCard({
   product,
-  isAdmin = false,
-  isLogged = false,
-  isFavorite = false,
   backTo = "/produtos",
 }: {
   product: ProductListItem;
-  isAdmin?: boolean;
-  isLogged?: boolean;
-  isFavorite?: boolean;
   backTo?: string;
 }) {
   const off = discountPercent(product);
@@ -55,12 +49,7 @@ export function ProductCard({
 
       {/* Favorito à esquerda; os atalhos de admin ficam à direita. */}
       <div className="absolute left-2 top-2 z-10">
-        <WishlistHeart
-          productId={product.id}
-          initialFavorite={isFavorite}
-          isLogged={isLogged}
-          backTo={backTo}
-        />
+        <WishlistHeart productId={product.id} backTo={backTo} />
       </div>
 
       <Link href={`/produtos/${product.slug}`} className="mt-2.5 block">
@@ -85,12 +74,7 @@ export function ProductCard({
         )}
       </Link>
 
-      {isAdmin && (
-        <AdminProductOverlay
-          productId={product.id}
-          featured={product.featured}
-        />
-      )}
+      <AdminProductOverlay productId={product.id} featured={product.featured} />
     </div>
   );
 }

@@ -47,7 +47,8 @@ export type HomeEditorProps = {
   whatsappUrl: string;
 };
 
-const igual = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
+const igual = (a: unknown, b: unknown) =>
+  JSON.stringify(a) === JSON.stringify(b);
 
 const campo =
   "w-full rounded-xs border border-border bg-background px-3 py-2.5 text-sm outline-none focus:border-foreground";
@@ -106,17 +107,25 @@ export function HomeEditor(props: HomeEditorProps) {
   }
 
   const salvar = () =>
-    executar(() => saveHomeDraftAction(cfg), "Rascunho salvo", (c) => {
-      setCfg(c);
-      setSalvo(c);
-    });
+    executar(
+      () => saveHomeDraftAction(cfg),
+      "Rascunho salvo",
+      (c) => {
+        setCfg(c);
+        setSalvo(c);
+      },
+    );
 
   const publicar = () =>
-    executar(() => publishHomeAction(cfg), "Publicado na loja", (c) => {
-      setCfg(c);
-      setSalvo(c);
-      setPub(c);
-    });
+    executar(
+      () => publishHomeAction(cfg),
+      "Publicado na loja",
+      (c) => {
+        setCfg(c);
+        setSalvo(c);
+        setPub(c);
+      },
+    );
 
   function descartar() {
     if (!window.confirm("Descartar as alterações e voltar ao que está no ar?"))
@@ -128,11 +137,15 @@ export function HomeEditor(props: HomeEditorProps) {
       setSalvo(pub);
       return;
     }
-    executar(() => discardHomeDraftAction(), "Rascunho descartado", (c) => {
-      setCfg(c);
-      setSalvo(c);
-      setPub(c);
-    });
+    executar(
+      () => discardHomeDraftAction(),
+      "Rascunho descartado",
+      (c) => {
+        setCfg(c);
+        setSalvo(c);
+        setPub(c);
+      },
+    );
   }
 
   /* ---------------- hero ---------------- */
@@ -192,11 +205,16 @@ export function HomeEditor(props: HomeEditorProps) {
 
   // Peças que podem ir no "Na foto": as que têm endereço, uma vez cada.
   const pecas = useMemo(() => {
-    const m = new Map<string, { slug: string; name: string; active: boolean }>();
+    const m = new Map<
+      string,
+      { slug: string; name: string; active: boolean }
+    >();
     for (const p of photos)
       if (p.slug && !m.has(p.slug))
         m.set(p.slug, { slug: p.slug, name: p.productName, active: p.active });
-    return [...m.values()].sort((a, b) => a.name.localeCompare(b.name, "pt-BR"));
+    return [...m.values()].sort((a, b) =>
+      a.name.localeCompare(b.name, "pt-BR"),
+    );
   }, [photos]);
 
   /* ---------------- avisos ---------------- */
@@ -273,7 +291,8 @@ export function HomeEditor(props: HomeEditorProps) {
   // Número de cada atalho VISÍVEL (as ocultas não contam), como na loja.
   const numeros = new Map<string, number>();
   for (const c of categorias)
-    if (!cfg.atalhos.ocultas.includes(c.id)) numeros.set(c.id, numeros.size + 1);
+    if (!cfg.atalhos.ocultas.includes(c.id))
+      numeros.set(c.id, numeros.size + 1);
 
   return (
     <div>
@@ -361,7 +380,9 @@ export function HomeEditor(props: HomeEditorProps) {
           {/* ---------------- Destaque principal ---------------- */}
           <Panel className="scroll-mt-6 p-5 lg:p-6">
             <section id="destaque" className="scroll-mt-6">
-              <h2 className="font-display text-lg font-bold">Destaque principal</h2>
+              <h2 className="font-display text-lg font-bold">
+                Destaque principal
+              </h2>
               <p className="mt-0.5 text-sm text-muted">
                 A primeira imagem da loja. Escolha uma etiqueta na lista e
                 clique (ou arraste) na foto para colocá-la.
@@ -414,7 +435,9 @@ export function HomeEditor(props: HomeEditorProps) {
                       min={0}
                       max={100}
                       value={hero.focoY}
-                      onChange={(e) => setHero({ focoY: Number(e.target.value) })}
+                      onChange={(e) =>
+                        setHero({ focoY: Number(e.target.value) })
+                      }
                       className="mt-2 block w-full accent-[var(--accent)]"
                     />
                     <span className="flex justify-between text-xs font-normal text-muted">
@@ -464,7 +487,9 @@ export function HomeEditor(props: HomeEditorProps) {
                             <div className="min-w-0 flex-1">
                               <input
                                 value={t.label}
-                                onChange={(e) => renomearEtiqueta(i, e.target.value)}
+                                onChange={(e) =>
+                                  renomearEtiqueta(i, e.target.value)
+                                }
                                 onFocus={() => setSel(i)}
                                 aria-label="Texto da etiqueta"
                                 className="w-full bg-transparent text-sm font-medium outline-none"
@@ -550,14 +575,19 @@ export function HomeEditor(props: HomeEditorProps) {
                       value={hero.look?.slug ?? ""}
                       onChange={(e) => {
                         const p = pecas.find((x) => x.slug === e.target.value);
-                        setHero({ look: p ? { name: p.name, slug: p.slug } : null });
+                        setHero({
+                          look: p ? { name: p.name, slug: p.slug } : null,
+                        });
                       }}
                       className={`${campo} mt-1.5 font-normal`}
                     >
                       <option value="">Nenhuma (esconder a linha)</option>
-                      {hero.look && !pecas.some((p) => p.slug === hero.look?.slug) && (
-                        <option value={hero.look.slug}>{hero.look.name}</option>
-                      )}
+                      {hero.look &&
+                        !pecas.some((p) => p.slug === hero.look?.slug) && (
+                          <option value={hero.look.slug}>
+                            {hero.look.name}
+                          </option>
+                        )}
                       {pecas.map((p) => (
                         <option key={p.slug} value={p.slug}>
                           {p.name}
@@ -566,7 +596,8 @@ export function HomeEditor(props: HomeEditorProps) {
                       ))}
                     </select>
                     <span className="mt-1 block text-xs font-normal text-muted">
-                      Aparece como &ldquo;Na foto: …&rdquo; com link para a peça.
+                      Aparece como &ldquo;Na foto: …&rdquo; com link para a
+                      peça.
                     </span>
                   </label>
                 </div>
@@ -577,7 +608,9 @@ export function HomeEditor(props: HomeEditorProps) {
           {/* ---------------- Faixa de avisos ---------------- */}
           <Panel className="p-5 lg:p-6">
             <section id="avisos" className="scroll-mt-6">
-              <h2 className="font-display text-lg font-bold">Faixa de avisos</h2>
+              <h2 className="font-display text-lg font-bold">
+                Faixa de avisos
+              </h2>
               <p className="mt-0.5 text-sm text-muted">
                 As mensagens da faixa preta do topo, uma de cada vez. Desligue
                 uma sem apagar.
@@ -611,7 +644,9 @@ export function HomeEditor(props: HomeEditorProps) {
                     <div className="min-w-0 flex-1">
                       {a.auto === "frete" ? (
                         <>
-                          <p className="text-sm">{textoAvisoFrete(freteAtivo)}</p>
+                          <p className="text-sm">
+                            {textoAvisoFrete(freteAtivo)}
+                          </p>
                           <p className="text-xs text-muted">
                             Automática: com a cotação de frete ligada diz
                             &ldquo;{textoAvisoFrete(true)}&rdquo;; sem ela,
@@ -641,7 +676,9 @@ export function HomeEditor(props: HomeEditorProps) {
                       rotulo={a.active ? "Ligada" : "Desligada"}
                       onChange={() =>
                         setAvisos((l) =>
-                          l.map((x, j) => (j === i ? { ...x, active: !x.active } : x)),
+                          l.map((x, j) =>
+                            j === i ? { ...x, active: !x.active } : x,
+                          ),
                         )
                       }
                     />
@@ -650,7 +687,9 @@ export function HomeEditor(props: HomeEditorProps) {
                     ) : (
                       <button
                         type="button"
-                        onClick={() => setAvisos((l) => l.filter((_, j) => j !== i))}
+                        onClick={() =>
+                          setAvisos((l) => l.filter((_, j) => j !== i))
+                        }
                         className={`${linkAcao} w-[3.75rem]`}
                       >
                         remover
@@ -665,7 +704,11 @@ export function HomeEditor(props: HomeEditorProps) {
                   onClick={() =>
                     setAvisos((l) => [
                       ...l,
-                      { id: `m${Date.now().toString(36)}`, text: "", active: true },
+                      {
+                        id: `m${Date.now().toString(36)}`,
+                        text: "",
+                        active: true,
+                      },
                     ])
                   }
                   className="mt-3 text-sm font-semibold underline underline-offset-4"
@@ -683,12 +726,14 @@ export function HomeEditor(props: HomeEditorProps) {
           {/* ---------------- Atalhos de categoria ---------------- */}
           <Panel className="p-5 lg:p-6">
             <section id="atalhos" className="scroll-mt-6">
-              <h2 className="font-display text-lg font-bold">Atalhos de categoria</h2>
+              <h2 className="font-display text-lg font-bold">
+                Atalhos de categoria
+              </h2>
               <p className="mt-0.5 text-sm text-muted">
                 A fileira de fotos logo abaixo do destaque. Escolha quais
-                aparecem e a ordem; a foto sai sozinha de uma peça da
-                categoria, ou é uma que você escolher entre as fotos das peças
-                dela (toque na foto). Categoria nova entra no fim, sozinha.
+                aparecem e a ordem; a foto sai sozinha de uma peça da categoria,
+                ou é uma que você escolher entre as fotos das peças dela (toque
+                na foto). Categoria nova entra no fim, sozinha.
               </p>
               {categorias.length === 0 && (
                 <p className="mt-4 text-sm text-muted">
@@ -733,10 +778,14 @@ export function HomeEditor(props: HomeEditorProps) {
                         )}
                       </button>
                       <div className="mt-2 flex items-center justify-between gap-2">
-                        <span className="truncate text-sm font-semibold">{c.name}</span>
+                        <span className="truncate text-sm font-semibold">
+                          {c.name}
+                        </span>
                         <Interruptor
                           ligado={!oculta}
-                          rotulo={oculta ? `${c.name} oculta` : `${c.name} visível`}
+                          rotulo={
+                            oculta ? `${c.name} oculta` : `${c.name} visível`
+                          }
                           onChange={() => alternarAtalho(c.id)}
                         />
                       </div>
@@ -766,7 +815,9 @@ export function HomeEditor(props: HomeEditorProps) {
                             mover
                           </span>
                         )}
-                        <span>{escolhida ? "foto escolhida" : "automática"}</span>
+                        <span>
+                          {escolhida ? "foto escolhida" : "automática"}
+                        </span>
                       </div>
                     </li>
                   );
@@ -786,8 +837,6 @@ export function HomeEditor(props: HomeEditorProps) {
           <PhonePreview>
             <AnnouncementBar avisos={cfg.avisos} freteAtivo={freteAtivo} />
             <SiteHeader
-              isLogged={false}
-              isAdmin={false}
               categories={props.menu}
               femininoEmBreve={!temFeminino}
               whatsappUrl={props.whatsappUrl}
@@ -816,7 +865,9 @@ export function HomeEditor(props: HomeEditorProps) {
               image: url,
               alt: p ? `${p.productName}${p.color ? `, ${p.color}` : ""}` : "",
               // Foto de uma peça: o "Na foto" passa a ser ela (dá para trocar).
-              ...(p?.slug ? { look: { name: p.productName, slug: p.slug } } : {}),
+              ...(p?.slug
+                ? { look: { name: p.productName, slug: p.slug } }
+                : {}),
             });
             setPicker(null);
           }}

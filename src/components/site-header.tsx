@@ -13,6 +13,7 @@ import {
   IconUser,
 } from "@/components/icons";
 import { DEPARTMENTS, type Department } from "@/lib/departments";
+import { useViewer } from "@/lib/viewer";
 import { useModal } from "@/lib/use-modal";
 
 export type NavCategory = { name: string; slug: string };
@@ -57,14 +58,10 @@ const iconBtn =
  * trabalho por visita sem clique.
  */
 export function SiteHeader({
-  isLogged,
-  isAdmin,
   categories,
   femininoEmBreve,
   whatsappUrl,
 }: {
-  isLogged: boolean;
-  isAdmin: boolean;
   /** Categorias com peça ativa em cada departamento (vazio = sem painel). */
   categories: Record<Department, NavCategory[]>;
   /** Feminino ainda sem produto: aparece no menu com a marca "em breve". */
@@ -82,6 +79,10 @@ export function SiteHeader({
   const closeMenu = () => setMenuOpen(false);
   const menuRef = useModal<HTMLElement>(menuOpen, closeMenu);
 
+  // Logado/admin vêm do navegador (`lib/viewer.ts`): é o que deixa as páginas
+  // da vitrine estáticas. Até a resposta chegar, mostra "Entrar".
+  const isLogged = useViewer((s) => s.logged);
+  const isAdmin = useViewer((s) => s.admin);
   const contaHref = isLogged ? "/conta" : "/entrar";
   const contaLabel = isLogged ? "Minha conta" : "Entrar";
 

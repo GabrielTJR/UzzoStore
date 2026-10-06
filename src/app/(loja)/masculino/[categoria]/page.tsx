@@ -26,6 +26,16 @@ function categoriaPorSlug(slug: string) {
   return getDepartmentCategory("masculino", slug);
 }
 
+export const revalidate = 600;
+
+/**
+ * Lista vazia = nenhuma página no build, e cada uma é gerada na PRIMEIRA visita
+ * e guardada pronta (ISR). Sem esta função a rota seria montada a cada visita.
+ */
+export async function generateStaticParams() {
+  return [];
+}
+
 export async function generateMetadata({
   params,
 }: {

@@ -3,7 +3,6 @@ import { BenefitsStrip } from "@/components/benefits-strip";
 import { CategoryStrip } from "@/components/category-strip";
 import { HomeHero } from "@/components/home-hero";
 import { ProductCard } from "@/components/product-card";
-import { getAdminUser } from "@/lib/admin";
 import { aplicaAtalhos } from "@/lib/home-config";
 import { getHomeConfig } from "@/lib/home-config-server";
 import { FABRIC_CLAIMS } from "@/lib/home-hero";
@@ -13,9 +12,7 @@ import {
   hasDepartmentProducts,
   type ProductListItem,
 } from "@/lib/products";
-import { getSessionUser } from "@/lib/session";
 import { shippingConfigured } from "@/lib/shipping";
-import { getWishlistIds } from "@/lib/wishlist";
 
 /**
  * HOME — base fixa (out/2026).
@@ -48,16 +45,10 @@ function ProductRow({
   title,
   href,
   products,
-  isAdmin,
-  isLogged,
-  favorites,
 }: {
   title: string;
   href: string;
   products: ProductListItem[];
-  isAdmin: boolean;
-  isLogged: boolean;
-  favorites: Set<string>;
 }) {
   if (products.length === 0) return null;
   return (
@@ -76,13 +67,7 @@ function ProductRow({
               i >= 5 ? "lg:hidden" : i === 4 ? "lg:hidden 2xl:block" : ""
             }`}
           >
-            <ProductCard
-              product={p}
-              isAdmin={isAdmin}
-              isLogged={isLogged}
-              isFavorite={favorites.has(p.id)}
-              backTo="/"
-            />
+            <ProductCard product={p} backTo="/" />
           </div>
         ))}
       </div>
@@ -153,28 +138,22 @@ function FemininoTeaser() {
   );
 }
 
+/**
+ * Estática (guardada pronta), derrubada pelas etiquetas de cache das mutações
+ * (`CACHE_TAGS`): nada aqui depende de quem está olhando — logado, admin e
+ * favoritos se acertam no navegador (`lib/viewer.ts`). A janela de 5 min é o
+ * teto para o que nenhuma mutação avisa (a expiração de reserva pelo pg_cron).
+ */
+export const revalidate = 300;
+
 export default async function Home() {
-  const [
-    adminUser,
-    sessionUser,
-    favorites,
-    covers,
-    temFeminino,
-    destaques,
-    ofertas,
-    home,
-  ] = await Promise.all([
-    getAdminUser(),
-    getSessionUser(),
-    getWishlistIds(),
+  const [covers, temFeminino, destaques, ofertas, home] = await Promise.all([
     getCategoryCovers(),
     hasDepartmentProducts("feminino"),
     getProducts({ featured: true, page: 1, perPage: 8 }),
     getProducts({ onlyPromo: true, sort: "promocao", page: 1, perPage: 8 }),
     getHomeConfig(),
   ]);
-  const isAdmin = !!adminUser;
-  const isLogged = !!sessionUser;
   const freteAtivo = shippingConfigured();
 
   return (
@@ -185,19 +164,9 @@ export default async function Home() {
         title="Destaques"
         href="/masculino"
         products={destaques.items}
-        isAdmin={isAdmin}
-        isLogged={isLogged}
-        favorites={favorites}
       />
       <FabricBand />
-      <ProductRow
-        title="Ofertas"
-        href="/ofertas"
-        products={ofertas.items}
-        isAdmin={isAdmin}
-        isLogged={isLogged}
-        favorites={favorites}
-      />
+      <ProductRow title="Ofertas" href="/ofertas" products={ofertas.items} />
       {!temFeminino && <FemininoTeaser />}
       <BenefitsStrip freteAtivo={freteAtivo} />
     </>

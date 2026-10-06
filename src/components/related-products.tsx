@@ -14,18 +14,12 @@ export async function RelatedProducts({
   categoryName,
   excludeId,
   backTo,
-  isAdmin = false,
-  isLogged = false,
-  favorites,
 }: {
   categoryName: string | null;
   excludeId: string;
   /** Página atual — para o coração de favorito voltar para ONDE o cliente
    * estava (e não para a página do produto relacionado). */
   backTo: string;
-  isAdmin?: boolean;
-  isLogged?: boolean;
-  favorites?: Set<string>;
 }) {
   if (!categoryName) return null;
   const categories = await getCategories();
@@ -53,14 +47,11 @@ export async function RelatedProducts({
           card na borda da tela (mesmo motivo comentado em app/page.tsx). */}
       <div className="scrollbar-hide bleed-x flex snap-x snap-mandatory gap-3 overflow-x-auto lg:mx-0 lg:grid lg:grid-cols-4 lg:gap-x-5 lg:overflow-visible lg:px-0">
         {related.map((p) => (
-          <div key={p.slug} className="w-[58%] shrink-0 snap-start sm:w-[36%] lg:w-auto">
-            <ProductCard
-              product={p}
-              isAdmin={isAdmin}
-              isLogged={isLogged}
-              isFavorite={favorites?.has(p.id) ?? false}
-              backTo={backTo}
-            />
+          <div
+            key={p.slug}
+            className="w-[58%] shrink-0 snap-start sm:w-[36%] lg:w-auto"
+          >
+            <ProductCard product={p} backTo={backTo} />
           </div>
         ))}
       </div>
