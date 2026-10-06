@@ -84,7 +84,11 @@ export function LogsView({
         description="Quem fez o quê no painel e o que o site fez sozinho. Clique num evento para ver os detalhes."
       />
 
+      {/* A key remonta o formulário quando a URL muda: os campos são
+          não controlados (defaultValue), e sem ela "Limpar filtros" trocava
+          a lista mas deixava os valores antigos à mostra. */}
       <LogsFilters
+        key={JSON.stringify(busca)}
         valores={{
           area: busca.area ?? "",
           quem: busca.quem ?? "",
