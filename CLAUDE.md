@@ -300,7 +300,9 @@ Aprovado pelo dono em 05/10/2026. **Pagar no site é o caminho principal**; o Wh
 - **Entrega:** "Receber em casa" e "Retirar na loja" sempre visíveis, **nenhum marcado para cliente novo** (decisão do dono — a retirada vir marcada fazia cliente de outro estado pagar para retirar em BC). O CEP cotado na sacola/produto fica no store da sacola (`cart-store` `cep`) e pré-preenche o formulário; o frete só é cotado de endereço SALVO (o CEP do frete online continua vindo de endereço do comprador). Regra de qual frete vem marcado: `lib/freight-choice.ts`, a mesma da sacola.
 - **`createOrderAction` exportada grava SEMPRE pedido de WhatsApp.** Era endpoint público que aceitava `"online"` e reservava estoque sem login; o online passa por `criarPedido` interno via `startOnlinePaymentAction`. Os erros do pagamento voltam com `code` (`PayCode`) para a tela levar o cliente ao passo certo.
 - **Pós-pagamento:** `/pedido/confirmado` mostra o resumo do pedido lido pelo client de COOKIE filtrando pelo próprio cliente; o texto e o e-mail de pago falam do frete pelo que ficou gravado (`fretePedido` em `shipping-config.ts`): "a combinar pelo WhatsApp" só quando o frete não foi cobrado.
-- **Pendências conhecidas:** checkout sem conta; gravar o prazo do frete no pedido (o `serviceId` já é gravado); "esqueci a senha" ainda por link. ("Pagar de novo" foi resolvido em 06/10 — ver a rodada.) Roteiro de teste completo: plano do checkout (no histórico desta mudança) e `docs/EMAILS.md`.
+- **Comprar EXIGE conta** (decisão do dono, 06/10/2026) — não construa checkout de visitante; o código por e-mail já cria a conta sem atrito.
+- **"Esqueci a senha" é por CÓDIGO** (`ForgotPasswordForm` = o mesmo `EmailCodeForm` do login, depois recarga em `/nova-senha` já com sessão): o link abria fora do navegador do Instagram e falhava. O painel (`/admin/login`) continua por link.
+- **Pendências conhecidas:** gravar o prazo do frete no pedido (o `serviceId` já é gravado). ("Pagar de novo" foi resolvido em 06/10 — ver a rodada.) Roteiro de teste completo: plano do checkout (no histórico desta mudança) e `docs/EMAILS.md`.
 
 ## Admin (`/admin`) e papéis de auth
 

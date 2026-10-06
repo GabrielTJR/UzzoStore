@@ -479,84 +479,20 @@ export function SignupForm() {
   );
 }
 
+/**
+ * Esqueci a senha = entrar com CÓDIGO e escolher a senha nova logo depois.
+ * Era por link, e o link abria fora do navegador do Instagram (de onde vem
+ * quase todo cliente): o PKCE falhava e a pessoa não conseguia trocar a
+ * senha — o mesmo motivo que levou o login para código. O código entra na
+ * mesma página; depois a recarga completa leva a /nova-senha já com sessão.
+ */
 export function ForgotPasswordForm() {
-  const turnstile = useTurnstile();
-  const [busy, setBusy] = useState(false);
-  const [sent, setSent] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
-    e.preventDefault();
-    setError(null);
-    if (turnstile.precisaMarcar()) {
-      setError("Marque “Confirme que é humano”, logo abaixo, e tente de novo.");
-      return;
-    }
-    setBusy(true);
-    const form = new FormData(e.currentTarget);
-    const captchaToken = (await turnstile.getToken()) ?? undefined;
-    const supabase = createClient();
-    const { error } = await supabase.auth.resetPasswordForEmail(
-      String(form.get("email") ?? "").trim(),
-      {
-        redirectTo: `${window.location.origin}/auth/callback?next=/nova-senha`,
-        captchaToken,
-      },
-    );
-    turnstile.reset();
-    setBusy(false);
-    if (error) {
-      setError(
-        erroDeCaptcha(error)
-          ? MSG_CAPTCHA_FALHOU
-          : "Não foi possível enviar o e-mail.",
-      );
-      return;
-    }
-    setSent(true);
-  }
-
-  if (sent) {
-    return (
-      <div
-        role="status"
-        className="space-y-2 rounded-sm bg-surface p-5 text-sm"
-      >
-        <p className="font-semibold">Confira seu e-mail</p>
-        <p className="text-muted">
-          Se existir uma conta com esse e-mail, enviamos um link para criar uma
-          nova senha. Abra o link neste mesmo aparelho.
-        </p>
-      </div>
-    );
-  }
-
   return (
-    <form onSubmit={handleSubmit} className="space-y-4">
-      <div className="space-y-1.5">
-        <label className={label} htmlFor="email">
-          E-mail da conta
-        </label>
-        <input
-          id="email"
-          name="email"
-          type="email"
-          required
-          autoComplete="email"
-          inputMode="email"
-          className={field}
-        />
-      </div>
-      {error && (
-        <p role="alert" className={errorCls}>
-          {error}
-        </p>
-      )}
-      {turnstile.widget}
-      <button type="submit" disabled={busy} className={primary}>
-        {busy ? "Enviando…" : "Enviar link"}
-      </button>
-    </form>
+    <EmailCodeForm
+      origem="entrar"
+      senhaHref={null}
+      onVerified={() => window.location.assign("/nova-senha")}
+    />
   );
 }
 
@@ -579,7 +515,13 @@ export function NewPasswordForm() {
     const { error } = await supabase.auth.updateUser({ password });
     setBusy(false);
     if (error) {
-      setError("O link expirou. Peça um novo e-mail.");
+      setError(
+        erroDeCaptcha(error)
+          ? MSG_CAPTCHA_FALHOU
+          : /different|same/i.test(error.message)
+            ? "Escolha uma senha diferente da atual."
+            : "A sessão expirou. Peça um novo código.",
+      );
       return;
     }
     router.replace("/conta");
@@ -604,9 +546,9 @@ export function NewPasswordForm() {
           {error ?? "Mínimo de 8 caracteres."}
         </p>
       </div>
-      {error && error.startsWith("O link") && (
+      {error && error.startsWith("A sessão") && (
         <Link href="/esqueci-senha" className={secondary}>
-          Pedir um novo link
+          Pedir um novo código
         </Link>
       )}
       <button type="submit" disabled={busy} className={primary}>
