@@ -80,6 +80,10 @@ export function CouponForm() {
         </label>
         <input id="expiresAt" name="expiresAt" type="date" className={field} />
       </div>
+      <label className="col-span-2 flex items-center gap-2.5 text-sm">
+        <input type="checkbox" name="umaPorCliente" className="h-4 w-4" />
+        Uma vez por cliente (exige login para usar)
+      </label>
       <p className="col-span-2 -mt-1 text-xs text-muted">
         Deixe em branco o que não tiver limite. O cupom nasce ativo.
       </p>

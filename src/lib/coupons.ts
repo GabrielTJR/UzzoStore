@@ -1,5 +1,6 @@
 import "server-only";
 import type { createAdminClient } from "@/lib/supabase/admin";
+import { getSessionUser } from "@/lib/session";
 
 /**
  * Validação de cupom — SEMPRE no servidor, com service_role (a tabela não tem
@@ -25,13 +26,15 @@ export async function checkCoupon(
   const code = rawCode.trim().toUpperCase();
   if (!code) return { ok: false, error: "Informe o código." };
 
-  const { data, error } = await admin
+  // `*` e não a lista de colunas: `uma_por_cliente` nasce na migração 0025, e
+  // pedir uma coluna que ainda não existe derrubaria a validação de TODO cupom.
+  const { data: row, error } = await admin
     .from("coupons")
-    .select(
-      "code, percent_off, min_subtotal, active, max_uses, used_count, expires_at",
-    )
+    .select("*")
     .eq("code", code)
     .maybeSingle();
+  const data = row as
+    (NonNullable<typeof row> & { uma_por_cliente?: boolean }) | null;
 
   // Mensagem ÚNICA para não-existe/inativo/expirado/esgotado: mensagens
   // distintas viram oráculo de enumeração (confirmam que o código existe).
@@ -49,6 +52,30 @@ export async function checkCoupon(
         data.min_subtotal,
       ).toFixed(2)}.`,
     };
+
+  // Uma vez por cliente (BEMVINDO10, migração 0025): precisa saber QUEM é, e
+  // conta os pedidos dele com o código que já gastaram o cupom — pagos, ou de
+  // WhatsApp não cancelados (lá o uso conta na criação). Pendente não conta:
+  // quem volta da InfinitePay sem pagar pode tentar de novo.
+  if (data.uma_por_cliente) {
+    const user = await getSessionUser();
+    if (!user)
+      return {
+        ok: false,
+        error:
+          "Entre na sua conta para usar este cupom (vale uma vez por cliente).",
+      };
+    const { count } = await admin
+      .from("orders")
+      .select("id", { count: "exact", head: true })
+      .eq("customer_id", user.id)
+      .eq("coupon_code", code)
+      .or(
+        "payment_status.eq.paid,and(channel.eq.whatsapp,fulfillment_status.neq.canceled)",
+      );
+    if ((count ?? 0) > 0)
+      return { ok: false, error: "Você já usou este cupom." };
+  }
 
   const percentOff = Number(data.percent_off);
   // Centavos sempre para BAIXO no desconto — arredondar para cima cobraria

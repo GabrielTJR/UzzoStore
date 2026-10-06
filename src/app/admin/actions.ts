@@ -1599,6 +1599,7 @@ export async function createCouponAction(
   const maxUsesRaw = String(formData.get("maxUses") ?? "").trim();
   const maxUses = maxUsesRaw ? parseInt(maxUsesRaw, 10) : null;
   const expiresRaw = String(formData.get("expiresAt") ?? "").trim();
+  const umaPorCliente = formData.get("umaPorCliente") === "on";
 
   if (!code) return { ok: false, error: "Informe o código." };
   if (!Number.isFinite(percent) || percent <= 0 || percent > 90)
@@ -1615,14 +1616,24 @@ export async function createCouponAction(
     expires_at: expiresRaw
       ? new Date(`${expiresRaw}T23:59:59`).toISOString()
       : null,
+    // Só manda a coluna quando marcada: sem a migração 0025 ela não existe, e
+    // o cupom comum continua sendo criado normalmente.
+    ...(umaPorCliente ? { uma_por_cliente: true } : {}),
   });
-  if (error) return { ok: false, error: "Já existe um cupom com esse código." };
+  if (error)
+    return {
+      ok: false,
+      error:
+        umaPorCliente && /uma_por_cliente/.test(error.message ?? "")
+          ? 'Falta aplicar a migração 0025 no Supabase para usar "uma vez por cliente".'
+          : "Já existe um cupom com esse código.",
+    };
 
   await logAudit(actor, {
     action: "coupon.create",
     entityType: "coupon",
     entityLabel: code,
-    metadata: { percent, minSubtotal, maxUses },
+    metadata: { percent, minSubtotal, maxUses, umaPorCliente },
   });
   revalidatePath("/admin/cupons");
   return { ok: true };

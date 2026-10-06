@@ -39,9 +39,8 @@ export default async function AdminCuponsPage() {
   const [{ data: coupons }, { data: pedidos }] = await Promise.all([
     admin
       .from("coupons")
-      .select(
-        "code, percent_off, min_subtotal, max_uses, used_count, expires_at, active",
-      )
+      // `*`: `uma_por_cliente` só existe depois da migração 0025.
+      .select("*")
       .order("created_at", { ascending: false }),
     admin
       .from("orders")
@@ -128,6 +127,8 @@ export default async function AdminCuponsPage() {
                             ? `Até ${data(c.expires_at)}`
                             : "Sem validade"}
                         </p>
+                        {(c as { uma_por_cliente?: boolean })
+                          .uma_por_cliente && <p>Uma vez por cliente</p>}
                       </td>
                       <td className="px-4 py-3 tabular-nums">
                         {c.used_count}

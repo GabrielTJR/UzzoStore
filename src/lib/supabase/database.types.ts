@@ -278,6 +278,7 @@ export type Database = {
           max_uses: number | null
           min_subtotal: number
           percent_off: number
+          uma_por_cliente: boolean
           used_count: number
         }
         Insert: {
@@ -288,6 +289,7 @@ export type Database = {
           max_uses?: number | null
           min_subtotal?: number
           percent_off: number
+          uma_por_cliente?: boolean
           used_count?: number
         }
         Update: {
@@ -298,6 +300,7 @@ export type Database = {
           max_uses?: number | null
           min_subtotal?: number
           percent_off?: number
+          uma_por_cliente?: boolean
           used_count?: number
         }
         Relationships: []
