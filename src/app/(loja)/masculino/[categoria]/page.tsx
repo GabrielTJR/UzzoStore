@@ -44,7 +44,9 @@ export async function generateMetadata({
   const cat = await categoriaPorSlug((await params).categoria);
   if (!cat) return {};
   return {
-    title: `${cat.name} masculinas`,
+    // "Masculino: Shorts" e não "Shorts masculinas": o nome da categoria é
+    // livre, e a concordância errava com metade delas.
+    title: `Masculino: ${cat.name}`,
     description: `${cat.name} da Uzzo Store, com tecidos que não amassam e secam rápido.`,
     alternates: { canonical: `/masculino/${categorySlug(cat.name)}` },
   };

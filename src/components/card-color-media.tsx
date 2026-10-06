@@ -47,7 +47,8 @@ export function CardColorMedia({
             images={gallery}
             index={photoIdx}
             alt={active ? `${product.name} — ${active.name}` : product.name}
-            sizes="(max-width: 768px) 50vw, (max-width: 1280px) 33vw, 25vw"
+            // 5 colunas + a lateral de filtros a partir de 1536px: ~18vw.
+            sizes="(min-width: 1536px) 18vw, (max-width: 768px) 50vw, (max-width: 1280px) 33vw, 25vw"
           />
         </Link>
         {badge}
@@ -57,7 +58,7 @@ export function CardColorMedia({
       </div>
 
       {colors.length > 1 && (
-        <div className="mt-2.5 flex flex-wrap items-center gap-2">
+        <div className="mt-2.5 flex flex-wrap items-center gap-3">
           {colors.map((c, i) => {
             const isSelected = i === colorIdx;
             return (
@@ -68,20 +69,27 @@ export function CardColorMedia({
                 title={displayColor(c.name)}
                 aria-label={`Ver cor ${displayColor(c.name)}`}
                 aria-pressed={isSelected}
-                className={`h-4 w-4 rounded-full border ${
-                  isSelected
-                    ? "border-foreground ring-1 ring-foreground ring-offset-2 ring-offset-background"
-                    : "border-foreground/25"
-                }`}
-                style={
-                  c.hex
-                    ? { backgroundColor: c.hex }
-                    : {
-                        backgroundImage:
-                          "repeating-linear-gradient(45deg, var(--color-border, #ccc) 0 3px, transparent 3px 6px)",
-                      }
-                }
-              />
+                // A bolinha tem 16px, mas a ÁREA de toque tem 28px (padding com
+                // margem negativa): 16px é pequeno demais para o polegar.
+                className="-m-1.5 p-1.5"
+              >
+                <span
+                  aria-hidden
+                  className={`block h-4 w-4 rounded-full border ${
+                    isSelected
+                      ? "border-foreground ring-1 ring-foreground ring-offset-2 ring-offset-background"
+                      : "border-foreground/25"
+                  }`}
+                  style={
+                    c.hex
+                      ? { backgroundColor: c.hex }
+                      : {
+                          backgroundImage:
+                            "repeating-linear-gradient(45deg, var(--color-border, #ccc) 0 3px, transparent 3px 6px)",
+                        }
+                  }
+                />
+              </button>
             );
           })}
         </div>

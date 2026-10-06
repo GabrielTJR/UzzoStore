@@ -167,7 +167,7 @@ export function CartDrawer({
                     </Link>
                     {(item.color || item.size) && (
                       <p className="mt-0.5 text-xs text-muted">
-                        {[item.color, item.size].filter(Boolean).join(" · ")}
+                        {[item.color, item.size].filter(Boolean).join(", ")}
                       </p>
                     )}
 

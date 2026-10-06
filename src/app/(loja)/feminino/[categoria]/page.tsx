@@ -44,7 +44,7 @@ export async function generateMetadata({
   const cat = await categoriaPorSlug((await params).categoria);
   if (!cat) return {};
   return {
-    title: `${cat.name} femininas`,
+    title: `Feminino: ${cat.name}`,
     description: `${cat.name} da Uzzo Store, com tecidos que não amassam e secam rápido.`,
     alternates: { canonical: `/feminino/${categorySlug(cat.name)}` },
   };

@@ -16,7 +16,15 @@ import { useModal } from "@/lib/use-modal";
  * Os filtros (`children`) são links renderizados no servidor; marcar um navega
  * por URL e a folha continua aberta (o estado deste componente sobrevive à
  * navegação), com o total do botão já atualizado.
+ *
+ * EXCEÇÃO: vindo de `/masculino`, `/masculino/<cat>` ou `/ofertas`, o primeiro
+ * filtro leva a `/produtos?…`, que é OUTRA página — o componente remonta e o
+ * estado se perderia (a folha fechava no primeiro toque). Por isso o toque num
+ * filtro deixa um aviso de vida curta no sessionStorage, e a página seguinte
+ * reabre a folha.
  */
+const REABRIR = "uzzo-filtros-abertos";
+const REABRIR_JANELA_MS = 15_000;
 export function FilterPanel({
   activeCount,
   total,
@@ -30,7 +38,29 @@ export function FilterPanel({
   children: React.ReactNode;
 }) {
   const [open, setOpen] = useState(false);
-  const close = useCallback(() => setOpen(false), []);
+  const close = useCallback(() => {
+    setOpen(false);
+    try {
+      sessionStorage.removeItem(REABRIR);
+    } catch {}
+  }, []);
+
+  // Reabre a folha se o cliente acabou de tocar num filtro na página anterior.
+  useEffect(() => {
+    try {
+      const t = Number(sessionStorage.getItem(REABRIR));
+      sessionStorage.removeItem(REABRIR);
+      if (
+        t &&
+        Date.now() - t < REABRIR_JANELA_MS &&
+        !window.matchMedia("(min-width: 64rem)").matches
+      )
+        // Estado vindo de fora (storage do navegador) na montagem: não há
+        // como ler isso no render sem divergir do HTML do servidor.
+        // eslint-disable-next-line react-hooks/set-state-in-effect
+        setOpen(true);
+    } catch {}
+  }, []);
   const ref = useModal<HTMLDivElement>(open, close);
 
   // Se a tela crescer para o desktop com a folha aberta, fecha: lá os filtros
@@ -93,7 +123,17 @@ export function FilterPanel({
               <IconClose />
             </button>
           </div>
-          <div className="flex-1 overflow-y-auto px-4 py-5">{children}</div>
+          <div
+            className="flex-1 overflow-y-auto px-4 py-5"
+            onClickCapture={(e) => {
+              if ((e.target as HTMLElement).closest("a[href]"))
+                try {
+                  sessionStorage.setItem(REABRIR, String(Date.now()));
+                } catch {}
+            }}
+          >
+            {children}
+          </div>
           <div className="shrink-0 border-t border-border p-4">
             <button
               type="button"

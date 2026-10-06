@@ -261,7 +261,10 @@ export function ProductView({
             images={gallery}
             index={imageIndex}
             alt={color ? `${name} — ${color.name}` : name}
-            sizes="(max-width: 768px) 100vw, 50vw"
+            // Casando com o layout: borda a borda no celular, coluna de 24rem
+            // no tablet e no máximo 38rem no desktop. "50vw" baixava a variante
+            // de 1080/1920 numa foto que mede 608px.
+            sizes="(max-width: 767px) 100vw, (max-width: 1023px) 24rem, 38rem"
             priority
             // No celular a foto passa com o dedo. As setas continuam para quem
             // está no desktop, onde não há gesto.

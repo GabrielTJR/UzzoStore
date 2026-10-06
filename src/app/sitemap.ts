@@ -1,12 +1,11 @@
 import type { MetadataRoute } from "next";
-import { getCategoryCovers, getProducts } from "@/lib/products";
+import { getCategoryCovers, getProductSlugs } from "@/lib/products";
 import { categorySlug } from "@/lib/categories";
 import type { Department } from "@/lib/departments";
 
 /**
  * sitemap.xml — o Google descobre os produtos sem depender de rastrear link a
- * link. Custo: `getProducts` já é cacheado (`unstable_cache`, etiqueta
- * `catalogo`), e a rota inteira revalida no máximo 1x/hora — robô nenhum
+ * link. Custo: só os slugs (`getProductSlugs`, cacheado na etiqueta `capas`), e a rota inteira revalida no máximo 1x/hora — robô nenhum
  * consegue transformar isto em consulta por visita.
  */
 export const revalidate = 3600;
@@ -23,8 +22,8 @@ function siteUrl(): string {
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const base = siteUrl();
-  const [{ items }, categorias] = await Promise.all([
-    getProducts({}),
+  const [slugs, categorias] = await Promise.all([
+    getProductSlugs(),
     getCategoryCovers(),
   ]);
 
@@ -44,8 +43,8 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     ),
     { url: `${base}/ofertas`, changeFrequency: "daily", priority: 0.8 },
     { url: `${base}/produtos`, changeFrequency: "daily", priority: 0.8 },
-    ...items.map((p) => ({
-      url: `${base}/produtos/${p.slug}`,
+    ...slugs.map((slug) => ({
+      url: `${base}/produtos/${slug}`,
       changeFrequency: "weekly" as const,
       priority: 0.7,
     })),

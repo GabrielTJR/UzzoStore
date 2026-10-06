@@ -34,7 +34,7 @@ export function SortSelect({
           if (next) router.push(next.href, { scroll: false });
         }}
         aria-label="Ordenar produtos"
-        className="min-w-0 flex-1 truncate rounded-xs border-0 bg-transparent py-1.5 text-sm text-muted outline-none lg:flex-none lg:border lg:border-border lg:px-3 lg:py-2 lg:text-foreground lg:focus:border-foreground"
+        className="min-w-0 flex-1 truncate rounded-xs border-0 bg-transparent py-1.5 text-sm text-muted outline-none focus-visible:ring-2 focus-visible:ring-accent lg:flex-none lg:border lg:border-border lg:px-3 lg:py-2 lg:text-foreground lg:focus:border-foreground"
       >
         {options.map((o) => (
           <option key={o.key} value={o.key}>

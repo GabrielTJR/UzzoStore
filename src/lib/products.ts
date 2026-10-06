@@ -406,6 +406,28 @@ export function getProducts(opts: ProductQuery = {}): Promise<ProductPage> {
 }
 
 /**
+ * Só os slugs das peças ativas — para o sitemap. Ele usava `getProducts({})`,
+ * que traz o catálogo INTEIRO com as galerias só para montar endereços. Fica
+ * na etiqueta `capas` (edição de produto), não em `catalogo`: estoque não muda
+ * a lista de endereços.
+ */
+export const getProductSlugs = unstable_cache(
+  async (): Promise<string[]> => {
+    const supabase = createPublicClient();
+    const { data, error } = await supabase
+      .from("product_content")
+      .select("slug, products!inner ( id )")
+      .eq("products.active_ecommerce", true)
+      .order("slug")
+      .limit(5000);
+    if (error) throw new Error(`slugs: ${error.message}`);
+    return (data ?? []).map((r) => r.slug);
+  },
+  ["product-slugs"],
+  { revalidate: CACHE_CADASTROS, tags: [CACHE_TAGS.capas] },
+);
+
+/**
  * Existe ao menos uma peça ativa neste departamento? Decide se o Feminino
  * aparece como "em breve" (menu, home e /feminino). Sai do MESMO cache do
  * catálogo: uma consulta por janela, derrubada quando o admin salva um produto

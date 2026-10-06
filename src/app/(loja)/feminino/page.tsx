@@ -6,12 +6,18 @@ import { EMPTY_CATALOG } from "@/lib/catalog-url";
 import { hasDepartmentProducts } from "@/lib/products";
 import { whatsappLink } from "@/lib/store-info";
 
-export const metadata: Metadata = {
-  title: "Feminino",
-  description:
-    "Moda feminina da Uzzo Store, com a mesma tecnologia de tecido. Em breve.",
-  alternates: { canonical: "/feminino" },
-};
+/** O "Em breve" da descrição sai sozinho quando a primeira peça entrar (a
+ * mesma checagem da página, do cache do catálogo). */
+export async function generateMetadata(): Promise<Metadata> {
+  const temPecas = await hasDepartmentProducts("feminino");
+  return {
+    title: "Feminino",
+    description: temPecas
+      ? "Moda feminina da Uzzo Store, com a mesma tecnologia de tecido: peças que não amassam e secam rápido."
+      : "Moda feminina da Uzzo Store, com a mesma tecnologia de tecido. Em breve.",
+    alternates: { canonical: "/feminino" },
+  };
+}
 
 /**
  * Seção Feminino. Enquanto não houver peça feminina ativa, mostra "em breve"

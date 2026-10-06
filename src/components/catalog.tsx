@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { whatsappLink } from "@/lib/store-info";
 import { FilterCheckItem as CheckItem } from "@/components/filter-check-item";
 import { FilterPanel } from "@/components/filter-panel";
 import { FilterSection } from "@/components/filter-section";
@@ -364,10 +365,27 @@ export async function Catalog({
           {products.length === 0 ? (
             <div className="py-10">
               <p className="font-display text-xl font-bold">
-                Nenhuma peça com esses filtros.
+                {state.busca
+                  ? `Nada encontrado para “${state.busca}”.`
+                  : "Nenhuma peça com esses filtros."}
               </p>
               <p className="mt-2 text-sm text-muted">
-                Tire um filtro ou veja a seção inteira.
+                {state.busca ? (
+                  <>
+                    Tente outra palavra (camisa, bermuda, polo…) ou{" "}
+                    <a
+                      href={whatsappLink(
+                        `Olá! Procurei por "${state.busca}" no site e não achei.`,
+                      )}
+                      className="underline underline-offset-4"
+                    >
+                      pergunte no WhatsApp
+                    </a>
+                    .
+                  </>
+                ) : (
+                  "Tire um filtro ou veja a seção inteira."
+                )}
               </p>
               <Link
                 href={homePath}
