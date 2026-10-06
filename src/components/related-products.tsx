@@ -27,11 +27,16 @@ export async function RelatedProducts({
   if (!cat) return null;
 
   // 5 = 4 exibidos + 1 de folga caso o próprio produto venha na lista.
-  const { items } = await getProducts({
+  // Complemento da página: se a leitura falhar, a página do produto sai sem
+  // ele em vez de quebrar.
+  const items = await getProducts({
     categoryIds: [cat.id],
     page: 1,
     perPage: 5,
-  });
+  }).then(
+    (r) => r.items,
+    () => [],
+  );
   const related = items.filter((p) => p.id !== excludeId).slice(0, 4);
   if (related.length === 0) return null;
 

@@ -6,10 +6,7 @@ import { displayProductName } from "@/lib/product-name";
 import type { SortKey } from "@/lib/product-sort";
 export { SORT_OPTIONS, isSortKey, type SortKey } from "@/lib/product-sort";
 import { categorySlug, type StoreCategory } from "@/lib/categories";
-import {
-  DEPARTMENT_COLUMN_READY,
-  type Department,
-} from "@/lib/departments";
+import { DEPARTMENT_COLUMN_READY, type Department } from "@/lib/departments";
 import { toChart, type MeasurementChart } from "@/lib/measurements";
 import {
   toHomeSection,
@@ -171,6 +168,12 @@ export const CACHE_TAGS = {
   cores: "cores",
   categorias: "categorias",
   decoracao: "decoracao",
+  /** Capas e categorias do menu (layout de TODA página). Separada de
+   * `catalogo` porque estoque não muda capa: com a mesma etiqueta, cada
+   * checkout iniciado (que derruba `catalogo` ao reservar) refazia também a
+   * leitura de até 400 peças das capas. Quem a derruba é a edição de produto
+   * (`revalidateProduct`) e de categoria (via `categorias`). */
+  capas: "capas",
 } as const;
 
 /**
@@ -216,6 +219,8 @@ export type ProductQuery = {
 export type ProductPage = {
   items: ProductListItem[];
   total: number; // total que casa com os filtros (para montar as páginas)
+  /** Pediu-se uma página além da última (o banco recusa o intervalo). */
+  foraDoFim?: boolean;
 };
 
 /**
@@ -314,7 +319,16 @@ async function queryProducts(opts: ProductQuery): Promise<ProductPage> {
   }
 
   const { data, error, count } = await query;
-  if (error || !data) return { items: [], total: 0 };
+  // Página além da última: o PostgREST recusa o intervalo (416, PGRST103).
+  // Não é falha — quem chama manda o cliente para uma página que existe.
+  if (error?.code === "PGRST103")
+    return { items: [], total: 0, foraDoFim: true };
+  // Falha de verdade LANÇA: dentro do `unstable_cache`, devolver lista vazia
+  // gravaria "0 peças" por até 10 min (e, com a página guardada pronta, a
+  // própria página). Lançando, nada é gravado e a versão anterior da página
+  // continua no ar.
+  if (error || !data)
+    throw new Error(`produtos: ${error?.message ?? "sem dados"}`);
 
   const rows = data as unknown as ListRow[];
   const items = rows.map((row) => {
@@ -369,8 +383,14 @@ export function getProducts(opts: ProductQuery = {}): Promise<ProductPage> {
 export async function hasDepartmentProducts(
   department: Department,
 ): Promise<boolean> {
-  const { total } = await getProducts({ department, page: 1, perPage: 1 });
-  return total > 0;
+  // Lido pelo layout de toda página: uma falha aqui não pode derrubar a loja.
+  try {
+    const { total } = await getProducts({ department, page: 1, perPage: 1 });
+    return total > 0;
+  } catch (e) {
+    console.error("[catalogo] departamento", e);
+    return false;
+  }
 }
 
 /**
@@ -425,9 +445,8 @@ const homeSectionsCache = unstable_cache(
   { revalidate: CACHE_CADASTROS, tags: [CACHE_TAGS.decoracao] },
 );
 
-export const getHomeSections = cache(
-  (): Promise<HomeSection[]> =>
-    semCachearFalha(homeSectionsCache, [], "decoração da home"),
+export const getHomeSections = cache((): Promise<HomeSection[]> =>
+  semCachearFalha(homeSectionsCache, [], "decoração da home"),
 );
 
 /** Cores do cadastro global — lista do filtro (não depende do catálogo). */
@@ -467,9 +486,8 @@ const categoriesCache = unstable_cache(
   { revalidate: CACHE_CADASTROS, tags: [CACHE_TAGS.categorias] },
 );
 
-export const getCategories = cache(
-  (): Promise<StoreCategory[]> =>
-    semCachearFalha(categoriesCache, [], "categorias"),
+export const getCategories = cache((): Promise<StoreCategory[]> =>
+  semCachearFalha(categoriesCache, [], "categorias"),
 );
 
 /** Capa de cada categoria (atalhos da home): categoria → 1ª foto encontrada. */
@@ -576,10 +594,16 @@ const categoryCoversCache = unstable_cache(
       [...m.values()].sort(
         (a, b) => b.count - a.count || a.name.localeCompare(b.name, "pt-BR"),
       );
-    return { masculino: ordena(maps.masculino), feminino: ordena(maps.feminino) };
+    return {
+      masculino: ordena(maps.masculino),
+      feminino: ordena(maps.feminino),
+    };
   },
   ["category-covers-dep"],
-  { revalidate: CACHE_CADASTROS, tags: [CACHE_TAGS.catalogo] },
+  {
+    revalidate: CACHE_CADASTROS,
+    tags: [CACHE_TAGS.capas, CACHE_TAGS.categorias],
+  },
 );
 
 export const getCategoryCovers = cache(
@@ -618,7 +642,10 @@ async function queryProductBySlug(slug: string): Promise<ProductDetail | null> {
     .eq("products.active_ecommerce", true)
     .maybeSingle();
 
-  if (error || !data) return null;
+  // Falha do banco LANÇA em vez de "não existe": devolver null gravaria um
+  // 404 de 5 min para o link que o cliente acabou de receber no Instagram.
+  if (error) throw new Error(`produto ${slug}: ${error.message}`);
+  if (!data) return null;
 
   const row = data as unknown as DetailRow;
   const agora = new Date().toISOString();

@@ -184,6 +184,7 @@ async function ensureProductContent(
 // dado antigo por até uma hora depois de salvar.
 function revalidateProduct(id?: string) {
   updateTag(CACHE_TAGS.catalogo);
+  updateTag(CACHE_TAGS.capas); // foto, categoria, departamento ou ativo mudam a capa
   revalidatePath("/admin");
   revalidatePath("/admin/produtos");
   if (id) revalidatePath(`/admin/produtos/${id}`);
@@ -786,15 +787,13 @@ export async function saveVariantAction(
   // O `ignoreDuplicates` garante que uma linha existente NUNCA é sobrescrita
   // aqui — essa é a gravação condicional lá de cima.
   if (mexeuEstoque)
-    await admin
-      .from("stock_cache")
-      .upsert(
-        { variant_id: vId, deposito_id: "loja", qty_available: qty },
-        {
-          onConflict: "variant_id,deposito_id",
-          ignoreDuplicates: !!variantId && qtyOriginal !== null,
-        },
-      );
+    await admin.from("stock_cache").upsert(
+      { variant_id: vId, deposito_id: "loja", qty_available: qty },
+      {
+        onConflict: "variant_id,deposito_id",
+        ignoreDuplicates: !!variantId && qtyOriginal !== null,
+      },
+    );
 
   // Estoque voltou: dispara os "avise-me" pendentes desta variante. Teto de 50
   // por reposição protege a cota do Resend; melhor avisar os 50 primeiros do

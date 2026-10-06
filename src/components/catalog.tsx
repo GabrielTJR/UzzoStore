@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { FilterCheckItem as CheckItem } from "@/components/filter-check-item";
 import { FilterPanel } from "@/components/filter-panel";
 import { FilterSection } from "@/components/filter-section";
@@ -96,7 +97,11 @@ export async function Catalog({
   const com = (patch: Partial<CatalogState>) =>
     catalogHref({ ...state, pagina: 1, ...patch });
 
-  const { items: products, total } = await getProducts({
+  const {
+    items: products,
+    total,
+    foraDoFim,
+  } = await getProducts({
     department: state.department ?? undefined,
     categoryIds: categorias.map((s) => bySlug.get(s)!.id),
     colorNames: cores,
@@ -105,6 +110,11 @@ export async function Catalog({
     sort: state.ordem,
     page: state.pagina,
   });
+
+  // Página que não existe mais (?pagina=99, ou a 3 depois que peças saíram):
+  // volta para a 1ª com os mesmos filtros, em vez de "0 peças".
+  if (foraDoFim && state.pagina > 1)
+    redirect(catalogHref({ ...state, pagina: 1 }));
 
   const totalPages = Math.max(1, Math.ceil(total / PRODUCTS_PER_PAGE));
   const page = Math.min(state.pagina, totalPages);

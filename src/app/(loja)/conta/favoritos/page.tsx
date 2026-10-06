@@ -11,7 +11,10 @@ export default async function FavoritosPage() {
   const ids = await getWishlistIds();
   // Sem favorito não há o que buscar: pula a consulta do catálogo.
   const items = ids.size
-    ? (await getProducts({ productIds: [...ids], page: 1, perPage: 48 })).items
+    ? await getProducts({ productIds: [...ids], page: 1, perPage: 48 }).then(
+        (r) => r.items,
+        () => [],
+      )
     : [];
   return <FavoritesView items={items} />;
 }
