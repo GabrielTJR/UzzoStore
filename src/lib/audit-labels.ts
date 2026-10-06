@@ -109,6 +109,26 @@ const ACOES: Record<string, Acao> = {
       return `${sujeito(c)} avançou ${pedido(c)} para ${nome}`;
     },
   },
+  "order.refunded": {
+    area: "vendas",
+    rotulo: "Pedido estornado",
+    frase: (c) => `${sujeito(c)} marcou ${pedido(c)} como estornado`,
+  },
+  "home.draft_save": {
+    area: "vitrine",
+    rotulo: "Rascunho da página inicial",
+    frase: (c) => `${sujeito(c)} salvou um rascunho da página inicial`,
+  },
+  "home.publish": {
+    area: "vitrine",
+    rotulo: "Página inicial publicada",
+    frase: (c) => `${sujeito(c)} publicou a página inicial`,
+  },
+  "home.discard": {
+    area: "vitrine",
+    rotulo: "Rascunho descartado",
+    frase: (c) => `${sujeito(c)} descartou o rascunho da página inicial`,
+  },
   // Ação antiga (antes da migração 0016 separar pagamento de atendimento).
   "order.status": {
     area: "vendas",

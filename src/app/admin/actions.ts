@@ -1272,11 +1272,15 @@ export async function updateFulfillmentAction(
   const { data: pedido } = await admin
     .from("orders")
     .select(
-      "number, customer_id, tracking_code, payment_status, shipping_service",
+      "number, customer_id, tracking_code, payment_status, fulfillment_status, shipping_service",
     )
     .eq("id", id)
     .maybeSingle();
   if (!pedido) return;
+  if (pedido.fulfillment_status === status) {
+    revalidatePath("/admin/pedidos");
+    return;
+  }
 
   const avanco = status !== "canceled" && status !== "pending";
   if (avanco && !podeAvancarAtendimento(pedido.payment_status)) {
@@ -1308,18 +1312,60 @@ export async function updateFulfillmentAction(
     return;
   }
 
-  const { error } = await admin
+  // Pedido PAGO tem a peça fora do estoque. Cancelar o atendimento antes de
+  // a peça sair da loja a devolve à prateleira; "descancelar" (Corrigir
+  // atendimento) precisa separá-la de novo — e recusa se não houver saldo.
+  // Sem isto, pedido pago cancelado prendia a peça para sempre, e voltar um
+  // cancelado para "a separar" prometia uma peça que podia já ter sido vendida.
+  const pago = pedido.payment_status === "paid";
+  const aindaNaLoja = ["pending", "preparing", "ready"].includes(
+    pedido.fulfillment_status,
+  );
+  const devolve = pago && status === "canceled" && aindaNaLoja;
+  const separaDeNovo =
+    pago && pedido.fulfillment_status === "canceled" && status !== "canceled";
+
+  if (separaDeNovo) {
+    const falta = await baixarEstoque(admin, await itensDoPedido(admin, id));
+    if (falta.length > 0) {
+      await logAudit(actor, {
+        action: "stock.shortage",
+        entityType: "order",
+        entityId: id,
+        entityLabel: `nº ${pedido.number}`,
+        metadata: {
+          itens: falta,
+          aviso: "pedido cancelado não voltou ao atendimento: falta saldo",
+        },
+      });
+      revalidatePath("/admin/pedidos");
+      return;
+    }
+  }
+
+  // Troca CONDICIONAL (a situação ainda é a que lemos): dois cliques ou duas
+  // abas não devolvem nem separam a peça duas vezes.
+  const agora = new Date().toISOString();
+  const { data: trocou, error } = await admin
     .from("orders")
     .update({
       fulfillment_status: status,
-      seen_at: new Date().toISOString(), // mexeu no pedido => já viu
-      updated_at: new Date().toISOString(),
+      seen_at: agora, // mexeu no pedido => já viu
+      updated_at: agora,
     })
-    .eq("id", id);
-  if (error) {
+    .eq("id", id)
+    .eq("fulfillment_status", pedido.fulfillment_status)
+    .select("id")
+    .maybeSingle();
+  if (error || !trocou) {
+    // Perdeu a corrida: desfaz a separação que acabou de fazer.
+    if (separaDeNovo)
+      await devolverEstoque(admin, await itensDoPedido(admin, id));
     revalidatePath("/admin/pedidos");
     return;
   }
+  if (devolve) await devolverEstoque(admin, await itensDoPedido(admin, id));
+  if (devolve || separaDeNovo) updateTag(CACHE_TAGS.catalogo);
 
   // Avisa o cliente nas etapas que importam para ele (e-mail nunca bloqueia).
   if (status === "ready" || status === "shipped" || status === "done") {
@@ -1375,7 +1421,7 @@ export async function updatePaymentStatusAction(
   const admin = createAdminClient();
   const { data: pedido } = await admin
     .from("orders")
-    .select("channel, payment_status, number")
+    .select("channel, payment_status, fulfillment_status, number")
     .eq("id", id)
     .maybeSingle();
   if (!pedido || !aceitaPagamentoManual(pedido.channel)) {
@@ -1410,7 +1456,11 @@ export async function updatePaymentStatusAction(
     return;
   }
 
-  if (viraPago && !eraPago) {
+  // A peça fica separada só com o pedido pago E não cancelado (a mesma regra
+  // de `updateFulfillmentAction`): pedido cancelado já devolveu a peça, e
+  // mexer aqui de novo devolveria/baixaria em dobro.
+  const mexeEstoque = pedido.fulfillment_status !== "canceled";
+  if (viraPago && !eraPago && mexeEstoque) {
     const falta = await baixarEstoque(admin, await itensDoPedido(admin, id));
     if (falta.length > 0) {
       // Não fica como pago o que a loja não tem para entregar: volta a
@@ -1436,10 +1486,10 @@ export async function updatePaymentStatusAction(
       revalidatePath("/admin/pedidos");
       return;
     }
-  } else if (eraPago && !viraPago) {
+  } else if (eraPago && !viraPago && mexeEstoque) {
     await devolverEstoque(admin, await itensDoPedido(admin, id));
   }
-  if (viraPago !== eraPago) updateTag(CACHE_TAGS.catalogo);
+  if (viraPago !== eraPago && mexeEstoque) updateTag(CACHE_TAGS.catalogo);
 
   await logAudit(actor, {
     action: "order.payment",
@@ -1447,6 +1497,44 @@ export async function updatePaymentStatusAction(
     entityId: id,
     metadata: { status, canal: pedido.channel },
   });
+  revalidatePath("/admin/pedidos");
+  revalidatePath("/conta/pedidos");
+}
+
+/**
+ * Marca como ESTORNADO um pedido pago cujo atendimento foi cancelado — o
+ * único jeito de ele sair da coluna "A separar", onde fica de propósito até
+ * alguém resolver. Não devolve dinheiro nenhum: o estorno é feito na
+ * InfinitePay (online) ou direto com o cliente (WhatsApp); isto só registra
+ * que foi feito. A peça já voltou ao estoque no cancelamento.
+ *
+ * Só nessa combinação (pago + cancelado): não é porta para mexer no
+ * pagamento online, que continua sendo só do `confirmPayment`.
+ */
+export async function markRefundedAction(formData: FormData): Promise<void> {
+  const actor = await getAdminFor("pedidos");
+  if (!actor) return;
+  if (serviceRoleMissing()) return;
+  const id = String(formData.get("orderId") ?? "");
+  if (!id) return;
+
+  const admin = createAdminClient();
+  const agora = new Date().toISOString();
+  const { data: marcou } = await admin
+    .from("orders")
+    .update({ payment_status: "refunded", seen_at: agora, updated_at: agora })
+    .eq("id", id)
+    .eq("payment_status", "paid")
+    .eq("fulfillment_status", "canceled")
+    .select("number")
+    .maybeSingle();
+  if (marcou)
+    await logAudit(actor, {
+      action: "order.refunded",
+      entityType: "order",
+      entityId: id,
+      entityLabel: `nº ${marcou.number}`,
+    });
   revalidatePath("/admin/pedidos");
   revalidatePath("/conta/pedidos");
 }

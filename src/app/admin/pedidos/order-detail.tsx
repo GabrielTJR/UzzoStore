@@ -17,9 +17,11 @@ import { formatBRL } from "@/lib/format";
 import { linkRastreio } from "@/lib/shipping-config";
 import { IconChat, IconExternal } from "@/components/icons";
 import { SubmitButton } from "@/components/submit-button";
+import { ConfirmForm } from "./confirm-form";
 import {
   updateFulfillmentAction,
   updatePaymentStatusAction,
+  markRefundedAction,
   updateOrderTrackingAction,
 } from "../actions";
 
@@ -64,7 +66,9 @@ function linkWhatsApp(phone: string | null): string | null {
 }
 
 /** O endereço em linhas, pulando o que o pedido não tem. */
-function linhasEndereco(a: NonNullable<AdminOrder["shippingAddress"]>): string[] {
+function linhasEndereco(
+  a: NonNullable<AdminOrder["shippingAddress"]>,
+): string[] {
   const rua = [a.street, a.number].filter(Boolean).join(", ");
   const cidade = [a.city, a.state].filter(Boolean).join("/");
   return [
@@ -207,7 +211,12 @@ export function OrderDetail({
   const podeConfirmar =
     aceitaPagamentoManual(o.channel) && o.paymentStatus !== "paid";
   const podeCancelar = !cancelado && o.fulfillmentStatus !== "done";
-  const temAcao = podeConfirmar || next !== null || podeCancelar;
+  const temAcao =
+    podeConfirmar || next !== null || podeCancelar || pagoCancelado;
+  const msgCancelar =
+    o.paymentStatus === "paid"
+      ? `Cancelar o pedido nº ${o.number}? Ele já está PAGO: a peça volta ao estoque, mas o dinheiro não é devolvido sozinho — faça o estorno ${o.channel === "online" ? "na InfinitePay" : "com o cliente"} e depois marque como estornado.`
+      : `Cancelar o pedido nº ${o.number}? A peça volta ao estoque.`;
 
   const pecas = o.items.reduce((s, i) => s + i.qty, 0);
   // Mesma conta que grava o pedido (`createOrderAction`): soma das linhas.
@@ -225,15 +234,13 @@ export function OrderDetail({
         <div className="contents @4xl:flex @4xl:min-w-0 @4xl:flex-col @4xl:gap-4">
           {/* Dois eixos separados: o dinheiro e o trabalho físico. Um botão só
               para os dois foi o que produziu pedido "pago" sem pagamento. */}
-          <Secao
-            id={`${uid}-situacao`}
-            titulo="Situação"
-            className="order-1"
-          >
+          <Secao id={`${uid}-situacao`} titulo="Situação" className="order-1">
             {pagoCancelado && (
               <p className="mb-3 rounded-xs bg-red-600/10 px-3 py-2 text-sm font-medium text-red-700 dark:text-red-400">
                 Pago, mas o atendimento está cancelado. Resolva com o cliente:
-                estorno ou reposição da peça.
+                devolva o dinheiro e marque como estornado, ou volte o
+                atendimento em "Corrigir atendimento" (a peça é separada de
+                novo, se houver saldo).
               </p>
             )}
             <dl className={camposLongos}>
@@ -438,17 +445,20 @@ export function OrderDetail({
                 )}
               </Campo>
               <Campo rotulo="CPF">
-                {(o.customerCpf && (formatCpf(o.customerCpf) ?? o.customerCpf)) || (
+                {(o.customerCpf &&
+                  (formatCpf(o.customerCpf) ?? o.customerCpf)) || (
                   <span className="text-muted">Não informado</span>
                 )}
               </Campo>
             </dl>
-            {!o.customerName && !o.customerPhone && o.channel === "whatsapp" && (
-              <p className="mt-2 text-xs text-muted">
-                Pedido fechado sem conta: o contato está na conversa do WhatsApp
-                em que o cliente citou o nº {o.number}.
-              </p>
-            )}
+            {!o.customerName &&
+              !o.customerPhone &&
+              o.channel === "whatsapp" && (
+                <p className="mt-2 text-xs text-muted">
+                  Pedido fechado sem conta: o contato está na conversa do
+                  WhatsApp em que o cliente citou o nº {o.number}.
+                </p>
+              )}
           </Secao>
 
           {/* Entrega: sem isso não dá para saber se retira ou para onde enviar. */}
@@ -571,7 +581,10 @@ export function OrderDetail({
                     botão, senão viraria porta para marcar como pago o que não
                     foi. */}
                 {podeConfirmar && (
-                  <form action={updatePaymentStatusAction}>
+                  <ConfirmForm
+                    action={updatePaymentStatusAction}
+                    message={`Confirmar que o pagamento do pedido nº ${o.number} entrou? A peça sai do estoque.`}
+                  >
                     <input type="hidden" name="orderId" value={o.id} />
                     <input type="hidden" name="status" value="paid" />
                     <SubmitButton
@@ -580,7 +593,22 @@ export function OrderDetail({
                     >
                       Confirmar pagamento
                     </SubmitButton>
-                  </form>
+                  </ConfirmForm>
+                )}
+
+                {pagoCancelado && (
+                  <ConfirmForm
+                    action={markRefundedAction}
+                    message={`Marcar o pedido nº ${o.number} como estornado? Use depois de devolver o dinheiro — isto só registra, não faz o estorno.`}
+                  >
+                    <input type="hidden" name="orderId" value={o.id} />
+                    <SubmitButton
+                      pendingText="Salvando…"
+                      className="h-9 rounded-xs bg-foreground px-5 text-sm font-semibold text-background hover:opacity-90"
+                    >
+                      Marcar como estornado
+                    </SubmitButton>
+                  </ConfirmForm>
                 )}
 
                 {next && travado && (
@@ -602,7 +630,10 @@ export function OrderDetail({
                 )}
 
                 {podeCancelar && (
-                  <form action={updateFulfillmentAction}>
+                  <ConfirmForm
+                    action={updateFulfillmentAction}
+                    message={msgCancelar}
+                  >
                     <input type="hidden" name="orderId" value={o.id} />
                     <input type="hidden" name="status" value="canceled" />
                     {/* Continua com cara de link, mas com a ALTURA dos botões
@@ -615,7 +646,7 @@ export function OrderDetail({
                     >
                       Cancelar pedido
                     </SubmitButton>
-                  </form>
+                  </ConfirmForm>
                 )}
               </div>
             )}

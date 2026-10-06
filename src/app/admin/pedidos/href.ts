@@ -7,7 +7,10 @@
  * derrubando o outro: abrir um pedido a partir da lista voltaria para o
  * quadro, e fechar o modal trocaria a vista de quem estava na lista.
  */
-export function pedidosHref(vista: "quadro" | "lista", pedido?: number): string {
+export function pedidosHref(
+  vista: "quadro" | "lista",
+  pedido?: number,
+): string {
   const q = new URLSearchParams();
   if (vista === "lista") q.set("vista", "lista");
   if (pedido !== undefined) q.set("pedido", String(pedido));

@@ -1,7 +1,11 @@
 import Link from "next/link";
 import type { Metadata } from "next";
-import { requireAdmin } from "@/lib/admin";
-import { getAdminOrders } from "@/lib/admin-orders";
+import { requireArea } from "@/lib/admin";
+import {
+  getAdminOrderByNumber,
+  getAdminOrders,
+  getBoardOrders,
+} from "@/lib/admin-orders";
 import { formatBRL } from "@/lib/format";
 import { markOrdersSeenAction } from "../actions";
 import { SubmitButton } from "@/components/submit-button";
@@ -25,10 +29,11 @@ export default async function PedidosAdminPage({
     pedido?: string | string[];
   }>;
 }) {
-  await requireAdmin();
-  const orders = await getAdminOrders();
-  const novos = orders.filter((o) => o.isNew).length;
+  await requireArea("pedidos");
   const sp = await searchParams;
+  const kanbanVista = sp.vista !== "lista";
+  const orders = kanbanVista ? await getBoardOrders() : await getAdminOrders();
+  const novos = orders.filter((o) => o.isNew).length;
   // O QUADRO é a visão padrão (out/2026, pedido do dono): responde "em que
   // etapa está cada pedido e o que fazer agora". A lista (`?vista=lista`)
   // responde "o que houve com o pedido X" — histórico completo, cancelados,
@@ -44,8 +49,13 @@ export default async function PedidosAdminPage({
     typeof sp.pedido === "string" && /^\d{1,9}$/.test(sp.pedido)
       ? Number(sp.pedido)
       : null;
+  // Pedido fora da tela (antigo, cancelado, expirado — o link do registro
+  // de atividades leva a qualquer um): uma leitura só dele.
   const aberto =
-    numero === null ? null : (orders.find((o) => o.number === numero) ?? null);
+    numero === null
+      ? null
+      : (orders.find((o) => o.number === numero) ??
+        (await getAdminOrderByNumber(numero)));
 
   const aba = (ativa: boolean) =>
     `inline-flex h-10 items-center px-4 text-sm ${

@@ -202,23 +202,74 @@ type Row = {
   }[];
 };
 
+const SELECT_PEDIDO = `id, number, payment_status, fulfillment_status, expires_at, channel, total, created_at,
+       shipping_method, seen_at, shipping_address,
+       shipping_service, shipping_cost, coupon_code, discount, tracking_code,
+       customers ( full_name, phone, cpf ),
+       order_items ( product_name, variant_label, unit_price, qty )`;
+
 /** Pedidos para o admin (service_role: enxerga de todos os clientes). */
 export async function getAdminOrders(limit = 100): Promise<AdminOrder[]> {
   const admin = createAdminClient();
   const { data, error } = await admin
     .from("orders")
-    .select(
-      `id, number, payment_status, fulfillment_status, expires_at, channel, total, created_at,
-       shipping_method, seen_at, shipping_address,
-       shipping_service, shipping_cost, coupon_code, discount, tracking_code,
-       customers ( full_name, phone, cpf ),
-       order_items ( product_name, variant_label, unit_price, qty )`,
-    )
+    .select(SELECT_PEDIDO)
     .order("created_at", { ascending: false })
     .limit(limit);
   if (error || !data) return [];
+  return (data as unknown as Row[]).map(paraPedido);
+}
 
-  return (data as unknown as Row[]).map((o) => ({
+/** Quantos concluídos o quadro mostra (os mais recentes). */
+const QUADRO_CONCLUIDOS = 30;
+
+/**
+ * Pedidos do QUADRO: todos os VIVOS (aguardando pagamento, ou pagos e ainda
+ * não concluídos — inclusive pago com atendimento cancelado, que espera o
+ * estorno) mais os últimos concluídos. Antes o quadro saía dos 100 pedidos
+ * mais recentes de qualquer situação: com muitos expirados e cancelados, um
+ * pedido pago e parado saía da janela e sumia do quadro.
+ */
+export async function getBoardOrders(): Promise<AdminOrder[]> {
+  const admin = createAdminClient();
+  const [vivos, concluidos] = await Promise.all([
+    admin
+      .from("orders")
+      .select(SELECT_PEDIDO)
+      .in("payment_status", ["pending", "paid"])
+      .neq("fulfillment_status", "done")
+      .order("created_at", { ascending: false })
+      .limit(300),
+    admin
+      .from("orders")
+      .select(SELECT_PEDIDO)
+      .eq("payment_status", "paid")
+      .eq("fulfillment_status", "done")
+      .order("updated_at", { ascending: false })
+      .limit(QUADRO_CONCLUIDOS),
+  ]);
+  return [
+    ...((vivos.data ?? []) as unknown as Row[]),
+    ...((concluidos.data ?? []) as unknown as Row[]),
+  ].map(paraPedido);
+}
+
+/** Um pedido pelo número (o `?pedido=` de um link do registro ou do e-mail),
+ * mesmo que ele não esteja na lista/quadro da tela. */
+export async function getAdminOrderByNumber(
+  number: number,
+): Promise<AdminOrder | null> {
+  const admin = createAdminClient();
+  const { data } = await admin
+    .from("orders")
+    .select(SELECT_PEDIDO)
+    .eq("number", number)
+    .maybeSingle();
+  return data ? paraPedido(data as unknown as Row) : null;
+}
+
+function paraPedido(o: Row): AdminOrder {
+  return {
     id: o.id,
     number: o.number,
     paymentStatus: o.payment_status,
@@ -244,7 +295,7 @@ export async function getAdminOrders(limit = 100): Promise<AdminOrder[]> {
       unitPrice: Number(i.unit_price),
       qty: i.qty,
     })),
-  }));
+  };
 }
 
 /** Quantos pedidos a loja ainda não viu (badge no menu do admin). */
