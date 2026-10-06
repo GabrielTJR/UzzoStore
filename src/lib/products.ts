@@ -32,6 +32,11 @@ export type ProductListItem = {
   onPromo: boolean; // tem preço promocional cadastrado
   image: string | null; // capa padrão (1ª cor com foto)
   colors: ProductListColor[];
+  /** Nenhum tamanho de nenhuma cor com saldo (nem reservado em compra que
+   * pode voltar). O card mostra "Esgotado" — sem isso o cliente só descobria
+   * depois de abrir a peça e escolher o tamanho. Pode faltar em entrada antiga
+   * do cache (vale como falso). */
+  esgotado?: boolean;
 };
 
 export type ProductVariant = {
@@ -92,6 +97,12 @@ type ListRow = {
       sort_order: number;
       gallery: unknown;
       colors: { name: string; hex: string | null } | null;
+      product_variants?: {
+        stock_cache:
+          | { qty_available: number; reservado_ate: string | null }[]
+          | { qty_available: number; reservado_ate: string | null }
+          | null;
+      }[];
     }[];
   };
 };
@@ -254,7 +265,9 @@ async function queryProducts(opts: ProductQuery): Promise<ProductPage> {
       // consegue ordenar através do embed.
       `slug, featured,
        products!inner ( id, name, price, promo_price, category_name, effective_price,
-         product_colors ( sort_order, gallery, colors ( name, hex ) ) )`,
+         product_colors ( sort_order, gallery, colors ( name, hex ),
+           product_variants!product_variants_product_color_id_fkey (
+             stock_cache ( qty_available, reservado_ate ) ) ) )`,
       { count: "exact" },
     )
     .eq("products.active_ecommerce", true);
@@ -331,7 +344,24 @@ async function queryProducts(opts: ProductQuery): Promise<ProductPage> {
     throw new Error(`produtos: ${error?.message ?? "sem dados"}`);
 
   const rows = data as unknown as ListRow[];
+  const agora = new Date().toISOString();
   const items = rows.map((row) => {
+    // Esgotado = nenhuma variante com saldo nem com reserva em curso (a peça
+    // reservada pode voltar em minutos: não é "esgotado", é a regra da 0020).
+    const estoques = (row.products.product_colors ?? []).flatMap((c) =>
+      (c.product_variants ?? []).flatMap((v) =>
+        v.stock_cache == null
+          ? []
+          : Array.isArray(v.stock_cache)
+            ? v.stock_cache
+            : [v.stock_cache],
+      ),
+    );
+    const esgotado = !estoques.some(
+      (s) =>
+        Number(s.qty_available) > 0 ||
+        (s.reservado_ate != null && s.reservado_ate > agora),
+    );
     const colors: ProductListColor[] = (row.products.product_colors ?? [])
       .slice()
       .sort((a, b) => a.sort_order - b.sort_order)
@@ -354,6 +384,7 @@ async function queryProducts(opts: ProductQuery): Promise<ProductPage> {
         Number(row.products.promo_price) > 0,
       image,
       colors,
+      esgotado,
     };
   });
 

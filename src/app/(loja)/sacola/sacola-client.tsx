@@ -474,7 +474,7 @@ export function SacolaClient({
                     type="button"
                     onClick={() => setQty(item.variantId, item.qty - 1)}
                     aria-label={`Diminuir quantidade de ${item.productName}`}
-                    className="flex h-10 w-10 items-center justify-center text-lg"
+                    className="flex h-10 w-10 items-center justify-center text-lg disabled:cursor-not-allowed disabled:opacity-30"
                   >
                     −
                   </button>
@@ -484,8 +484,14 @@ export function SacolaClient({
                   <button
                     type="button"
                     onClick={() => setQty(item.variantId, item.qty + 1)}
+                    disabled={item.maxQty != null && item.qty >= item.maxQty}
+                    title={
+                      item.maxQty != null && item.qty >= item.maxQty
+                        ? `Só temos ${item.maxQty} em estoque`
+                        : undefined
+                    }
                     aria-label={`Aumentar quantidade de ${item.productName}`}
-                    className="flex h-10 w-10 items-center justify-center text-lg"
+                    className="flex h-10 w-10 items-center justify-center text-lg disabled:cursor-not-allowed disabled:opacity-30"
                   >
                     +
                   </button>

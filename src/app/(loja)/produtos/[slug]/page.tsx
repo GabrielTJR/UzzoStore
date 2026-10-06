@@ -6,6 +6,7 @@ import { ProductView } from "@/components/product-view";
 import { RelatedProducts } from "@/components/related-products";
 import { BenefitsStrip } from "@/components/benefits-strip";
 import { shippingConfigured } from "@/lib/shipping";
+import { siteUrl } from "@/lib/site-url";
 import { categorySlug } from "@/lib/categories";
 
 /**
@@ -72,8 +73,47 @@ export default async function ProdutoPage({
   const product = await getProductBySlug(slug);
   if (!product) notFound();
 
+  // Dados estruturados (schema.org/Product): é o que deixa o Google mostrar
+  // preço e "em estoque" no resultado da busca. Sai do mesmo produto em cache
+  // — custo zero. `<` escapado: o JSON vai dentro de um <script>, e um nome ou
+  // descrição com "</script>" fecharia a tag.
+  const temSaldo = product.colors.some((c) =>
+    c.variants.some((v) => v.qty > 0),
+  );
+  const url = `${siteUrl()}/produtos/${product.slug}`;
+  const jsonLd = {
+    "@context": "https://schema.org",
+    "@type": "Product",
+    name: product.name,
+    url,
+    image: product.colors.flatMap((c) => c.gallery.slice(0, 1)).slice(0, 6),
+    ...(product.description ? { description: product.description } : {}),
+    brand: { "@type": "Brand", name: product.brand || "Uzzo Store" },
+    ...(product.reference ? { sku: product.reference } : {}),
+    ...(product.price != null
+      ? {
+          offers: {
+            "@type": "Offer",
+            url,
+            priceCurrency: "BRL",
+            price: product.price.toFixed(2),
+            availability: temSaldo
+              ? "https://schema.org/InStock"
+              : "https://schema.org/OutOfStock",
+            itemCondition: "https://schema.org/NewCondition",
+          },
+        }
+      : {}),
+  };
+
   return (
     <>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify(jsonLd).replace(/</g, "\\u003c"),
+        }}
+      />
       <article className="px-page pb-10 pt-4 md:py-10">
         <nav
           aria-label="Você está em"

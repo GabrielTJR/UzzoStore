@@ -1,7 +1,7 @@
 "use client";
 
 import { track } from "@/lib/track";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import { useCart } from "@/lib/cart-store";
 import { useCartUi } from "@/lib/cart-ui";
@@ -131,6 +131,7 @@ export function ProductView({
         size: selectedVariant.size,
         price: price as number,
         image: color.gallery[0] ?? null,
+        maxQty: selectedVariant.qty,
       },
       qty,
     );
@@ -217,6 +218,20 @@ export function ProductView({
       String(Math.min(Math.max(1, parseInt(t, 10) || 1), Math.max(1, maxQty))),
     );
   }, [maxQty]);
+  // Falta escolher (tamanho ou cor): o botão continua TOCÁVEL e leva até a
+  // escolha. Desabilitado, ele não respondia — e no celular a grade de
+  // tamanhos costuma estar fora da tela, então o toque "não fazia nada".
+  const precisaEscolher = !canAdd && anyBuyable && !selectedEsgotado && !added;
+  const escolhaRef = useRef<HTMLDivElement>(null);
+  const [destacarEscolha, setDestacarEscolha] = useState(false);
+  function handleBuy() {
+    if (canAdd) return handleAdd();
+    if (!precisaEscolher) return;
+    escolhaRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+    setDestacarEscolha(true);
+    window.setTimeout(() => setDestacarEscolha(false), 1800);
+  }
+
   const addLabel = added
     ? "Adicionado à sacola"
     : !anyBuyable
@@ -345,21 +360,26 @@ export function ProductView({
             </p>
             <div className="mt-3 flex flex-wrap gap-2">
               {colors.map((c) => {
-                const disabled = !colorBuyable(c, price);
+                // Cor sem saldo continua CLICÁVEL (como o tamanho esgotado): o
+                // cliente vê as fotos dela e pode pedir o "avise-me" no tamanho.
+                const esgotada = !colorBuyable(c, price);
                 const isSelected = c.id === selectedColorId;
                 return (
                   <button
                     key={c.id}
                     type="button"
-                    disabled={disabled}
                     onClick={() => selectColor(c.id)}
-                    title={displayColor(c.name)}
+                    title={
+                      esgotada
+                        ? `${displayColor(c.name)} (esgotada)`
+                        : displayColor(c.name)
+                    }
                     aria-pressed={isSelected}
                     className={`flex h-11 items-center gap-2 rounded-xs border px-3 text-sm transition-colors ${
                       isSelected
                         ? "border-foreground font-semibold ring-1 ring-foreground"
                         : "border-border hover:border-foreground"
-                    } ${disabled ? "cursor-not-allowed opacity-40" : ""}`}
+                    } ${esgotada ? "text-muted line-through decoration-1" : ""}`}
                   >
                     <span
                       aria-hidden
@@ -376,8 +396,22 @@ export function ProductView({
 
         {/* Tamanho */}
         {hasSizes && (
-          <div className="mt-6">
-            <p className="text-sm font-medium">Tamanho</p>
+          <div
+            ref={escolhaRef}
+            className={`mt-6 scroll-mt-24 rounded-xs transition-shadow duration-300 ${
+              destacarEscolha
+                ? "ring-2 ring-accent ring-offset-4 ring-offset-background"
+                : ""
+            }`}
+          >
+            <p className="text-sm font-medium">
+              Tamanho
+              {destacarEscolha && (
+                <span role="status" className="ml-2 text-accent">
+                  Escolha um tamanho
+                </span>
+              )}
+            </p>
             <div className="mt-3 flex flex-wrap gap-2">
               {sizeOptions.map((v) => {
                 const esgotado = !variantBuyable(v, price);
@@ -497,8 +531,8 @@ export function ProductView({
 
         <button
           type="button"
-          onClick={handleAdd}
-          disabled={!canAdd}
+          onClick={handleBuy}
+          disabled={!canAdd && !precisaEscolher}
           className="mt-8 hidden h-13 w-full max-w-sm items-center justify-center rounded-xs bg-foreground px-8 text-[0.95rem] font-semibold text-background transition-opacity hover:opacity-90 disabled:opacity-40 md:flex"
         >
           {addLabel}
@@ -537,8 +571,8 @@ export function ProductView({
           </div>
           <button
             type="button"
-            onClick={handleAdd}
-            disabled={!canAdd}
+            onClick={handleBuy}
+            disabled={!canAdd && !precisaEscolher}
             className="ml-auto inline-flex h-12 max-w-64 flex-1 items-center justify-center rounded-xs bg-foreground px-6 text-sm font-semibold text-background transition-opacity hover:opacity-90 disabled:opacity-40"
           >
             {addLabel}

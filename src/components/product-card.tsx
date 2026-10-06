@@ -39,7 +39,11 @@ export function ProductCard({
       <CardColorMedia
         product={product}
         badge={
-          off != null ? (
+          product.esgotado ? (
+            <span className="absolute bottom-2 left-2 z-10 rounded-xs bg-foreground px-1.5 py-1 text-[0.7rem] font-bold leading-none text-background">
+              Esgotado
+            </span>
+          ) : off != null ? (
             <span className="absolute bottom-2 left-2 z-10 rounded-xs bg-accent px-1.5 py-1 text-[0.7rem] font-bold leading-none text-accent-foreground">
               −{off}%
             </span>

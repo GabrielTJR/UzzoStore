@@ -13,6 +13,11 @@ export type CartItem = {
   /** 1ª foto da cor no momento do add — miniatura da gaveta/sacola. Opcional:
    * sacolas persistidas antes deste campo não o têm. */
   image?: string | null;
+  /** Saldo da variante quando foi adicionada: teto do "+" na gaveta e na
+   * sacola (o mesmo da página do produto). É limite de INTERFACE — o saldo
+   * muda, e quem decide continua sendo o servidor no checkout. Opcional:
+   * sacolas antigas não o têm (aí o "+" fica livre, como antes). */
+  maxQty?: number;
 };
 
 /** Frete escolhido na sacola (preço é EXIBIÇÃO; o servidor recota na hora do
@@ -64,7 +69,14 @@ export const useCart = create<CartState>()(
           if (existing) {
             return {
               items: state.items.map((i) =>
-                i.variantId === item.variantId ? { ...i, qty: i.qty + qty } : i,
+                i.variantId === item.variantId
+                  ? {
+                      ...i,
+                      qty: i.qty + qty,
+                      // saldo mais recente que a página do produto viu
+                      ...(item.maxQty != null ? { maxQty: item.maxQty } : {}),
+                    }
+                  : i,
               ),
               shipping: null,
             };
