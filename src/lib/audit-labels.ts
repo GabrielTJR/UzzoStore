@@ -208,6 +208,17 @@ const ACOES: Record<string, Acao> = {
     frase: (c) =>
       `${sujeito(c)} ${c.meta.active ? "ativou" : "pausou"} o cupom ${c.item ?? ""}`.trim(),
   },
+  "cron.payment_reminder": {
+    area: "vendas",
+    auto: true,
+    rotulo: "Lembretes de pagamento",
+    frase: (c) => {
+      const n = typeof c.meta.enviados === "number" ? c.meta.enviados : 0;
+      return n === 0
+        ? "Rotina diária de lembrete de pagamento: nenhum e-mail a enviar"
+        : `Rotina diária mandou ${n} lembrete${n === 1 ? "" : "s"} de pagamento`;
+    },
+  },
   "coupon.over_limit": {
     area: "vendas",
     rotulo: "Cupom passou do limite",

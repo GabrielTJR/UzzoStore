@@ -167,7 +167,9 @@ export type OrderEmailAddress = {
  * Inclui complemento, bairro e CEP porque é desta linha que a loja copia o
  * destino na hora de comprar a etiqueta — sem o complemento a encomenda volta.
  */
-export function linhaEndereco(a: OrderEmailAddress | null | undefined): string | null {
+export function linhaEndereco(
+  a: OrderEmailAddress | null | undefined,
+): string | null {
   if (!a) return null;
   const t = (v: string | null | undefined) => String(v ?? "").trim();
   const rua = [t(a.street), t(a.number)].filter(Boolean).join(", ");
@@ -452,6 +454,58 @@ export async function sendBackInStockEmail(params: {
         <a href="${url}" style="display:inline-block;background:#111;color:#fff;padding:12px 28px;border-radius:999px;font-size:14px;text-decoration:none">
           Ver o produto
         </a>
+      </p>`,
+    ),
+  });
+}
+
+/**
+ * Lembrete de pagamento não concluído (rotina diária, `api/cron/lembrete-
+ * pagamento`). UM por pedido, só para cliente com conta, e só quando ele não
+ * comprou depois. Leva para o pedido na conta, onde está o "Comprar de novo"
+ * com preço e estoque de hoje — a reserva antiga já caiu.
+ */
+export async function sendPaymentReminderEmail(params: {
+  to: string;
+  customerName: string | null;
+  orderId: string;
+  orderNumber: number;
+  items: { productName: string; variantLabel: string | null }[];
+}): Promise<boolean> {
+  const base =
+    process.env.NEXT_PUBLIC_SITE_URL?.trim() || "https://uzzostore.com.br";
+  const url = `${base}/conta/pedidos/${params.orderId}`;
+  const nome = params.customerName?.trim().split(/\s+/)[0];
+  const lista = params.items
+    .slice(0, 5)
+    .map(
+      (i) =>
+        `<li style="margin:0 0 4px">${esc(i.productName)}${
+          i.variantLabel
+            ? ` <span style="color:#666">(${esc(i.variantLabel)})</span>`
+            : ""
+        }</li>`,
+    )
+    .join("");
+  return send({
+    to: params.to,
+    kind: "lembrete_pagamento",
+    subject: "Suas peças ainda estão esperando por você",
+    html: layout(
+      `${nome ? `${esc(nome)}, você` : "Você"} esqueceu algo`,
+      `<p style="font-size:15px;line-height:1.6;margin:0 0 12px">
+        O pagamento do pedido nº ${params.orderNumber} não foi concluído e a
+        reserva das peças venceu. Se ainda quiser, é só voltar — em um toque a
+        sacola é montada de novo, com o preço e o estoque de hoje.
+      </p>
+      <ul style="font-size:14px;line-height:1.5;margin:0 0 20px;padding-left:18px">${lista}</ul>
+      <p style="margin:0 0 16px">
+        <a href="${url}" style="display:inline-block;background:#111;color:#fff;padding:12px 28px;border-radius:2px;font-size:14px;text-decoration:none">
+          Ver o pedido e comprar de novo
+        </a>
+      </p>
+      <p style="font-size:13px;color:#666;margin:0">
+        Mandamos este lembrete uma vez só. Se já resolveu, pode ignorar.
       </p>`,
     ),
   });
