@@ -9,10 +9,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { logAudit } from "@/lib/audit";
 import { displayColor } from "@/lib/color-name";
-import {
-  DEPARTMENT_COLUMN_READY,
-  isDepartmentValue,
-} from "@/lib/departments";
+import { DEPARTMENT_COLUMN_READY, isDepartmentValue } from "@/lib/departments";
 import { isHomeSectionKind, KIND_LABEL } from "@/lib/home-sections";
 import {
   isFulfillmentStatus,
@@ -24,7 +21,7 @@ import {
   baixarEstoque,
   devolverEstoque,
   itensDoPedido,
-  liberarReserva,
+  cancelarPedidoPendente,
 } from "@/lib/stock";
 import { sendOrderStatusEmail, sendBackInStockEmail } from "@/lib/email";
 import type { Json } from "@/lib/supabase/database.types";
@@ -712,6 +709,41 @@ export async function saveVariantAction(
   const admin = createAdminClient();
   let vId = variantId;
 
+  // Estoque de variante EXISTENTE: grava só se o número no banco ainda for o
+  // que a tela mostrava quando abriu (`qtyOriginal`). Gravar o absoluto
+  // apagava em silêncio uma venda ou reserva feita nesse meio-tempo — e quando
+  // a reserva expirava, ela devolvia +1 de uma peça que não existe. Sem mudança
+  // no número, o estoque nem é tocado (salvar só o tamanho não regrava).
+  const qtyOriginalRaw = formData.get("qtyOriginal");
+  const qtyOriginal = qtyOriginalRaw === null ? null : parseQty(qtyOriginalRaw);
+  const mexeuEstoque = !vId || qtyOriginal === null || qty !== qtyOriginal;
+  if (vId && qtyOriginal !== null && mexeuEstoque) {
+    const { data: gravou } = await admin
+      .from("stock_cache")
+      .update({ qty_available: qty })
+      .eq("variant_id", vId)
+      .eq("deposito_id", "loja")
+      .eq("qty_available", qtyOriginal)
+      .select("variant_id")
+      .maybeSingle();
+    if (!gravou) {
+      const { data: atual } = await admin
+        .from("stock_cache")
+        .select("qty_available")
+        .eq("variant_id", vId)
+        .eq("deposito_id", "loja")
+        .maybeSingle();
+      if (atual) {
+        revalidateProduct(productId);
+        return {
+          ok: false,
+          error: `O estoque mudou enquanto a tela estava aberta (venda ou reserva): agora são ${atual.qty_available}. Recarregue a página e ajuste de novo.`,
+        };
+      }
+      // Sem linha de estoque ainda: cai no upsert abaixo.
+    }
+  }
+
   if (vId) {
     const { error: updErr } = await admin
       .from("product_variants")
@@ -749,17 +781,25 @@ export async function saveVariantAction(
     vId = created.id;
   }
 
-  await admin
-    .from("stock_cache")
-    .upsert(
-      { variant_id: vId, deposito_id: "loja", qty_available: qty },
-      { onConflict: "variant_id,deposito_id" },
-    );
+  // Tamanho novo (ou variante antiga sem linha de estoque, ou formulário sem
+  // `qtyOriginal`): não há compromisso a preservar, grava o número direto.
+  // O `ignoreDuplicates` garante que uma linha existente NUNCA é sobrescrita
+  // aqui — essa é a gravação condicional lá de cima.
+  if (mexeuEstoque)
+    await admin
+      .from("stock_cache")
+      .upsert(
+        { variant_id: vId, deposito_id: "loja", qty_available: qty },
+        {
+          onConflict: "variant_id,deposito_id",
+          ignoreDuplicates: !!variantId && qtyOriginal !== null,
+        },
+      );
 
   // Estoque voltou: dispara os "avise-me" pendentes desta variante. Teto de 50
   // por reposição protege a cota do Resend; melhor avisar os 50 primeiros do
   // que estourar a cota e silenciar os e-mails de pedido pago.
-  if (qty > 0) await dispatchStockAlerts(admin, vId, productId);
+  if (mexeuEstoque && qty > 0) await dispatchStockAlerts(admin, vId, productId);
 
   await logAudit(actor, {
     action: "variant.save",
@@ -1232,7 +1272,9 @@ export async function updateFulfillmentAction(
   const admin = createAdminClient();
   const { data: pedido } = await admin
     .from("orders")
-    .select("number, customer_id, tracking_code, payment_status, shipping_service")
+    .select(
+      "number, customer_id, tracking_code, payment_status, shipping_service",
+    )
     .eq("id", id)
     .maybeSingle();
   if (!pedido) return;
@@ -1245,9 +1287,26 @@ export async function updateFulfillmentAction(
 
   // Cancelar antes de pagar devolve a peça: deixá-la presa até a expiração
   // mostraria "esgotado" por um pedido que a própria loja acabou de matar.
-  if (status === "canceled" && pedido.payment_status !== "paid") {
-    await liberarReserva(admin, id);
-    updateTag(CACHE_TAGS.catalogo);
+  //
+  // Pelo `cancelarPedidoPendente`, que troca o PAGAMENTO para cancelado no
+  // mesmo UPDATE condicional e só então devolve a reserva. Antes só o
+  // atendimento mudava: o pedido seguia "aguardando pagamento", o cliente
+  // podia pagar pelo link que já tinha e o pedido virava pago SEM peça
+  // separada (o `confirmPayment` não via encerramento nenhum para separar de
+  // novo). E dois cliques devolviam a peça duas vezes.
+  if (status === "canceled" && pedido.payment_status === "pending") {
+    if (await cancelarPedidoPendente(admin, id)) {
+      updateTag(CACHE_TAGS.catalogo);
+      await logAudit(actor, {
+        action: "order.fulfillment",
+        entityType: "order",
+        entityId: id,
+        metadata: { status },
+      });
+    }
+    revalidatePath("/admin/pedidos");
+    revalidatePath("/conta/pedidos");
+    return;
   }
 
   const { error } = await admin
@@ -1330,11 +1389,41 @@ export async function updatePaymentStatusAction(
   // senão marcar pago por engano sumiria com a peça do catálogo para sempre.
   const eraPago = pedido.payment_status === "paid";
   const viraPago = status === "paid";
+  if (status === pedido.payment_status) {
+    revalidatePath("/admin/pedidos");
+    return;
+  }
+
+  // A troca de situação vem PRIMEIRO e é condicional (`payment_status` ainda
+  // igual ao que lemos): só quem vence a troca mexe no estoque. Na ordem
+  // inversa, dois cliques em "Confirmar pagamento" baixavam a peça duas vezes
+  // (e dois em "desfazer" a devolviam duas vezes).
+  const agora = new Date().toISOString();
+  const { data: trocou } = await admin
+    .from("orders")
+    .update({ payment_status: status, seen_at: agora, updated_at: agora })
+    .eq("id", id)
+    .eq("payment_status", pedido.payment_status)
+    .select("id")
+    .maybeSingle();
+  if (!trocou) {
+    revalidatePath("/admin/pedidos");
+    return;
+  }
 
   if (viraPago && !eraPago) {
     const falta = await baixarEstoque(admin, await itensDoPedido(admin, id));
     if (falta.length > 0) {
-      // Não marca como pago o que a loja não tem para entregar.
+      // Não fica como pago o que a loja não tem para entregar: volta a
+      // situação (condicional de novo — só desfaz a própria troca).
+      await admin
+        .from("orders")
+        .update({
+          payment_status: pedido.payment_status,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", id)
+        .eq("payment_status", status);
       await logAudit(actor, {
         action: "stock.shortage",
         entityType: "order",
@@ -1352,15 +1441,6 @@ export async function updatePaymentStatusAction(
     await devolverEstoque(admin, await itensDoPedido(admin, id));
   }
   if (viraPago !== eraPago) updateTag(CACHE_TAGS.catalogo);
-
-  await admin
-    .from("orders")
-    .update({
-      payment_status: status,
-      seen_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    })
-    .eq("id", id);
 
   await logAudit(actor, {
     action: "order.payment",

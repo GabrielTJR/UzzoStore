@@ -84,6 +84,11 @@ export function VariantForm({
         <input type="hidden" name="productId" value={productId} />
         <input type="hidden" name="productColorId" value={productColorId} />
         {variant && <input type="hidden" name="variantId" value={variant.id} />}
+        {/* O número que a tela mostrava: o servidor só grava se o banco ainda
+            estiver nele (uma venda no meio-tempo não é apagada). */}
+        {variant && (
+          <input type="hidden" name="qtyOriginal" value={baseline.qty} />
+        )}
         <div>
           <label
             htmlFor={`${uid}-s`}

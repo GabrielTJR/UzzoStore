@@ -1081,6 +1081,7 @@ export type Database = {
         Returns: number
       }
       email_exists: { Args: { p_email: string }; Returns: boolean }
+      marcar_pedido_pago: { Args: { p_order_id: string }; Returns: string | null }
       expira_pedidos_nao_pagos: { Args: never; Returns: number }
       imm_unaccent: { Args: { "": string }; Returns: string }
       increment_stock: {

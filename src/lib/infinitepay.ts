@@ -470,10 +470,10 @@ export type ConfirmResult = {
 };
 
 /**
- * Confirma um pagamento e, se legítimo, marca o pedido como pago e baixa o
- * estoque. Idempotente: a linha em `payments` tem unique(provider,provider_id),
- * então a segunda chamada (webhook + retorno do cliente chegam os dois) não
- * baixa o estoque de novo.
+ * Confirma um pagamento e, se legítimo, marca o pedido como pago. Idempotente
+ * e retomável: webhook e retorno do cliente chegam os dois, e quem faz o resto
+ * é só a chamada que tirou o pedido de "não pago" (`marcar_pedido_pago`). Uma
+ * chamada que morreu no meio é terminada pela próxima.
  */
 export async function confirmPayment(params: {
   orderNsu: string;
@@ -483,19 +483,25 @@ export async function confirmPayment(params: {
   if (!process.env.SUPABASE_SERVICE_ROLE_KEY)
     return { paid: false, reason: "config" };
 
-  const check = await paymentCheck(params);
-  if (!check?.paid) return { paid: false, reason: "nao_pago" };
+  // O pedido é procurado ANTES de perguntar à InfinitePay: o webhook e o
+  // retorno são endereços públicos, e com a ordem inversa qualquer POST com
+  // três campos inventados virava uma chamada externa — em laço, sem freio.
+  // Número que não é de pedido online nosso nem chega a sair daqui.
+  const number = Number(params.orderNsu);
+  if (!/^\d{1,9}$/.test(params.orderNsu) || !Number.isFinite(number))
+    return { paid: false, reason: "pedido" };
 
   const admin = createAdminClient();
-  const number = Number(params.orderNsu);
-  if (!Number.isFinite(number)) return { paid: false, reason: "pedido" };
-
   const { data: order } = await admin
     .from("orders")
     .select("id, number, total, payment_status, coupon_code")
     .eq("number", number)
+    .eq("channel", "online")
     .maybeSingle();
   if (!order) return { paid: false, reason: "pedido" };
+
+  const check = await paymentCheck(params);
+  if (!check?.paid) return { paid: false, reason: "nao_pago" };
 
   // Estornado NÃO volta a ser pago por uma confirmação atrasada: o dinheiro já
   // saiu de volta, e remarcar como pago recolocaria o pedido na fila de
@@ -516,7 +522,8 @@ export async function confirmPayment(params: {
   if (paidCents + 1 < toCents(Number(order.total)))
     return { paid: false, orderNumber: order.number, reason: "valor" };
 
-  // Trava de idempotência: quem conseguir inserir é quem processa.
+  // Registro da transação (unique por provider+provider_id). Já existir NÃO
+  // encerra a conversa: quem decide se ainda há trabalho é o passo seguinte.
   const { error: payErr } = await admin.from("payments").insert({
     order_id: order.id,
     provider: "infinitepay",
@@ -525,38 +532,53 @@ export async function confirmPayment(params: {
     amount: paidCents / 100,
     raw: { ...check, slug: params.slug },
   });
-  if (payErr) {
-    // Só a violação do unique (provider+provider_id) significa "já processado".
+  if (payErr && payErr.code !== "23505") {
+    // Só a violação do unique (provider+provider_id) significa "já registrado".
     // Qualquer outro erro — timeout, indisponibilidade — NÃO pode responder
     // "pago": o webhook receberia 200, a InfinitePay nunca reenviaria, e o
-    // pedido ficaria parado com o dinheiro dentro. E, pior, este return também
-    // pula a separação de peça logo abaixo.
-    if (payErr.code !== "23505") {
-      console.error("[infinitepay] falha ao gravar o pagamento", payErr);
-      return { paid: false, orderNumber: order.number, reason: "erro" };
-    }
-    return { paid: true, orderNumber: order.number, reason: "ja_processado" };
+    // pedido ficaria parado com o dinheiro dentro.
+    console.error("[infinitepay] falha ao gravar o pagamento", payErr);
+    return { paid: false, orderNumber: order.number, reason: "erro" };
   }
 
-  // ⚠️ O pedido pode ter EXPIRADO antes de o dinheiro chegar. O link da
-  // InfinitePay não expira junto com a nossa janela de 20 min — não mandamos
-  // prazo para eles. Nesse caso o `pg_cron` já devolveu a peça à prateleira e
-  // apagou a reserva, então `consumirReserva` não acha nada e o pedido ficaria
-  // "pago" sem estoque separado (possivelmente já vendido a outra pessoa).
+  // Marca pago e descobre, NO MESMO COMANDO, em que situação o pedido estava
+  // (`marcar_pedido_pago`, migração 0021: trava a linha, lê, escreve).
+  //
+  // É essa resposta — e não a linha em `payments` — que decide quem faz o
+  // resto (separar a peça de novo, consumir o cupom, apagar a reserva, mandar
+  // o e-mail). Antes, a linha em `payments` era a trava: se o processo morresse
+  // entre gravá-la e marcar o pedido, toda tentativa seguinte batia no unique,
+  // respondia "já processado" e o pedido ficava `pending` para sempre — o
+  // pg_cron o expirava e a peça voltava à vitrine com o dinheiro já recebido.
+  // Agora o reenvio do webhook (ou o "atualizar" do cliente) cai aqui de novo
+  // e termina o serviço; e duas chamadas simultâneas não fazem o resto em
+  // dobro, porque só uma encontra o pedido ainda não pago.
+  const { data: anterior, error: markErr } = await admin.rpc(
+    "marcar_pedido_pago",
+    { p_order_id: order.id },
+  );
+  if (markErr) {
+    console.error("[infinitepay] falha ao marcar o pedido como pago", markErr);
+    return { paid: false, orderNumber: order.number, reason: "erro" };
+  }
+  // NULL: estornado (o dinheiro já voltou; não revive) ou pedido sumiu.
+  if (anterior === null)
+    return { paid: false, orderNumber: order.number, reason: "estornado" };
+  if (anterior === "paid")
+    return { paid: true, orderNumber: order.number, reason: "ja_processado" };
+
+  // O pedido pode ter sido ENCERRADO antes de o dinheiro chegar: expirado pelo
+  // `pg_cron` ou cancelado (pelo cliente, pela loja, ou ao recomeçar a compra).
+  // O link da InfinitePay não expira junto com a nossa janela de 20 min. Nesse
+  // caso a peça já voltou à prateleira e a reserva foi apagada, então
+  // `consumirReserva` não acharia nada e o pedido ficaria "pago" sem estoque
+  // separado (possivelmente já vendido a outra pessoa).
   //
   // Recusar não é opção: o dinheiro entrou. Então tentamos separar a peça de
   // novo. Se der, o pedido ressuscita e volta para a fila de atendimento; se
   // não der, ele fica pago com o atendimento cancelado — a contradição é
   // proposital, é o que faz a loja olhar e resolver (estorno ou reposição).
-  //
-  // ⚠️ INCOMPLETO por enquanto: `order.payment_status` foi lido lá em cima, e o
-  // pg_cron cabe entre a leitura e esta decisão. O caso comum está coberto (o
-  // cron rodou minutos antes), mas na corrida exata o pedido é marcado pago sem
-  // que a peça seja separada de novo. Fechar isso exige `marcar_pedido_pago`
-  // (migração 0021), que lê e escreve a situação no MESMO comando — falta
-  // aplicar a migração e regenerar os tipos.
-  const expirou =
-    order.payment_status === "expired" || order.payment_status === "canceled";
+  const expirou = anterior === "expired" || anterior === "canceled";
   let semSaldo: string[] = [];
   if (expirou) {
     semSaldo = await baixarEstoque(admin, await itensDoPedido(admin, order.id));
@@ -566,31 +588,29 @@ export async function confirmPayment(params: {
       entityId: order.id,
       entityLabel: `nº ${order.number}`,
       metadata: {
-        situacao_anterior: order.payment_status,
+        situacao_anterior: anterior,
         // "encerrado" e não "vencido": `canceled` também vem do cliente
         // cancelando pela conta, não só da expiração pelo pg_cron.
         aviso: semSaldo.length
-          ? `pagamento chegou depois de o pedido ser encerrado (${order.payment_status}) e não há mais saldo — precisa de estorno ou reposição`
-          : `pagamento chegou depois de o pedido ser encerrado (${order.payment_status}); a peça foi separada de novo`,
+          ? `pagamento chegou depois de o pedido ser encerrado (${anterior}) e não há mais saldo — precisa de estorno ou reposição`
+          : `pagamento chegou depois de o pedido ser encerrado (${anterior}); a peça foi separada de novo`,
         ...(semSaldo.length ? { itens: semSaldo } : {}),
       },
     });
+    // Só devolve o atendimento à fila quando há peça de verdade para entregar.
+    if (semSaldo.length === 0)
+      await admin
+        .from("orders")
+        .update({
+          fulfillment_status: "pending",
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", order.id);
   }
 
-  await admin
-    .from("orders")
-    .update({
-      payment_status: "paid",
-      // Só devolve o atendimento à fila quando há peça de verdade para entregar.
-      ...(expirou && semSaldo.length === 0
-        ? { fulfillment_status: "pending" }
-        : {}),
-      updated_at: new Date().toISOString(),
-    })
-    .eq("id", order.id);
-
   // Só agora o cupom do pedido ONLINE conta como usado: o dinheiro entrou.
-  // (A trava de idempotência acima garante que roda uma vez por transação.)
+  // (Roda uma vez por pedido: só a chamada que tirou o pedido de "não pago"
+  // chega até aqui.)
   if (order.coupon_code) await consumeCoupon(admin, order.coupon_code);
 
   // A peça JÁ saiu do estoque na criação do pedido (reserva, migração 0018).
