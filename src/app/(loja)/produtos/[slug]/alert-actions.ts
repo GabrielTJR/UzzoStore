@@ -3,6 +3,7 @@
 import { headers } from "next/headers";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { logAudit } from "@/lib/audit";
+import { excedeuPorRotulo } from "@/lib/rate-limit";
 
 /**
  * "Avise-me quando chegar": guarda o e-mail do interessado numa variante
@@ -43,6 +44,12 @@ export async function createStockAlertAction(
   } catch {
     /* freio falha aberto */
   }
+
+  // Por e-mail também: só o IP deixava inscrever o e-mail de outra pessoa em
+  // dezenas de avisos (trocando de IP), e cada aviso é um e-mail na cota do
+  // Resend. 5 em 10 min cobre quem quer vários tamanhos de uma vez.
+  if (await excedeuPorRotulo("stock_alert.create", clean, 5))
+    return { ok: false, error: "Muitas tentativas. Aguarde um pouco." };
 
   // A variante precisa existir (e é o que amarra o alerta ao produto certo).
   const { data: variant } = await admin

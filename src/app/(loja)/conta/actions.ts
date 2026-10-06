@@ -10,6 +10,7 @@ import { infinitepayHandle, linkDoPedido } from "@/lib/infinitepay";
 import { freiaIp } from "@/lib/rate-limit";
 import { temFolgaParaPagar } from "./pedidos/pode-pagar";
 import { getCurrentUser } from "@/lib/customer";
+import { isValidCep, isValidUf } from "@/lib/customer-fields";
 import { formatCpf, formatPhone } from "@/lib/customer-fields";
 
 export type ActionResult = { ok: boolean; error?: string };
@@ -94,6 +95,13 @@ export async function saveAddressAction(
   const state = text(formData.get("state"), 2);
   if (!cep || !street || !city || !state)
     return { ok: false, error: "Preencha CEP, rua, cidade e estado." };
+  // As MESMAS regras do checkout: endereço salvo aqui com CEP incompleto ou
+  // sem número só aparecia como problema na hora de pagar ("CEP incompleto").
+  if (!isValidCep(cep)) return { ok: false, error: "CEP incompleto." };
+  if (!isValidUf(state))
+    return { ok: false, error: "Estado inválido (use a sigla, ex.: SC)." };
+  if (!text(formData.get("number"), 20))
+    return { ok: false, error: 'Informe o número (ou "s/n").' };
 
   const isDefault = formData.get("isDefault") === "on";
   const row = {
@@ -188,8 +196,7 @@ export async function cancelOrderAction(formData: FormData): Promise<void> {
   // vitrine na hora em vez de esperar a expiração. A troca de situação é
   // condicional e vem antes da devolução (ver `cancelarPedidoPendente`) —
   // na ordem antiga, dois toques devolviam a peça duas vezes.
-  if (await cancelarPedidoPendente(admin, id))
-    updateTag(CACHE_TAGS.catalogo); // a peça volta para a vitrine na hora
+  if (await cancelarPedidoPendente(admin, id)) updateTag(CACHE_TAGS.catalogo); // a peça volta para a vitrine na hora
 
   revalidatePath("/conta/pedidos");
   revalidatePath("/admin/pedidos");
@@ -234,7 +241,9 @@ export async function payPendingOrderAction(
   const admin = createAdminClient();
   const { data: order } = await admin
     .from("orders")
-    .select("id, customer_id, channel, payment_status, fulfillment_status, expires_at")
+    .select(
+      "id, customer_id, channel, payment_status, fulfillment_status, expires_at",
+    )
     .eq("id", id)
     .maybeSingle();
   // Mesma resposta para "não existe" e "é de outra pessoa": não confirma a
@@ -252,8 +261,7 @@ export async function payPendingOrderAction(
   // com o dinheiro a caminho. Cancela já, devolvendo a reserva — o pedido
   // morreria em minutos de qualquer jeito, e assim a peça volta na hora.
   if (!order.expires_at || !temFolgaParaPagar(order.expires_at, Date.now())) {
-    if (await cancelarPedidoPendente(admin, id))
-      updateTag(CACHE_TAGS.catalogo); // a peça volta para a vitrine na hora
+    if (await cancelarPedidoPendente(admin, id)) updateTag(CACHE_TAGS.catalogo); // a peça volta para a vitrine na hora
     revalidatePath("/conta/pedidos");
     return {
       ok: false,
@@ -268,8 +276,7 @@ export async function payPendingOrderAction(
   if (!link.ok || !link.url) {
     // Regra da casa: pendente sem link não serve para nada e prenderia a peça
     // até expirar — cancela (não apaga) e devolve a reserva.
-    if (await cancelarPedidoPendente(admin, id))
-      updateTag(CACHE_TAGS.catalogo); // a peça volta para a vitrine na hora
+    if (await cancelarPedidoPendente(admin, id)) updateTag(CACHE_TAGS.catalogo); // a peça volta para a vitrine na hora
     revalidatePath("/conta/pedidos");
     return {
       ok: false,

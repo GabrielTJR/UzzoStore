@@ -1,6 +1,10 @@
 import Link from "next/link";
 import type { Metadata } from "next";
-import { confirmPayment, type ConfirmResult } from "@/lib/infinitepay";
+import {
+  confirmPayment,
+  urlInfinitepay,
+  type ConfirmResult,
+} from "@/lib/infinitepay";
 import { getSessionUser } from "@/lib/session";
 import { createClient } from "@/lib/supabase/server";
 import { ClearCart } from "./clear-cart";
@@ -75,10 +79,10 @@ export default async function PedidoConfirmadoPage({
   // O banco é a verdade: se o webhook já marcou pago, a tela não precisa
   // esperar o `payment_check` do retorno para dizer isso.
   const paid = result.paid || order?.payment_status === "paid";
-  const receipt =
-    typeof sp.receipt_url === "string" && sp.receipt_url.startsWith("https://")
-      ? sp.receipt_url
-      : null;
+  // O link vem na URL de volta — qualquer um monta essa URL. Só vira botão
+  // "Ver comprovante" se for da InfinitePay: com qualquer https, dava para
+  // mandar a alguém um link do NOSSO domínio com um comprovante falso.
+  const receipt = urlInfinitepay(sp.receipt_url) ? sp.receipt_url : null;
 
   // "Atualizar" recarrega a MESMA volta (mesmos parâmetros), o que refaz a
   // confirmação. Sem poller: um toque do cliente, nenhum custo parado.
@@ -126,8 +130,8 @@ export default async function PedidoConfirmadoPage({
         {paid ? (
           <>
             Recebemos seu pedido
-            {numero != null ? ` nº ${numero}` : ""}. Você recebe um e-mail
-            com os detalhes, e o andamento fica em Meus pedidos.
+            {numero != null ? ` nº ${numero}` : ""}. Você recebe um e-mail com
+            os detalhes, e o andamento fica em Meus pedidos.
           </>
         ) : (
           <>

@@ -435,9 +435,21 @@ export function CheckoutFlow({
         setConfirmada(null);
         setAviso("Escolha o endereço de entrega de novo.");
         return;
-      case "freight_required":
-      case "freight_changed":
       case "freight_down":
+        // Cotação fora do ar não é "o frete mudou": tentar de novo na hora
+        // não adianta, e o cliente ficaria tocando em pagar à toa.
+        tentarCotarDeNovo();
+        setConfirmada(null);
+        setAviso(
+          "Não conseguimos calcular o frete agora. Tente de novo em instantes, retire na loja ou feche pelo WhatsApp.",
+        );
+        return;
+      case "freight_required":
+        tentarCotarDeNovo();
+        setConfirmada(null);
+        setAviso("Escolha uma opção de frete para continuar.");
+        return;
+      case "freight_changed":
         tentarCotarDeNovo();
         setConfirmada(null);
         setAviso(

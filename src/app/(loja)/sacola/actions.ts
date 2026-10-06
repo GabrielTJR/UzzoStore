@@ -754,7 +754,17 @@ export async function createOrderAction(
   },
   extras?: OrderExtras,
 ): Promise<CheckoutResult> {
-  return criarPedido(items, "whatsapp", undefined, extras);
+  // Frete cotado na sacola: o pedido grava entrega + o CEP da cotação, para o
+  // painel mostrar para onde é o frete que entrou no total (antes ficava só o
+  // valor, sem destino). O endereço completo continua sendo combinado no
+  // WhatsApp; o CEP é o que a sacola cotou, e o preço já foi recotado pelo
+  // servidor com ele.
+  const cep = String(extras?.freight?.cep ?? "").replace(/\D/g, "");
+  const shipping =
+    extras?.freight && cep.length === 8
+      ? { shippingMethod: "delivery" as const, shippingAddress: { cep } }
+      : undefined;
+  return criarPedido(items, "whatsapp", shipping, extras);
 }
 
 /** Normaliza os itens vindos do navegador (quantidade inteira entre 1 e 99). */
