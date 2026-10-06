@@ -28,6 +28,7 @@ export function CartDrawer({
 }) {
   const { open, closeCart } = useCartUi();
   const items = useCart((s) => s.items);
+  const coupon = useCart((s) => s.coupon);
   const setQty = useCart((s) => s.setQty);
   const removeItem = useCart((s) => s.removeItem);
   const subtotal = cartSubtotal(items);
@@ -220,7 +221,9 @@ export function CartDrawer({
             </ul>
 
             <footer className="space-y-3 border-t border-border p-5 pb-[calc(1.25rem+env(safe-area-inset-bottom))]">
-              {shippingEnabled && <FreeShippingBar subtotal={subtotal} />}
+              {shippingEnabled && (
+                <FreeShippingBar subtotal={subtotal} comCupom={!!coupon} />
+              )}
               <div className="flex items-baseline justify-between">
                 <span className="text-sm text-muted">Subtotal</span>
                 <div className="text-right">

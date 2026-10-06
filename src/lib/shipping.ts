@@ -63,7 +63,9 @@ export type ShippingOption = {
  * Quando o frete mais barato já é o mais rápido, ela é ele mesmo.
  */
 function opcaoEquilibrio(todas: ShippingOption[]): ShippingOption {
-  const base = [...todas].sort((a, b) => a.price - b.price || a.days - b.days)[0];
+  const base = [...todas].sort(
+    (a, b) => a.price - b.price || a.days - b.days,
+  )[0];
   let atual = base;
   for (;;) {
     const degraus = todas
@@ -120,6 +122,10 @@ export type QuoteInput = {
   cepDestino: string;
   /** Peças da sacola já RELIDAS do banco (peso/categoria/preço do servidor). */
   itens: { weightGrams: number; price: number; qty: number }[];
+  /** Desconto do cupom (R$), já validado no servidor. O frete grátis olha o
+   * valor DEPOIS do cupom (decisão do dono, 06/10/2026): R$ 300 com 10% são
+   * R$ 270 pagos e não alcançam o mínimo de R$ 299. */
+  desconto?: number;
 };
 
 function apiBase(): string {
@@ -249,12 +255,13 @@ export async function quoteShipping(
     return null; // falha momentânea: não cacheada, o próximo clique recota
   }
 
-  // Frete grátis: quando o subtotal alcança o mínimo, TODAS as opções saem
+  // Frete grátis: quando o subtotal (já com o desconto do cupom) alcança o mínimo, TODAS as opções saem
   // grátis — não só a mais barata. Zerar só a mais barata transformava o
   // benefício numa escolha entre "grátis e devagar" ou "rápido e pago", que
   // é o oposto de recompensar quem gastou mais. Servidor decide: o cliente
   // não manda preço de frete nenhum.
-  const freeApplied = FRETE_GRATIS_MIN != null && subtotal >= FRETE_GRATIS_MIN;
+  const pago = subtotal - Math.max(0, input.desconto ?? 0);
+  const freeApplied = FRETE_GRATIS_MIN != null && pago >= FRETE_GRATIS_MIN;
   if (freeApplied && options.length > 0) {
     // A loja cobre até a opção de EQUILÍBRIO. Tudo até ali sai grátis; o que
     // for mais rápido (e mais caro) cobra só a DIFERENÇA, e o cliente decide

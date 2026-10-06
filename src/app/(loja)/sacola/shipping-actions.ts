@@ -77,6 +77,9 @@ async function readItems(items: CartInput) {
 export async function quoteShippingAction(
   cep: string,
   items: CartInput,
+  /** Cupom aplicado na sacola: vem como CÓDIGO e o desconto é recalculado
+   * aqui (o frete grátis olha o valor depois do cupom). */
+  couponCode?: string | null,
 ): Promise<QuoteResult> {
   if (!shippingConfigured()) return { ok: false, unavailable: true };
   const cepLimpo = String(cep ?? "").replace(/\D/g, "");
@@ -91,7 +94,18 @@ export async function quoteShippingAction(
   if (!itens)
     return { ok: false, error: "Sacola vazia ou itens indisponíveis." };
 
-  const quote = await quoteShipping({ cepDestino: cepLimpo, itens });
+  let desconto = 0;
+  if (couponCode) {
+    const subtotal = itens.reduce((s, i) => s + i.price * i.qty, 0);
+    const c = await checkCoupon(
+      createAdminClient(),
+      String(couponCode),
+      subtotal,
+    );
+    if (c.ok) desconto = c.discount;
+  }
+
+  const quote = await quoteShipping({ cepDestino: cepLimpo, itens, desconto });
   if (!quote)
     return { ok: false, error: "Não conseguimos cotar agora. Tente de novo." };
   return { ok: true, options: quote.options, freeApplied: quote.freeApplied };

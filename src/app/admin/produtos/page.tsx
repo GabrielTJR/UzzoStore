@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { requireAdmin } from "@/lib/admin";
+import { getAdminFor, requireArea } from "@/lib/admin";
 import { getAdminProducts } from "@/lib/admin-products";
 import { ProductsView, type ProductsSearch } from "./products-view";
 
@@ -11,7 +11,11 @@ export default async function AdminProductsPage({
 }: {
   searchParams: Promise<ProductsSearch>;
 }) {
-  await requireAdmin();
-  const [sp, todos] = await Promise.all([searchParams, getAdminProducts()]);
-  return <ProductsView todos={todos} sp={sp} />;
+  await requireArea("produtos");
+  const [sp, todos, destaca] = await Promise.all([
+    searchParams,
+    getAdminProducts(),
+    getAdminFor("pagina-inicial"),
+  ]);
+  return <ProductsView todos={todos} sp={sp} podeDestacar={!!destaca} />;
 }

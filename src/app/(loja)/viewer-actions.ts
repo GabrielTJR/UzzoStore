@@ -1,6 +1,6 @@
 "use server";
 
-import { getAdminUser } from "@/lib/admin";
+import { getAdminFor, getAdminUser } from "@/lib/admin";
 import { getSessionUser } from "@/lib/session";
 import { getWishlistIds } from "@/lib/wishlist";
 
@@ -13,13 +13,21 @@ import { getWishlistIds } from "@/lib/wishlist";
 export async function viewerAction(): Promise<{
   logged: boolean;
   admin: boolean;
+  destaque: boolean;
   favorites: string[];
 }> {
   const user = await getSessionUser();
-  if (!user) return { logged: false, admin: false, favorites: [] };
-  const [admin, favorites] = await Promise.all([
+  if (!user)
+    return { logged: false, admin: false, destaque: false, favorites: [] };
+  const [admin, destaque, favorites] = await Promise.all([
     getAdminUser(),
+    getAdminFor("pagina-inicial"),
     getWishlistIds(),
   ]);
-  return { logged: true, admin: !!admin, favorites: [...favorites] };
+  return {
+    logged: true,
+    admin: !!admin,
+    destaque: !!destaque,
+    favorites: [...favorites],
+  };
 }

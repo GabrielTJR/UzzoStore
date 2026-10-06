@@ -237,7 +237,9 @@ export function SacolaClient({
     setTimeout(() => setToast(null), 3000);
   }
 
-  async function handleQuote() {
+  // `cupom` explícito: ao aplicar/tirar um cupom a sacola recota na hora, e
+  // o estado do Zustand ainda não terá mudado nesse mesmo clique.
+  async function handleQuote(cupom: string | null = coupon) {
     const limpo = cep.replace(/\D/g, "");
     if (limpo.length !== 8) {
       setQuote({ ok: false, error: "Digite um CEP válido." });
@@ -249,6 +251,7 @@ export function SacolaClient({
       const res = await quoteShippingAction(
         limpo,
         items.map((i) => ({ variantId: i.variantId, qty: i.qty })),
+        cupom,
       );
       setQuote(res);
       if (!res.ok) setShipping(null);
@@ -281,6 +284,8 @@ export function SacolaClient({
       setCoupon(res.code);
       setCouponDiscount(res.discount);
       setCouponMsg(`Cupom ${res.code} aplicado: −${formatBRL(res.discount)}`);
+      // O frete grátis olha o valor depois do cupom: recota se já havia frete.
+      if (quote?.ok) void handleQuote(res.code);
     } else if (res.rateLimited) {
       // Freio, não recusa: não derruba o cupom que já estava aplicado. O código
       // digitado não foi conferido, então mostramos o aviso do freio.
@@ -542,7 +547,7 @@ export function SacolaClient({
                 />
                 <button
                   type="button"
-                  onClick={handleQuote}
+                  onClick={() => handleQuote()}
                   disabled={quoting}
                   className={smallBtn}
                 >
@@ -597,6 +602,7 @@ export function SacolaClient({
                     setCoupon(null);
                     setCouponDiscount(0);
                     setCouponMsg(null);
+                    if (quote?.ok) void handleQuote(null);
                   }}
                   className="text-xs text-muted underline underline-offset-4 hover:text-foreground"
                 >
@@ -609,7 +615,11 @@ export function SacolaClient({
 
         {/* Totais */}
         <div className="space-y-4 md:justify-self-end md:text-right">
-          {shippingEnabled && <FreeShippingBar subtotal={subtotal} />}
+          {shippingEnabled && (
+            <FreeShippingBar
+              subtotal={subtotal - (coupon ? couponDiscount : 0)}
+            />
+          )}
 
           <dl className="space-y-1.5 text-sm">
             <div className="flex items-baseline justify-between gap-10 md:justify-end">

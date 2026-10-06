@@ -42,10 +42,13 @@ export function AdminProductOverlay({
   featured: boolean;
 }) {
   const admin = useViewer((s) => s.admin);
+  const destaque = useViewer((s) => s.destaque);
   if (!admin) return null;
   return (
     <div className="absolute right-2 top-2 z-10 flex gap-1.5">
-      <FeaturedStar productId={productId} featured={featured} />
+      {/* A estrela liga/desliga destaque da home: só Dono e Administrador
+          (o vendedor fica com o lápis). O servidor confere de novo. */}
+      {destaque && <FeaturedStar productId={productId} featured={featured} />}
       <Link
         href={`/admin/produtos/${productId}`}
         title="Editar produto"

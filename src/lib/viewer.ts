@@ -23,10 +23,13 @@ export type ViewerState = {
   ready: boolean;
   logged: boolean;
   admin: boolean;
+  /** Pode ligar/desligar destaque da home (Dono e Administrador; Vendedor não). */
+  destaque: boolean;
   favorites: string[];
   setViewer: (v: {
     logged: boolean;
     admin: boolean;
+    destaque: boolean;
     favorites: string[];
   }) => void;
   setFavorite: (productId: string, on: boolean) => void;
@@ -36,6 +39,7 @@ export const useViewer = create<ViewerState>()((set) => ({
   ready: false,
   logged: false,
   admin: false,
+  destaque: false,
   favorites: [],
   setViewer: (v) => set({ ...v, ready: true }),
   setFavorite: (productId, on) =>

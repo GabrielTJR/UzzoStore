@@ -989,6 +989,7 @@ async function montarPedido(
   if (extras?.freight) {
     const quote = await quoteShipping({
       cepDestino: extras.freight.cep,
+      desconto: discount,
       itens: rows.map((r) => ({
         weightGrams: r.weight_grams,
         price: r.unit_price,

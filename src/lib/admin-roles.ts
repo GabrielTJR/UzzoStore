@@ -33,7 +33,7 @@ export const CARGOS: Record<AdminRole, { nome: string; descricao: string }> = {
   vendedor: {
     nome: "Vendedor",
     descricao:
-      "Pedidos e catálogo (produtos, categorias, cores, medidas). Não vê cupons, página inicial, equipe nem o registro de atividades.",
+      "Pedidos e catálogo (produtos, categorias, cores, medidas). Não vê cupons, página inicial (nem os destaques dela), equipe nem o registro de atividades.",
   },
 };
 
@@ -42,8 +42,9 @@ export const CARGOS_ATRIBUIVEIS: AdminRole[] = ["admin", "vendedor"];
 
 /**
  * O vendedor atende e cadastra. Ficam de fora o que é decisão do dono:
- * desconto (cupons), a vitrine (página inicial), quem tem acesso (equipe) e o
- * histórico de quem fez o quê (registro de atividades).
+ * desconto (cupons), a vitrine (página inicial — inclusive marcar DESTAQUES,
+ * que é a vitrine da home), quem tem acesso (equipe) e o histórico de quem
+ * fez o quê (registro de atividades).
  */
 const VENDEDOR: ReadonlySet<AdminArea> = new Set<AdminArea>([
   "visao-geral",

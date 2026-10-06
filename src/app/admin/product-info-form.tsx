@@ -32,10 +32,12 @@ export function ProductInfoForm({
   product,
   categories,
   models,
+  podeDestacar,
 }: {
   product: AdminProduct;
   categories: StoreCategory[];
   models: MeasurementModelOption[];
+  podeDestacar: boolean;
 }) {
   const [state, action, pending] = useActionState<
     ActionResult | null,
@@ -251,15 +253,17 @@ export function ProductInfoForm({
           />
           Ativo na loja
         </label>
-        <label className="flex items-center gap-2.5 rounded-xs border border-border px-3 py-2.5 text-sm has-[:checked]:border-foreground">
-          <input
-            type="checkbox"
-            name="featured"
-            defaultChecked={product.featured}
-            className="h-4 w-4"
-          />
-          Destaque na home
-        </label>
+        {podeDestacar && (
+          <label className="flex items-center gap-2.5 rounded-xs border border-border px-3 py-2.5 text-sm has-[:checked]:border-foreground">
+            <input
+              type="checkbox"
+              name="featured"
+              defaultChecked={product.featured}
+              className="h-4 w-4"
+            />
+            Destaque na home
+          </label>
+        )}
       </fieldset>
 
       {/* Barra de salvar: gruda no pé da tela enquanto o formulário está à

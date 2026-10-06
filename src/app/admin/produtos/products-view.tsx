@@ -55,9 +55,12 @@ const td = "px-3 py-2.5";
 export function ProductsView({
   todos,
   sp,
+  podeDestacar,
 }: {
   todos: AdminProductListItem[];
   sp: ProductsSearch;
+  /** Vendedor vê a estrela (é informação), mas não a liga/desliga. */
+  podeDestacar: boolean;
 }) {
   const termo = normalizeSearch(sp.q ?? "");
   const categorias = [
@@ -140,7 +143,7 @@ export function ProductsView({
             </thead>
             <tbody className="divide-y divide-border">
               {products.map((p) => (
-                <ProductRow key={p.id} p={p} />
+                <ProductRow key={p.id} p={p} podeDestacar={podeDestacar} />
               ))}
               {products.length === 0 && (
                 <tr>
@@ -159,7 +162,13 @@ export function ProductsView({
   );
 }
 
-function ProductRow({ p }: { p: AdminProductListItem }) {
+function ProductRow({
+  p,
+  podeDestacar,
+}: {
+  p: AdminProductListItem;
+  podeDestacar: boolean;
+}) {
   const nome = displayProductName(p.name);
   const semFoto = p.images === 0;
 
@@ -280,7 +289,19 @@ function ProductRow({ p }: { p: AdminProductListItem }) {
 
       <td className={`${td} hidden @2xl:table-cell`}>
         <div className="flex justify-center">
-          <FeaturedStar productId={p.id} featured={p.featured} />
+          {podeDestacar ? (
+            <FeaturedStar productId={p.id} featured={p.featured} />
+          ) : (
+            <span
+              title={p.featured ? "Destaque na home" : "Fora dos destaques"}
+              aria-label={
+                p.featured ? "Destaque na home" : "Fora dos destaques"
+              }
+              className={p.featured ? "text-accent" : "text-muted/40"}
+            >
+              ★
+            </span>
+          )}
         </div>
       </td>
 

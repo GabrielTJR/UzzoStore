@@ -38,11 +38,14 @@ export function ProductEditView({
   availableColors,
   categories,
   measurementModels,
+  podeDestacar,
 }: {
   product: AdminProduct;
   availableColors: ColorOption[];
   categories: StoreCategory[];
   measurementModels: MeasurementModelOption[];
+  /** Cargo alcança a página inicial (destaques). */
+  podeDestacar: boolean;
 }) {
   const pecas = product.colors.reduce(
     (n, c) => n + c.variants.reduce((m, v) => m + Math.max(0, v.qty), 0),
@@ -95,6 +98,7 @@ export function ProductEditView({
               product={product}
               categories={categories}
               models={measurementModels}
+              podeDestacar={podeDestacar}
             />
           </Panel>
 

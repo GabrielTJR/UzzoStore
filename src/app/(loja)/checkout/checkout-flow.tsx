@@ -128,7 +128,9 @@ export function CheckoutFlow({
   const composicao = items.map((i) => `${i.variantId}:${i.qty}`).join("|");
   const cep8 = onlyDigits(selectedAddress?.cep ?? "");
   const quoteKey =
-    method === "delivery" && selectedAddress ? `${cep8}|${composicao}` : null;
+    method === "delivery" && selectedAddress
+      ? `${cep8}|${composicao}|${coupon ?? ""}`
+      : null;
   const formAberto =
     method === "delivery" && (enderecos.length === 0 || addrFormOpen);
 
@@ -220,6 +222,7 @@ export function CheckoutFlow({
     quoteShippingAction(
       selectedAddress.cep,
       items.map((i) => ({ variantId: i.variantId, qty: i.qty })),
+      coupon,
     )
       .then((res) => setQuotes((q) => ({ ...q, [key]: res })))
       .catch(() =>
@@ -229,7 +232,16 @@ export function CheckoutFlow({
         })),
       )
       .finally(() => pendentes.current.delete(key));
-  }, [logged, quoteKey, selectedAddress, shippingEnabled, cep8, quotes, items]);
+  }, [
+    logged,
+    quoteKey,
+    selectedAddress,
+    shippingEnabled,
+    cep8,
+    quotes,
+    items,
+    coupon,
+  ]);
 
   // Cupom persistido na sacola: revalida para EXIBIR o desconto (quem decide é
   // o pedido). Freio não é recusa: mantém o cupom.

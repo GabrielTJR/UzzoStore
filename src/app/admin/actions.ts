@@ -379,6 +379,9 @@ export async function updateProductAction(
   const price = parsePrice(formData.get("price"));
   const promo = parseOptionalPrice(formData.get("promoPrice"));
   const active = formData.get("active") === "on";
+  // Destaque é vitrine da home: só quem alcança a página inicial mexe nele.
+  // Para o vendedor o campo nem aparece, e o valor gravado fica como estava.
+  const podeDestacar = !!(await getAdminFor("pagina-inicial"));
   const featured = formData.get("featured") === "on";
   const measurementModelId =
     String(formData.get("measurementModelId") ?? "").trim() || null;
@@ -424,7 +427,7 @@ export async function updateProductAction(
     .update({
       meta_title: name,
       rich_description: description,
-      featured,
+      ...(podeDestacar ? { featured } : {}),
     })
     .eq("product_id", id);
 
@@ -433,7 +436,7 @@ export async function updateProductAction(
     entityType: "product",
     entityId: id,
     entityLabel: name,
-    metadata: { active, featured, price, promo },
+    metadata: { active, ...(podeDestacar ? { featured } : {}), price, promo },
   });
   revalidateProduct(id);
   return { ok: true };
@@ -444,7 +447,7 @@ export async function toggleFeaturedAction(
   _prev: ActionResult | null,
   formData: FormData,
 ): Promise<ActionResult> {
-  const actor = await getAdminFor("produtos");
+  const actor = await getAdminFor("pagina-inicial");
   if (!actor) return { ok: false, error: "Não autorizado." };
   if (serviceRoleMissing())
     return { ok: false, error: "Falta SUPABASE_SERVICE_ROLE_KEY no servidor." };

@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { requireAdmin } from "@/lib/admin";
+import { getAdminFor, requireArea } from "@/lib/admin";
 import {
   getAdminProduct,
   getAllColors,
@@ -17,7 +17,8 @@ export default async function EditarProdutoPage({
 }: {
   params: Promise<{ id: string }>;
 }) {
-  await requireAdmin();
+  await requireArea("produtos");
+  const podeDestacar = !!(await getAdminFor("pagina-inicial"));
   const { id } = await params;
   const [product, allColors, categories, measurementModels] = await Promise.all(
     [
@@ -38,6 +39,7 @@ export default async function EditarProdutoPage({
       availableColors={availableColors}
       categories={categories}
       measurementModels={measurementModels}
+      podeDestacar={podeDestacar}
     />
   );
 }

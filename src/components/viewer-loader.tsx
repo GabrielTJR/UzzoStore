@@ -15,14 +15,26 @@ export function ViewerLoader() {
   const setViewer = useViewer((s) => s.setViewer);
   useEffect(() => {
     if (!temCookieDeSessao()) {
-      setViewer({ logged: false, admin: false, favorites: [] });
+      setViewer({
+        logged: false,
+        admin: false,
+        destaque: false,
+        favorites: [],
+      });
       return;
     }
     let vivo = true;
     viewerAction()
       .then((v) => vivo && setViewer(v))
       .catch(
-        () => vivo && setViewer({ logged: false, admin: false, favorites: [] }),
+        () =>
+          vivo &&
+          setViewer({
+            logged: false,
+            admin: false,
+            destaque: false,
+            favorites: [],
+          }),
       );
     return () => {
       vivo = false;
