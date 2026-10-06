@@ -82,6 +82,8 @@ export function SiteHeader({
 
   // Logado/admin vêm do navegador (`lib/viewer.ts`): é o que deixa as páginas
   // da vitrine estáticas. Até a resposta chegar, mostra "Entrar".
+  /** Departamento cujo painel foi fechado por um clique de categoria. */
+  const [megaFechado, setMegaFechado] = useState<string | null>(null);
   const isLogged = useViewer((s) => s.logged);
   const isAdmin = useViewer((s) => s.admin);
   const contaHref = isLogged ? "/conta" : "/entrar";
@@ -117,7 +119,12 @@ export function SiteHeader({
         >
           {DEPTS.map((dep) =>
             categories[dep].length > 0 ? (
-              <div key={dep} className="group/mega flex h-full items-center">
+              <div
+                key={dep}
+                className="group/mega flex h-full items-center"
+                // Saiu com o mouse: o painel volta a abrir no próximo hover.
+                onMouseLeave={() => setMegaFechado(null)}
+              >
                 <Link href={`/${dep}`} className={navLink}>
                   {DEPARTMENTS[dep]}
                 </Link>
@@ -125,7 +132,22 @@ export function SiteHeader({
                     Ancora no cabeçalho (o item é `static`), então ocupa a
                     largura toda. Um por departamento, cada um com as SUAS
                     categorias — o Feminino ganha o dele com a 1ª peça. */}
-                <div className="invisible absolute inset-x-0 top-full border-b border-border bg-background opacity-0 transition-opacity duration-150 group-focus-within/mega:visible group-focus-within/mega:opacity-100 group-hover/mega:visible group-hover/mega:opacity-100">
+                {/* Clicou numa categoria: o painel FECHA (o mouse continuaria em
+                    cima e o foco no link, e ele ficava aberto cobrindo a página
+                    que acabou de abrir). Reabre ao sair e voltar com o mouse. */}
+                <div
+                  onClick={(e) => {
+                    if ((e.target as HTMLElement).closest("a")) {
+                      setMegaFechado(dep);
+                      (document.activeElement as HTMLElement | null)?.blur();
+                    }
+                  }}
+                  className={`invisible absolute inset-x-0 top-full border-b border-border bg-background opacity-0 transition-opacity duration-150 ${
+                    megaFechado === dep
+                      ? ""
+                      : "group-focus-within/mega:visible group-focus-within/mega:opacity-100 group-hover/mega:visible group-hover/mega:opacity-100"
+                  }`}
+                >
                   <div className="px-page grid grid-cols-[14rem_1fr] gap-10 py-8">
                     <div>
                       <p className="font-display text-xl font-bold">
