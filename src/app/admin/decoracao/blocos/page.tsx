@@ -1,6 +1,6 @@
 import Link from "next/link";
 import type { Metadata } from "next";
-import { requireAdmin } from "@/lib/admin";
+import { requireArea } from "@/lib/admin";
 import { getAdminHomeSections } from "@/lib/admin-products";
 import { HOME_DECORATIONS_ENABLED } from "@/lib/home-sections";
 import { KIND_LABEL } from "@/lib/home-sections";
@@ -35,7 +35,7 @@ function summary(kind: string, data: Record<string, unknown>): string {
 }
 
 export default async function DecoracaoPage() {
-  await requireAdmin();
+  await requireArea("pagina-inicial");
   const sections = await getAdminHomeSections();
 
   return (

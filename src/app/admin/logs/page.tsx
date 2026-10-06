@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { requireAdmin } from "@/lib/admin";
+import { requireArea } from "@/lib/admin";
 import { isArea } from "@/lib/audit-labels";
 import {
   LOGS_POR_PAGINA,
@@ -33,7 +33,7 @@ export default async function LogsPage({
 }: {
   searchParams: Promise<Sp>;
 }) {
-  await requireAdmin();
+  await requireArea("logs");
   const sp = await searchParams;
 
   const areaSp = um(sp.area);

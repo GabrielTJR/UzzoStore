@@ -5,6 +5,7 @@ import { addAdminAction } from "./actions";
 import { useToast } from "@/components/toast";
 import { SubmitButton } from "@/components/submit-button";
 import type { ActionResult } from "../actions";
+import { CARGOS, CARGOS_ATRIBUIVEIS } from "@/lib/admin-roles";
 
 const field =
   "w-full rounded-xs border border-border bg-transparent px-4 py-2.5 text-sm outline-none focus:border-foreground";
@@ -20,7 +21,7 @@ export function AddAdminForm() {
 
   useEffect(() => {
     if (state?.ok) {
-      showToast("Admin adicionado");
+      showToast("Pessoa adicionada");
       formRef.current?.reset();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -28,7 +29,7 @@ export function AddAdminForm() {
 
   return (
     <form ref={formRef} action={action} className="space-y-4">
-      <div className="grid gap-4 sm:grid-cols-2">
+      <div className="grid gap-4">
         <div className="space-y-1.5">
           <label className={label} htmlFor="name">
             Nome
@@ -49,6 +50,18 @@ export function AddAdminForm() {
         </div>
       </div>
       <div className="space-y-1.5">
+        <label className={label} htmlFor="role">
+          Cargo *
+        </label>
+        <select id="role" name="role" defaultValue="vendedor" className={field}>
+          {CARGOS_ATRIBUIVEIS.map((r) => (
+            <option key={r} value={r}>
+              {CARGOS[r].nome}
+            </option>
+          ))}
+        </select>
+      </div>
+      <div className="space-y-1.5">
         <label className={label} htmlFor="tempPassword">
           Senha provisória *
         </label>
@@ -62,16 +75,16 @@ export function AddAdminForm() {
           className={field}
         />
         <p className="text-xs text-muted">
-          O admin usa esta senha no primeiro acesso e define a própria em
+          A pessoa usa esta senha no primeiro acesso e define a própria em
           seguida.
         </p>
       </div>
       {state?.error && <p className="text-sm text-red-600">{state.error}</p>}
       <SubmitButton
         pendingText="Adicionando…"
-        className="h-11 rounded-xs bg-foreground px-8 text-sm font-medium text-background hover:opacity-90"
+        className="h-11 w-full rounded-xs bg-foreground px-8 text-sm font-medium text-background hover:opacity-90"
       >
-        Adicionar admin
+        Adicionar à equipe
       </SubmitButton>
     </form>
   );

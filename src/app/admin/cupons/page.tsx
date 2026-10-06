@@ -1,4 +1,4 @@
-import { requireAdmin } from "@/lib/admin";
+import { requireArea } from "@/lib/admin";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { formatBRL } from "@/lib/format";
 import { toggleCouponAction, deleteCouponAction } from "@/app/admin/actions";
@@ -7,7 +7,7 @@ import { CouponForm } from "./coupon-form";
 export const dynamic = "force-dynamic";
 
 export default async function AdminCuponsPage() {
-  await requireAdmin();
+  await requireArea("cupons");
   const admin = createAdminClient();
   const { data: coupons } = await admin
     .from("coupons")

@@ -1,0 +1,11 @@
+-- Cargo "vendedor" no painel.
+--
+-- O vendedor continua sendo da equipe para o banco: `is_admin()` só pergunta
+-- se existe linha em `admins`, e é isso que ele precisa para entrar no painel.
+-- O que ele NÃO alcança (cupons, página inicial, equipe, registro de
+-- atividades) é decidido no servidor do site, em `src/lib/admin-roles.ts` —
+-- todas essas escritas e leituras passam pelo service_role, que não carrega
+-- cargo nenhum, então uma policy aqui não protegeria nada.
+--
+-- Idempotente: rodar de novo não faz nada.
+alter type public.app_role add value if not exists 'vendedor';

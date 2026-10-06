@@ -53,8 +53,7 @@ const dinheiro = (v: unknown) =>
     : null;
 
 const sujeito = (c: EventoCtx) => c.quem ?? "Alguém";
-const pedido = (c: EventoCtx) =>
-  c.item ? `o pedido ${c.item}` : "um pedido";
+const pedido = (c: EventoCtx) => (c.item ? `o pedido ${c.item}` : "um pedido");
 const produto = (c: EventoCtx) => (c.item ? `“${c.item}”` : "um produto");
 /** " (Azul)" quando a cor é conhecida. */
 const naCor = (c: EventoCtx) => (c.cor ? ` (${c.cor})` : "");
@@ -66,8 +65,7 @@ const SECAO: Record<string, string> = {
   mosaico: "mosaico",
   vitrine: "vitrine",
 };
-const secao = (c: EventoCtx) =>
-  c.item ? (SECAO[c.item] ?? c.item) : "bloco";
+const secao = (c: EventoCtx) => (c.item ? (SECAO[c.item] ?? c.item) : "bloco");
 
 /** Valores da coluna `status` única de antes da 0016 (pagamento e
  * atendimento misturados). */
@@ -162,8 +160,7 @@ const ACOES: Record<string, Acao> = {
   "payment.pos_estorno": {
     area: "vendas",
     rotulo: "Pagamento depois do estorno",
-    frase: (c) =>
-      `Pagamento chegou para ${pedido(c)}, que já estava estornado`,
+    frase: (c) => `Pagamento chegou para ${pedido(c)}, que já estava estornado`,
   },
   "payment.fora_do_prazo": {
     area: "vendas",
@@ -180,7 +177,8 @@ const ACOES: Record<string, Acao> = {
     area: "vendas",
     rotulo: "Cupom criado",
     frase: (c) => {
-      const pct = typeof c.meta.percent === "number" ? ` (${c.meta.percent}%)` : "";
+      const pct =
+        typeof c.meta.percent === "number" ? ` (${c.meta.percent}%)` : "";
       return `${sujeito(c)} criou o cupom ${c.item ?? ""}${pct}`.trim();
     },
   },
@@ -283,7 +281,8 @@ const ACOES: Record<string, Acao> = {
   "variant.delete": {
     area: "catalogo",
     rotulo: "Tamanho excluído",
-    frase: (c) => `${sujeito(c)} excluiu um tamanho de ${produto(c)}${naCor(c)}`,
+    frase: (c) =>
+      `${sujeito(c)} excluiu um tamanho de ${produto(c)}${naCor(c)}`,
   },
   "photo.add": {
     area: "catalogo",
@@ -311,7 +310,8 @@ const ACOES: Record<string, Acao> = {
   "color.delete": {
     area: "catalogo",
     rotulo: "Cor excluída",
-    frase: (c) => `${sujeito(c)} excluiu ${c.item ? `a cor ${c.item}` : "uma cor"}`,
+    frase: (c) =>
+      `${sujeito(c)} excluiu ${c.item ? `a cor ${c.item}` : "uma cor"}`,
   },
   "category.create": {
     area: "catalogo",
@@ -332,12 +332,14 @@ const ACOES: Record<string, Acao> = {
   "measurement_model.create": {
     area: "catalogo",
     rotulo: "Tabela de medidas criada",
-    frase: (c) => `${sujeito(c)} criou a tabela de medidas ${c.item ?? ""}`.trim(),
+    frase: (c) =>
+      `${sujeito(c)} criou a tabela de medidas ${c.item ?? ""}`.trim(),
   },
   "measurement_model.update": {
     area: "catalogo",
     rotulo: "Tabela de medidas editada",
-    frase: (c) => `${sujeito(c)} editou a tabela de medidas ${c.item ?? ""}`.trim(),
+    frase: (c) =>
+      `${sujeito(c)} editou a tabela de medidas ${c.item ?? ""}`.trim(),
   },
   "measurement_model.delete": {
     area: "catalogo",
@@ -350,12 +352,14 @@ const ACOES: Record<string, Acao> = {
   "home_section.create": {
     area: "vitrine",
     rotulo: "Bloco da home criado",
-    frase: (c) => `${sujeito(c)} criou um bloco de ${secao(c)} na página inicial`,
+    frase: (c) =>
+      `${sujeito(c)} criou um bloco de ${secao(c)} na página inicial`,
   },
   "home_section.update": {
     area: "vitrine",
     rotulo: "Bloco da home editado",
-    frase: (c) => `${sujeito(c)} editou o bloco de ${secao(c)} da página inicial`,
+    frase: (c) =>
+      `${sujeito(c)} editou o bloco de ${secao(c)} da página inicial`,
   },
   "home_section.toggle": {
     area: "vitrine",
@@ -407,6 +411,27 @@ const ACOES: Record<string, Acao> = {
     area: "acesso",
     rotulo: "Pessoa adicionada à equipe",
     frase: (c) => `${sujeito(c)} adicionou ${c.item ?? "uma pessoa"} à equipe`,
+  },
+  "admin.role_change": {
+    area: "acesso",
+    rotulo: "Cargo alterado",
+    frase: (c) =>
+      `${sujeito(c)} mudou o cargo de ${c.item ?? "uma pessoa"}${str(c.meta.cargo) ? ` para ${c.meta.cargo}` : ""}`,
+  },
+  "admin.temp_password": {
+    area: "acesso",
+    rotulo: "Senha provisória gerada",
+    frase: (c) =>
+      `${sujeito(c)} gerou uma senha provisória para ${c.item ?? "uma pessoa"}`,
+  },
+  "measurement_model.duplicate": {
+    area: "catalogo",
+    rotulo: "Tabela de medidas duplicada",
+    frase: (c) =>
+      `${sujeito(c)} criou a tabela de medidas ${c.item ? `“${c.item}”` : ""} a partir de ${str(c.meta.from) ? `“${c.meta.from}”` : "outra"}`.replace(
+        /\s+/g,
+        " ",
+      ),
   },
   "admin.remove": {
     area: "acesso",
@@ -484,7 +509,8 @@ const ACOES: Record<string, Acao> = {
 const GENERICA: Acao = {
   area: "sistema",
   rotulo: "Outro evento",
-  frase: (c) => (c.quem ? `${c.quem} fez uma ação no sistema` : "Evento do sistema"),
+  frase: (c) =>
+    c.quem ? `${c.quem} fez uma ação no sistema` : "Evento do sistema",
 };
 
 export function acaoInfo(action: string): Acao {

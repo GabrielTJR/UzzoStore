@@ -26,7 +26,11 @@ export const metadata: Metadata = { title: "Visão geral" };
 export default async function AdminOverviewPage({
   searchParams,
 }: {
-  searchParams: Promise<{ detalhe?: string; periodo?: string }>;
+  searchParams: Promise<{
+    detalhe?: string;
+    periodo?: string;
+    "sem-acesso"?: string;
+  }>;
 }) {
   await requireAdmin();
   const sp = await searchParams;
@@ -46,6 +50,7 @@ export default async function AdminOverviewPage({
         overview={overview}
         audience={audience}
         serviceRoleMissing={serviceRoleMissing}
+        semAcesso={sp["sem-acesso"] === "1"}
       />
       {detalhe && detail && (
         // `key`: trocar de card troca a instância (foco e rolagem do início).

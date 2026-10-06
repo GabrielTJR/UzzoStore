@@ -1,7 +1,7 @@
 "use server";
 
 import { updateTag } from "next/cache";
-import { getAdminUser } from "@/lib/admin";
+import { getAdminFor } from "@/lib/admin";
 import { logAudit } from "@/lib/audit";
 import { CACHE_TAGS } from "@/lib/products";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -46,7 +46,7 @@ const MSG_SEM_MIGRACAO =
   "A tabela da página inicial ainda não existe — aplique a migração 0023 no Supabase.";
 
 async function autorizar() {
-  const actor = await getAdminUser();
+  const actor = await getAdminFor("pagina-inicial");
   if (!actor) return { actor: null, erro: "Não autorizado." } as const;
   if (!process.env.SUPABASE_SERVICE_ROLE_KEY)
     return {

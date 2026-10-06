@@ -9,7 +9,9 @@ export function RemoveAdminButton({ userId }: { userId: string }) {
       action={removeAdminAction}
       onSubmit={(e) => {
         if (
-          !window.confirm("Remover este admin? Ele perderá o acesso ao painel.")
+          !window.confirm(
+            "Remover esta pessoa da equipe? Ela perde o acesso ao painel na hora.",
+          )
         ) {
           e.preventDefault();
         }

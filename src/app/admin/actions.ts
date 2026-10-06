@@ -4,7 +4,7 @@ import { randomUUID } from "node:crypto";
 import { redirect } from "next/navigation";
 import { revalidatePath, updateTag } from "next/cache";
 import { CACHE_TAGS } from "@/lib/products";
-import { getAdminUser, slugify } from "@/lib/admin";
+import { getAdminUser, getAdminFor, slugify } from "@/lib/admin";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { logAudit } from "@/lib/audit";
@@ -1356,7 +1356,7 @@ export async function createCouponAction(
   _prev: ActionResult | null,
   formData: FormData,
 ): Promise<ActionResult> {
-  const actor = await getAdminUser();
+  const actor = await getAdminFor("cupons");
   if (!actor) return { ok: false, error: "Não autorizado." };
   if (serviceRoleMissing())
     return { ok: false, error: "Falta SUPABASE_SERVICE_ROLE_KEY no servidor." };
@@ -1404,7 +1404,7 @@ export async function createCouponAction(
 }
 
 export async function toggleCouponAction(formData: FormData): Promise<void> {
-  const actor = await getAdminUser();
+  const actor = await getAdminFor("cupons");
   if (!actor) return;
   if (serviceRoleMissing()) return;
   const code = String(formData.get("code") ?? "");
@@ -1423,7 +1423,7 @@ export async function toggleCouponAction(formData: FormData): Promise<void> {
 }
 
 export async function deleteCouponAction(formData: FormData): Promise<void> {
-  const actor = await getAdminUser();
+  const actor = await getAdminFor("cupons");
   if (!actor) return;
   if (serviceRoleMissing()) return;
   const code = String(formData.get("code") ?? "");
@@ -1466,7 +1466,7 @@ export async function createHomeSectionAction(
   _prev: ActionResult | null,
   formData: FormData,
 ): Promise<ActionResult> {
-  const actor = await getAdminUser();
+  const actor = await getAdminFor("pagina-inicial");
   if (!actor) return { ok: false, error: "Não autorizado." };
   if (serviceRoleMissing())
     return { ok: false, error: "Falta SUPABASE_SERVICE_ROLE_KEY no servidor." };
@@ -1525,7 +1525,7 @@ export async function saveHomeSectionAction(
   _prev: ActionResult | null,
   formData: FormData,
 ): Promise<ActionResult> {
-  const actor = await getAdminUser();
+  const actor = await getAdminFor("pagina-inicial");
   if (!actor) return { ok: false, error: "Não autorizado." };
   if (serviceRoleMissing())
     return { ok: false, error: "Falta SUPABASE_SERVICE_ROLE_KEY no servidor." };
@@ -1639,7 +1639,7 @@ export async function saveHomeSectionAction(
 export async function toggleHomeSectionAction(
   formData: FormData,
 ): Promise<void> {
-  const actor = await getAdminUser();
+  const actor = await getAdminFor("pagina-inicial");
   if (!actor) return;
   if (serviceRoleMissing()) return;
 
@@ -1676,7 +1676,7 @@ export async function toggleHomeSectionAction(
 
 /** Move o bloco uma posição para cima (-1) ou para baixo (+1), trocando com o vizinho. */
 export async function moveHomeSectionAction(formData: FormData): Promise<void> {
-  const actor = await getAdminUser();
+  const actor = await getAdminFor("pagina-inicial");
   if (!actor) return;
   if (serviceRoleMissing()) return;
 
@@ -1720,7 +1720,7 @@ export async function moveHomeSectionAction(formData: FormData): Promise<void> {
 export async function deleteHomeSectionAction(
   formData: FormData,
 ): Promise<void> {
-  const actor = await getAdminUser();
+  const actor = await getAdminFor("pagina-inicial");
   if (!actor) return;
   if (serviceRoleMissing()) return;
 
@@ -1757,6 +1757,10 @@ export async function createUploadUrlsAction(
 ): Promise<{ ok: boolean; error?: string; targets?: UploadTarget[] }> {
   const actor = await getAdminUser();
   if (!actor) return { ok: false, error: "Não autorizado." };
+  // Fotos da página inicial (pasta "home") são da vitrine: o vendedor sobe
+  // foto de produto, não de destaque.
+  if (folder === "home" && !(await getAdminFor("pagina-inicial")))
+    return { ok: false, error: "Não autorizado." };
   if (serviceRoleMissing())
     return { ok: false, error: "Falta SUPABASE_SERVICE_ROLE_KEY no servidor." };
   if (!Array.isArray(files) || files.length === 0)

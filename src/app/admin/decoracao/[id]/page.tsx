@@ -1,7 +1,7 @@
 import Link from "next/link";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { requireAdmin } from "@/lib/admin";
+import { requireArea } from "@/lib/admin";
 import { getAdminHomeSections } from "@/lib/admin-products";
 import { getCategories } from "@/lib/products";
 import { KIND_LABEL } from "@/lib/home-sections";
@@ -15,7 +15,7 @@ export default async function EditarBlocoPage({
 }: {
   params: Promise<{ id: string }>;
 }) {
-  await requireAdmin();
+  await requireArea("pagina-inicial");
   const { id } = await params;
   const [sections, categories] = await Promise.all([
     getAdminHomeSections(),

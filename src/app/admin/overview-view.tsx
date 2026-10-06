@@ -38,7 +38,9 @@ function Pendencia({
         {n}
       </p>
       <p className="mt-2 text-sm font-semibold">{label}</p>
-      <p className="mt-0.5 text-xs text-muted">{n === 0 ? "Nada pendente" : hint}</p>
+      <p className="mt-0.5 text-xs text-muted">
+        {n === 0 ? "Nada pendente" : hint}
+      </p>
     </Link>
   );
 }
@@ -71,11 +73,14 @@ export function OverviewView({
   overview,
   audience,
   serviceRoleMissing,
+  semAcesso = false,
 }: {
   /** `null` quando falta a service_role (o painel não consegue ler pedidos). */
   overview: AdminOverview | null;
   audience: AudienceResult;
   serviceRoleMissing: boolean;
+  /** Veio de uma tela que o cargo não alcança (`requireArea`). */
+  semAcesso?: boolean;
 }) {
   return (
     <>
@@ -94,6 +99,16 @@ export function OverviewView({
           Novo produto
         </Link>
       </PageHeader>
+
+      {semAcesso && (
+        <div
+          role="status"
+          className="mb-8 rounded-sm border border-border bg-background px-4 py-3 text-sm"
+        >
+          Essa tela não faz parte do seu cargo. Se precisar dela, peça acesso a
+          quem cuida da equipe.
+        </div>
+      )}
 
       {serviceRoleMissing && (
         <div className="mb-8 rounded-sm border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm">
@@ -217,7 +232,10 @@ export function OverviewView({
                 ))}
                 {overview.recentes.length === 0 && (
                   <tr>
-                    <td colSpan={7} className="px-4 py-8 text-center text-muted">
+                    <td
+                      colSpan={7}
+                      className="px-4 py-8 text-center text-muted"
+                    >
                       Nenhum pedido ainda. Eles aparecem aqui assim que alguém
                       fechar uma compra.
                     </td>

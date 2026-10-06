@@ -40,6 +40,7 @@ export default async function AdminLayout({
     <AdminShell
       email={res.user.email ?? null}
       nome={res.record.full_name}
+      role={res.record.role}
       novosPedidos={novos}
     >
       {children}

@@ -3,9 +3,10 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getSessionUser } from "@/lib/session";
 import type { User } from "@supabase/supabase-js";
+import { podeAcessar, type AdminArea, type AdminRole } from "@/lib/admin-roles";
 
 export type AdminRecord = {
-  role: "owner" | "admin";
+  role: AdminRole;
   full_name: string | null;
   must_change_password: boolean;
 };
@@ -80,6 +81,31 @@ export async function requireAdmin(): Promise<User> {
   const res = await getAdminRecord();
   if (!res) redirect("/admin/login");
   if (res.record.must_change_password) redirect("/admin/definir-senha");
+  return res.user;
+}
+
+/**
+ * Guard de página por ÁREA: além de ser da equipe, o cargo precisa alcançar a
+ * área (`lib/admin-roles.ts`). Sem acesso, volta para a Visão geral com o
+ * aviso — página em branco ou 404 pareceria defeito.
+ */
+export async function requireArea(area: AdminArea): Promise<User> {
+  const res = await getAdminRecord();
+  if (!res) redirect("/admin/login");
+  if (res.record.must_change_password) redirect("/admin/definir-senha");
+  if (!podeAcessar(res.record.role, area)) redirect("/admin?sem-acesso=1");
+  return res.user;
+}
+
+/**
+ * Guard de SERVER ACTION por área: devolve o usuário só se ele for da equipe,
+ * já tiver trocado a senha provisória e o cargo alcançar a área. Server action
+ * é endpoint público — esconder o botão do vendedor não basta.
+ */
+export async function getAdminFor(area: AdminArea): Promise<User | null> {
+  const res = await getAdminRecord();
+  if (!res || res.record.must_change_password) return null;
+  if (!podeAcessar(res.record.role, area)) return null;
   return res.user;
 }
 

@@ -22,12 +22,20 @@ import {
   IconUsers,
 } from "@/components/icons";
 import { useModal } from "@/lib/use-modal";
+import {
+  CARGOS,
+  podeAcessar,
+  type AdminArea,
+  type AdminRole,
+} from "@/lib/admin-roles";
 import { signOutAction } from "./actions";
 
 type Item = {
   href: string;
   label: string;
   icon: (p: { size?: number }) => React.ReactNode;
+  /** Área do cargo (`lib/admin-roles.ts`): some do menu de quem não alcança. */
+  area: AdminArea;
   /** Só casa o endereço exato (a Visão geral é /admin, prefixo de tudo). */
   exact?: boolean;
   /** Mostra o contador de pedidos novos. */
@@ -41,35 +49,79 @@ type Item = {
 const GRUPOS: { titulo: string | null; itens: Item[] }[] = [
   {
     titulo: null,
-    itens: [{ href: "/admin", label: "Visão geral", icon: IconHome, exact: true }],
+    itens: [
+      {
+        href: "/admin",
+        label: "Visão geral",
+        icon: IconHome,
+        area: "visao-geral",
+        exact: true,
+      },
+    ],
   },
   {
     titulo: "Vendas",
     itens: [
-      { href: "/admin/pedidos", label: "Pedidos", icon: IconBox, pedidos: true },
-      { href: "/admin/cupons", label: "Cupons", icon: IconTag },
+      {
+        href: "/admin/pedidos",
+        label: "Pedidos",
+        icon: IconBox,
+        area: "pedidos",
+        pedidos: true,
+      },
+      { href: "/admin/cupons", label: "Cupons", icon: IconTag, area: "cupons" },
     ],
   },
   {
     titulo: "Catálogo",
     itens: [
-      { href: "/admin/produtos", label: "Produtos", icon: IconShirt },
-      { href: "/admin/categorias", label: "Categorias", icon: IconGrid },
-      { href: "/admin/cores", label: "Cores", icon: IconDrop },
-      { href: "/admin/medidas", label: "Tabelas de medidas", icon: IconRuler },
+      {
+        href: "/admin/produtos",
+        label: "Produtos",
+        icon: IconShirt,
+        area: "produtos",
+      },
+      {
+        href: "/admin/categorias",
+        label: "Categorias",
+        icon: IconGrid,
+        area: "categorias",
+      },
+      { href: "/admin/cores", label: "Cores", icon: IconDrop, area: "cores" },
+      {
+        href: "/admin/medidas",
+        label: "Tabelas de medidas",
+        icon: IconRuler,
+        area: "medidas",
+      },
     ],
   },
   {
     titulo: "Vitrine",
     itens: [
-      { href: "/admin/decoracao", label: "Página inicial", icon: IconLayout },
+      {
+        href: "/admin/decoracao",
+        label: "Página inicial",
+        icon: IconLayout,
+        area: "pagina-inicial",
+      },
     ],
   },
   {
     titulo: "Sistema",
     itens: [
-      { href: "/admin/equipe", label: "Equipe", icon: IconUsers },
-      { href: "/admin/logs", label: "Registro de atividades", icon: IconList },
+      {
+        href: "/admin/equipe",
+        label: "Equipe",
+        icon: IconUsers,
+        area: "equipe",
+      },
+      {
+        href: "/admin/logs",
+        label: "Registro de atividades",
+        icon: IconList,
+        area: "logs",
+      },
     ],
   },
 ];
@@ -93,11 +145,13 @@ export function AdminShell({
   children,
   email,
   nome,
+  role,
   novosPedidos,
 }: {
   children: React.ReactNode;
   email: string | null;
   nome: string | null;
+  role: AdminRole;
   novosPedidos: number;
 }) {
   const pathname = usePathname();
@@ -115,56 +169,59 @@ export function AdminShell({
       </Link>
 
       <nav aria-label="Painel" className="flex-1 space-y-4 overflow-y-auto">
-        {GRUPOS.map((g) => (
-          <div key={g.titulo ?? "inicio"}>
-            {g.titulo && (
-              <p className="mb-1 px-2.5 text-xs font-medium text-white/40">
-                {g.titulo}
-              </p>
-            )}
-            <ul className="space-y-0.5">
-              {g.itens.map((i) => {
-                const on = isActive(i);
-                return (
-                  <li key={i.href}>
-                    <Link
-                      href={i.href}
-                      onClick={close}
-                      aria-current={on ? "page" : undefined}
-                      className={`${linha} ${on ? ativa : inativa}`}
-                    >
-                      <i.icon size={18} />
-                      {i.label}
-                      {i.pedidos && novosPedidos > 0 && (
-                        <span
-                          aria-label={`${novosPedidos} novos`}
-                          className="ml-auto rounded-full bg-white px-1.5 text-[0.7rem] font-bold leading-5 text-black"
-                        >
-                          {novosPedidos}
-                        </span>
-                      )}
-                    </Link>
-                  </li>
-                );
-              })}
-            </ul>
-          </div>
-        ))}
+        {GRUPOS.map((g) => ({
+          ...g,
+          itens: g.itens.filter((i) => podeAcessar(role, i.area)),
+        }))
+          .filter((g) => g.itens.length > 0)
+          .map((g) => (
+            <div key={g.titulo ?? "inicio"}>
+              {g.titulo && (
+                <p className="mb-1 px-2.5 text-xs font-medium text-white/40">
+                  {g.titulo}
+                </p>
+              )}
+              <ul className="space-y-0.5">
+                {g.itens.map((i) => {
+                  const on = isActive(i);
+                  return (
+                    <li key={i.href}>
+                      <Link
+                        href={i.href}
+                        onClick={close}
+                        aria-current={on ? "page" : undefined}
+                        className={`${linha} ${on ? ativa : inativa}`}
+                      >
+                        <i.icon size={18} />
+                        {i.label}
+                        {i.pedidos && novosPedidos > 0 && (
+                          <span
+                            aria-label={`${novosPedidos} novos`}
+                            className="ml-auto rounded-full bg-white px-1.5 text-[0.7rem] font-bold leading-5 text-black"
+                          >
+                            {novosPedidos}
+                          </span>
+                        )}
+                      </Link>
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+          ))}
       </nav>
 
       <div className="mt-4 space-y-0.5 border-t border-white/15 pt-3">
-        <Link
-          href="/"
-          target="_blank"
-          className={`${linha} ${inativa}`}
-        >
+        <Link href="/" target="_blank" className={`${linha} ${inativa}`}>
           <IconExternal size={18} />
           Ver a loja
         </Link>
         <Link
           href="/admin/conta"
           onClick={close}
-          aria-current={pathname.startsWith("/admin/conta") ? "page" : undefined}
+          aria-current={
+            pathname.startsWith("/admin/conta") ? "page" : undefined
+          }
           className={`${linha} ${pathname.startsWith("/admin/conta") ? ativa : inativa}`}
         >
           <IconUser size={18} />
@@ -179,6 +236,7 @@ export function AdminShell({
         <div className="px-2.5 pt-2 text-xs text-white/40">
           {nome && <p className="truncate text-white/70">{nome}</p>}
           <p className="truncate">{email}</p>
+          <p className="truncate">{CARGOS[role].nome}</p>
         </div>
       </div>
     </>

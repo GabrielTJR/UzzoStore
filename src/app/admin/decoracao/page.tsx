@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { requireAdmin } from "@/lib/admin";
+import { requireArea } from "@/lib/admin";
 import { HomeEditor } from "./home-editor";
 import { loadHomeEditor } from "./load-editor";
 
@@ -11,7 +11,7 @@ export const metadata: Metadata = { title: "Página inicial" };
  * continua guardada em /admin/decoracao/blocos, sem link no menu.
  */
 export default async function PaginaInicialPage() {
-  await requireAdmin();
+  await requireArea("pagina-inicial");
   const props = await loadHomeEditor();
   return <HomeEditor {...props} />;
 }
