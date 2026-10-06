@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useSyncExternalStore } from "react";
 import {
   useCart,
   cartSubtotal,
@@ -104,6 +104,8 @@ function SkeletonItem() {
   );
 }
 
+const semAssinatura = () => () => {};
+
 export function SacolaClient({
   shippingEnabled,
 }: {
@@ -119,7 +121,13 @@ export function SacolaClient({
   const shipping = useCart((s) => s.shipping);
   const setShipping = useCart((s) => s.setShipping);
 
-  const [mounted, setMounted] = useState(false);
+  // Sacola vem do localStorage: só existe no navegador. `useSyncExternalStore`
+  // dá false no servidor e na hidratação e true depois, sem efeito.
+  const mounted = useSyncExternalStore(
+    semAssinatura,
+    () => true,
+    () => false,
+  );
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
@@ -137,19 +145,36 @@ export function SacolaClient({
   // Saldo real das peças da sacola (null = ainda não consultado).
   const [saldo, setSaldo] = useState<Record<string, SaldoSacola> | null>(null);
 
-  useEffect(() => setMounted(true), []);
-  useEffect(() => {
+  // Estado que se ACERTA quando algo muda — feito no render (padrão do
+  // React para estado derivado), não em efeito, que renderizaria duas vezes.
+  // - CEP do frete escolhido preenche o campo;
+  // - o erro (ex.: "estoque insuficiente") DESABILITA os botões de compra e
+  //   some assim que a sacola, o cupom ou o frete mudam (se persistir, o
+  //   servidor recusa de novo);
+  // - sacola mudou => peso mudou => a cotação antiga não vale mais (o
+  //   cart-store já zera `shipping`; aqui some a lista, para ninguém clicar
+  //   num preço órfão).
+  const [vistoCep, setVistoCep] = useState(shipping?.cep);
+  if (shipping?.cep !== vistoCep) {
+    setVistoCep(shipping?.cep);
     if (shipping?.cep) setCep(shipping.cep);
-  }, [shipping?.cep]);
-
-  // O erro (ex.: "estoque insuficiente") DESABILITA os botões de compra.
-  // Some assim que a sacola muda; se persistir, o servidor recusa de novo.
-  useEffect(() => setError(null), [items, coupon, shipping]);
+  }
 
   // Sacola mudou => peso mudou => as opções cotadas não valem mais. O
   // cart-store já zera `shipping`; aqui derrubamos a lista para ninguém
   // clicar num preço órfão.
   const composicao = items.map((i) => `${i.variantId}:${i.qty}`).join("|");
+  const chaveErro = `${composicao}|${coupon ?? ""}|${shipping?.serviceId ?? ""}|${shipping?.price ?? ""}`;
+  const [vistoErro, setVistoErro] = useState(chaveErro);
+  if (chaveErro !== vistoErro) {
+    setVistoErro(chaveErro);
+    setError(null);
+  }
+  const [vistaComp, setVistaComp] = useState(composicao);
+  if (composicao !== vistaComp) {
+    setVistaComp(composicao);
+    setQuote(null);
+  }
 
   /**
    * Confere o estoque assim que a sacola abre, e a cada mudança dela.
@@ -163,10 +188,7 @@ export function SacolaClient({
    */
   useEffect(() => {
     const ids = items.map((i) => i.variantId);
-    if (ids.length === 0) {
-      setSaldo({});
-      return;
-    }
+    if (ids.length === 0) return; // sacola vazia: `saldoEfetivo` vale {}
     let vivo = true;
     cartStockAction(ids)
       .then((r) => {
@@ -182,24 +204,20 @@ export function SacolaClient({
   }, [composicao]);
 
   /** Peças cuja quantidade na sacola passou do que existe. */
-  const semSaldo = saldo
-    ? items.filter((i) => (saldo[i.variantId]?.qty ?? 0) < i.qty)
+  const saldoEfetivo = items.length === 0 ? {} : saldo;
+  const semSaldo = saldoEfetivo
+    ? items.filter((i) => (saldoEfetivo[i.variantId]?.qty ?? 0) < i.qty)
     : [];
   const temFalta = semSaldo.length > 0;
-  useEffect(() => {
-    setQuote(null);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [composicao]);
 
   // Cupom persistido (localStorage) é revalidado ao montar e a cada mudança
   // da sacola — sem isso o desconto exibido fica órfão e um cupom expirado
   // travaria a compra sem o cliente nem saber que há cupom aplicado.
   useEffect(() => {
     let ignore = false;
-    if (!coupon || items.length === 0) {
-      setCouponDiscount(0);
-      return;
-    }
+    // Sem cupom (ou sacola vazia) o desconto exibido é zero por definição —
+    // ver `descontoCupom` abaixo; não há o que conferir.
+    if (!coupon || items.length === 0) return;
     checkCouponAction(
       coupon,
       items.map((i) => ({ variantId: i.variantId, qty: i.qty })),
@@ -228,9 +246,10 @@ export function SacolaClient({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [coupon, composicao]);
 
+  const descontoCupom = coupon && items.length > 0 ? couponDiscount : 0;
   const subtotal = cartSubtotal(items);
   const freteExibido = shipping?.price ?? 0;
-  const total = Math.max(0, subtotal - couponDiscount + freteExibido);
+  const total = Math.max(0, subtotal - descontoCupom + freteExibido);
 
   function showToast(msg: string) {
     setToast(msg);
@@ -590,12 +609,12 @@ export function SacolaClient({
             {couponMsg && (
               <p className="mt-2 text-sm text-muted">{couponMsg}</p>
             )}
-            {coupon && couponDiscount > 0 && (
+            {coupon && descontoCupom > 0 && (
               <p className="mt-2 flex items-center gap-2 text-sm">
                 <span className="rounded-full border border-border px-2.5 py-0.5 font-mono text-xs">
                   {coupon}
                 </span>
-                −{formatBRL(couponDiscount)}
+                −{formatBRL(descontoCupom)}
                 <button
                   type="button"
                   onClick={() => {
@@ -616,9 +635,7 @@ export function SacolaClient({
         {/* Totais */}
         <div className="space-y-4 md:justify-self-end md:text-right">
           {shippingEnabled && (
-            <FreeShippingBar
-              subtotal={subtotal - (coupon ? couponDiscount : 0)}
-            />
+            <FreeShippingBar subtotal={subtotal - descontoCupom} />
           )}
 
           <dl className="space-y-1.5 text-sm">
@@ -626,10 +643,10 @@ export function SacolaClient({
               <dt className="text-muted">Subtotal</dt>
               <dd>{formatBRL(subtotal)}</dd>
             </div>
-            {couponDiscount > 0 && (
+            {descontoCupom > 0 && (
               <div className="flex items-baseline justify-between gap-10 md:justify-end">
                 <dt className="text-muted">Cupom {coupon}</dt>
-                <dd>−{formatBRL(couponDiscount)}</dd>
+                <dd>−{formatBRL(descontoCupom)}</dd>
               </div>
             )}
             {shipping && (

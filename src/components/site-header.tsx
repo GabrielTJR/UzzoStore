@@ -14,6 +14,7 @@ import {
 } from "@/components/icons";
 import { DEPARTMENTS, type Department } from "@/lib/departments";
 import { useViewer } from "@/lib/viewer";
+import { SearchInput } from "@/components/search-input";
 import { useModal } from "@/lib/use-modal";
 
 export type NavCategory = { name: string; slug: string };
@@ -179,11 +180,8 @@ export function SiteHeader({
             role="search"
             className="relative hidden lg:block"
           >
-            <input
-              type="search"
-              name="busca"
+            <SearchInput
               placeholder="Buscar peça"
-              aria-label="Buscar produtos"
               className="h-10 w-52 rounded-xs border border-border bg-transparent pl-3 pr-9 text-sm outline-none transition-[width,border-color] placeholder:text-muted focus:w-72 focus:border-foreground"
             />
             <button
@@ -237,12 +235,9 @@ export function SiteHeader({
           className="px-page border-t border-border py-3 lg:hidden"
         >
           <div className="relative">
-            <input
-              type="search"
-              name="busca"
+            <SearchInput
               autoFocus
               placeholder="O que você procura?"
-              aria-label="Buscar produtos"
               className="h-12 w-full rounded-xs border border-foreground bg-transparent pl-4 pr-12 text-base outline-none placeholder:text-muted"
             />
             <button
