@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Archivo } from "next/font/google";
 import { ToastProvider } from "@/components/toast";
+import { TouchActive } from "@/components/touch-active";
 import "./globals.css";
 
 /**
@@ -74,6 +75,7 @@ export default function RootLayout({
   return (
     <html lang="pt-BR" className={`${archivo.variable} h-full antialiased`}>
       <body className="flex min-h-full flex-col">
+        <TouchActive />
         <ToastProvider>{children}</ToastProvider>
       </body>
     </html>

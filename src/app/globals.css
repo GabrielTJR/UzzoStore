@@ -142,6 +142,49 @@ body {
     outline: 2px solid var(--accent);
     outline-offset: 2px;
   }
+
+  /* Sensação de CLIQUE (pedido do dono, 06/10/2026): havia hover, mas nada
+     acontecia no toque — no celular, onde não existe hover, o botão parecia
+     morto até a página responder.
+     - Botões e links com cara de botão (os com canto arredondado) "afundam"
+       um pouco enquanto pressionados.
+     - Links de texto esmaecem.
+     Em `@layer base` e com `:where` (especificidade zero): qualquer utilitário
+     do próprio elemento (`active:scale-90` do coração, por exemplo) vence. No
+     iPhone o `:active` só funciona com um ouvinte de toque na página — é o
+     `TouchActive` do layout raiz. */
+  :where(
+      button:not(:disabled),
+      [role="button"]:not([aria-disabled="true"]),
+      summary,
+      a[class*="rounded"]
+    ) {
+    -webkit-tap-highlight-color: transparent;
+    transition-property: transform;
+    transition-duration: 80ms;
+  }
+  :where(
+      button:not(:disabled),
+      [role="button"]:not([aria-disabled="true"]),
+      summary,
+      a[class*="rounded"]
+    ):active {
+    transform: scale(0.97);
+  }
+  :where(a:not([class*="rounded"])):active {
+    opacity: 0.6;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    :where(
+        button:not(:disabled),
+        [role="button"],
+        summary,
+        a[class*="rounded"]
+      ):active {
+      transform: none;
+      opacity: 0.7;
+    }
+  }
 }
 
 @keyframes toast-in {
