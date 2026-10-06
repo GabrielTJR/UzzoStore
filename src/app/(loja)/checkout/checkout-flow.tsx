@@ -70,6 +70,9 @@ export function CheckoutFlow({
   shippingEnabled: boolean;
 }) {
   const items = useCart((s) => s.items);
+  const setPrices = useCart((s) => s.setPrices);
+  const removeItem = useCart((s) => s.removeItem);
+  const clearCart = useCart((s) => s.clear);
   const coupon = useCart((s) => s.coupon);
   const setCoupon = useCart((s) => s.setCoupon);
 
@@ -197,7 +200,8 @@ export function CheckoutFlow({
     : false;
   const subtotal = cartSubtotal(items);
   const desconto = coupon ? couponDiscount : 0;
-  const frete = method === "delivery" && freightOption ? freightOption.price : 0;
+  const frete =
+    method === "delivery" && freightOption ? freightOption.price : 0;
   const total = Math.max(0, subtotal - desconto + frete);
   const canPay =
     ativo === 4 && items.length > 0 && !temFalta && !busy && !saindo;
@@ -410,7 +414,13 @@ export function CheckoutFlow({
     }
   }
 
-  function reagir(res: { error?: string; needsLogin?: boolean; code?: PayCode }) {
+  function reagir(res: {
+    error?: string;
+    needsLogin?: boolean;
+    code?: PayCode;
+    precos?: Record<string, number>;
+    fora?: string[];
+  }) {
     if (res.needsLogin || res.code === "login") {
       recarregar();
       return;
@@ -434,8 +444,28 @@ export function CheckoutFlow({
           "O valor do frete mudou. Confira as opções e toque em pagar de novo.",
         );
         return;
-      case "stock":
-      case "items": {
+      case "already_paid":
+        setError(res.error ?? "Você já pagou um pedido igual há pouco.");
+        setErrorKind("repeat");
+        return;
+      case "price_changed":
+        // A sacola passa a mostrar o preço atual (o resumo recalcula) e o
+        // cliente decide de novo, vendo o total certo.
+        if (res.precos) setPrices(res.precos);
+        setAviso(res.error ?? "O preço de uma peça mudou. Confira o total.");
+        return;
+      case "items":
+        if (res.fora?.length) {
+          // Peça que saiu da loja some da sacola na hora: "Ajustar sacola"
+          // não a acharia (não há saldo a corrigir, ela simplesmente acabou).
+          for (const id of res.fora) removeItem(id);
+          setAviso(
+            res.error ?? "Uma peça saiu da loja e foi tirada da sacola.",
+          );
+          return;
+        }
+      // fallthrough
+      case "stock": {
         setError(res.error ?? "Uma peça da sacola não está mais disponível.");
         setErrorKind("stock");
         setStockTry((t) => t + 1);
@@ -451,7 +481,7 @@ export function CheckoutFlow({
     }
   }
 
-  async function handlePay() {
+  async function handlePay(repetir = false) {
     if (!canPay || !method) return;
     if (method === "delivery" && !selectedAddress) return;
     setError(null);
@@ -462,7 +492,13 @@ export function CheckoutFlow({
     try {
       const entregaComCotacao = method === "delivery" && !!quote?.ok;
       const res = await startOnlinePaymentAction(
-        items.map((i) => ({ variantId: i.variantId, qty: i.qty })),
+        // Preço como REFERÊNCIA: se subiu, o servidor recusa em vez de cobrar
+        // um total diferente do que está nesta tela.
+        items.map((i) => ({
+          variantId: i.variantId,
+          qty: i.qty,
+          price: i.price,
+        })),
         method === "pickup"
           ? { method: "pickup" }
           : { method: "delivery", addressId: selectedAddress!.id },
@@ -474,6 +510,7 @@ export function CheckoutFlow({
           freightExpectedPrice: entregaComCotacao
             ? (freightOption?.price ?? null)
             : null,
+          repetir,
         },
       );
       if (res.ok && res.url) {
@@ -555,7 +592,10 @@ export function CheckoutFlow({
             {freightOption.days > 0
               ? `, até ${freightOption.days} dias úteis`
               : ""}
-            , {freightOption.price > 0 ? formatBRL(freightOption.price) : "grátis"}
+            ,{" "}
+            {freightOption.price > 0
+              ? formatBRL(freightOption.price)
+              : "grátis"}
           </p>
         ) : quote && !quote.ok && quote.unavailable ? (
           <p>Frete combinado pelo WhatsApp depois do pagamento</p>
@@ -602,7 +642,9 @@ export function CheckoutFlow({
         n={1}
         titulo="Seu e-mail"
         estado={estado(1)}
-        resumo={profile?.email ? <p className="break-all">{profile.email}</p> : null}
+        resumo={
+          profile?.email ? <p className="break-all">{profile.email}</p> : null
+        }
         trocar={
           logged ? (
             // Sair é a única forma honesta de "trocar o e-mail": a sessão é
@@ -675,7 +717,10 @@ export function CheckoutFlow({
         onTrocar={() => setEditando(3)}
       >
         {aviso && (
-          <p role="alert" className="mb-4 text-sm text-red-600 dark:text-red-400">
+          <p
+            role="alert"
+            className="mb-4 text-sm text-red-600 dark:text-red-400"
+          >
             {aviso}
           </p>
         )}
@@ -710,7 +755,13 @@ export function CheckoutFlow({
           canPay={canPay}
           busy={busy}
           saindo={saindo}
-          onPay={handlePay}
+          onPay={() => handlePay()}
+          onRepetir={() => handlePay(true)}
+          onLimparSacola={() => {
+            clearCart();
+            setError(null);
+            setErrorKind(null);
+          }}
           error={error}
           errorKind={errorKind}
           onAjustarSacola={() => useCartUi.getState().openCart()}

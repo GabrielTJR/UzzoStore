@@ -20,6 +20,8 @@ import { quoteShipping, pesoDaPeca, shippingConfigured } from "@/lib/shipping";
 import { checkCoupon, consumeCoupon } from "@/lib/coupons";
 import { perfilCompleto } from "@/lib/customer-fields";
 import { temFolgaParaPagar } from "@/app/(loja)/conta/pedidos/pode-pagar";
+import { formatBRL } from "@/lib/format";
+import { displayProductName } from "@/lib/product-name";
 
 /**
  * Registra o pedido no banco ao finalizar a compra.
@@ -32,7 +34,13 @@ import { temFolgaParaPagar } from "@/app/(loja)/conta/pedidos/pode-pagar";
  * de INSERT (migração 0001) — o cliente nunca grava pedido direto.
  */
 
-export type CheckoutItem = { variantId: string; qty: number };
+export type CheckoutItem = {
+  variantId: string;
+  qty: number;
+  /** Preço unitário que a TELA mostrou. Referência anti-surpresa, nunca fonte:
+   * se o do servidor for maior, a compra é recusada em vez de cobrar mais. */
+  price?: number;
+};
 
 /**
  * Motivo da recusa em forma de CÓDIGO, para a tela reagir (reabrir o passo
@@ -49,6 +57,8 @@ export type PayCode =
   | "freight_down"
   | "stock"
   | "items"
+  | "price_changed"
+  | "already_paid"
   | "coupon"
   | "rate"
   | "min_total"
@@ -59,6 +69,10 @@ export type CheckoutResult = {
   error?: string;
   code?: PayCode;
   orderNumber?: number;
+  /** `price_changed`: preço ATUAL por variante, para a tela corrigir a sacola. */
+  precos?: Record<string, number>;
+  /** `items`: variantes que saíram da loja, para a tela tirá-las da sacola. */
+  fora?: string[];
   /** Números CONFIRMADOS pelo servidor — a UI exibe estes, não os locais. */
   totals?: {
     subtotal: number;
@@ -87,6 +101,7 @@ type VariantRow = {
   color: string | null;
   products: {
     name: string;
+    active_ecommerce: boolean;
     price: number | null;
     promo_price: number | null;
     weight_grams: number | null;
@@ -112,6 +127,9 @@ export async function startOnlinePaymentAction(
     couponCode?: string | null;
     freightServiceId?: number | null;
     freightExpectedPrice?: number | null;
+    /** O cliente viu o aviso de "você já pagou um pedido igual" e confirmou
+     * que quer comprar de novo. */
+    repetir?: boolean;
   },
 ): Promise<{
   ok: boolean;
@@ -119,6 +137,9 @@ export async function startOnlinePaymentAction(
   error?: string;
   needsLogin?: boolean;
   code?: PayCode;
+  precos?: Record<string, number>;
+  fora?: string[];
+  orderNumber?: number;
 }> {
   const user = await getSessionUser();
   if (!user)
@@ -233,6 +254,8 @@ export async function startOnlinePaymentAction(
       ok: false,
       code: montado.res.code ?? "payment",
       error: montado.res.error ?? "Erro ao montar o pedido.",
+      precos: montado.res.precos,
+      fora: montado.res.fora,
     };
   const rascunho = montado.rascunho;
   const entrega = { shippingMethod: shipping.method, shippingAddress };
@@ -276,6 +299,24 @@ export async function startOnlinePaymentAction(
       return { ok: false, code: "payment", error: await erroDoLink(link) };
     }
     return { ok: true, url: link.url };
+  }
+
+  // Cobrança em dobro: a sacola só esvazia quando o retorno da InfinitePay
+  // abre no MESMO navegador com o pagamento já confirmado. Quem pagou o PIX em
+  // outro aparelho, fechou a aba ou voltou pelo navegador externo (o do
+  // Instagram) continua com a sacola cheia — e o pedido pago já não é
+  // "pendente" para ser reaproveitado, então um novo toque em "Pagar" criava
+  // outro pedido e cobrava de novo. Pergunta antes; o cliente confirma se
+  // quer mesmo outra unidade.
+  if (!extras?.repetir) {
+    const pago = await pagoRecenteIgual(admin0, user.id, rascunho.rows);
+    if (pago)
+      return {
+        ok: false,
+        code: "already_paid",
+        orderNumber: pago.number,
+        error: `Você já pagou um pedido com estas mesmas peças ${pago.minutos <= 1 ? "agora há pouco" : `há ${pago.minutos} minutos`} (nº ${pago.number}). Quer comprar de novo?`,
+      };
   }
 
   // Pedido diferente (mudou a sacola, o endereço, o frete, o cupom ou o preço)
@@ -371,6 +412,51 @@ async function pendentesOnline(
     .order("created_at", { ascending: false })
     .limit(10);
   return (data ?? []) as unknown as PendenteOnline[];
+}
+
+/** Janela em que um pedido PAGO com as mesmas peças conta como "já pagou". */
+const JANELA_REPETICAO_MIN = 60;
+
+/**
+ * Pedido online PAGO do cliente na última hora com as mesmas peças e
+ * quantidades (o preço não entra: é a mesma compra mesmo que a promoção tenha
+ * mudado no meio). Uma consulta só, e só quando o cliente toca em "Pagar".
+ */
+async function pagoRecenteIgual(
+  admin: ReturnType<typeof createAdminClient>,
+  customerId: string,
+  rows: { variant_id: string; qty: number }[],
+): Promise<{ number: number; minutos: number } | null> {
+  const desde = new Date(
+    Date.now() - JANELA_REPETICAO_MIN * 60_000,
+  ).toISOString();
+  const { data } = await admin
+    .from("orders")
+    .select("number, created_at, order_items ( variant_id, qty )")
+    .eq("customer_id", customerId)
+    .eq("channel", "online")
+    .eq("payment_status", "paid")
+    .gte("created_at", desde)
+    .order("created_at", { ascending: false })
+    .limit(5);
+  const chave = (itens: { variant_id: string; qty: number }[]) =>
+    chaveItens(itens.map((i) => ({ ...i, unit_price: 0 })));
+  const alvo = chave(rows);
+  const igual = (
+    (data ?? []) as unknown as {
+      number: number;
+      created_at: string;
+      order_items: { variant_id: string; qty: number }[];
+    }[]
+  ).find((o) => chave(o.order_items ?? []) === alvo);
+  if (!igual) return null;
+  return {
+    number: igual.number,
+    minutos: Math.max(
+      1,
+      Math.round((Date.now() - Date.parse(igual.created_at)) / 60_000),
+    ),
+  };
 }
 
 /** Cancela os pendentes e devolve as peças; derruba o catálogo se algo voltou. */
@@ -486,9 +572,15 @@ export async function cartStockAction(
   const supabase = createPublicClient();
   const { data, error } = await supabase
     .from("stock_cache")
-    .select("variant_id, qty_available, reservado_ate")
+    // Peça desativada não tem saldo para ninguém: o embed obrigatório some com
+    // a linha, e o laço abaixo a trata como zero ("esgotado" na sacola, com o
+    // "Ajustar sacola" que a tira). Antes ela seguia com o saldo antigo.
+    .select(
+      "variant_id, qty_available, reservado_ate, product_variants!inner ( products!inner ( active_ecommerce ) )",
+    )
     .in("variant_id", ids)
-    .eq("deposito_id", "loja");
+    .eq("deposito_id", "loja")
+    .eq("product_variants.products.active_ecommerce", true);
   if (error || !data) return {};
 
   const agora = Date.now();
@@ -667,15 +759,21 @@ export async function createOrderAction(
 
 /** Normaliza os itens vindos do navegador (quantidade inteira entre 1 e 99). */
 function limparItens(items: CheckoutItem[]): CheckoutItem[] {
-  return (Array.isArray(items) ? items : [])
-    .map((i) => ({
-      variantId: String(i?.variantId ?? ""),
-      qty: Math.max(1, Math.min(99, Math.floor(Number(i?.qty) || 0))),
-    }))
-    .filter((i) => i.variantId && i.qty > 0)
-    // Mesmo teto da cotação e do saldo: evita um `IN` gigante vindo de payload
-    // forjado.
-    .slice(0, 50);
+  return (
+    (Array.isArray(items) ? items : [])
+      .map((i) => {
+        const price = Number(i?.price);
+        return {
+          variantId: String(i?.variantId ?? ""),
+          qty: Math.max(1, Math.min(99, Math.floor(Number(i?.qty) || 0))),
+          ...(Number.isFinite(price) && price > 0 ? { price } : {}),
+        };
+      })
+      .filter((i) => i.variantId && i.qty > 0)
+      // Mesmo teto da cotação e do saldo: evita um `IN` gigante vindo de payload
+      // forjado.
+      .slice(0, 50)
+  );
 }
 
 type LinhaPedido = {
@@ -711,7 +809,11 @@ async function criarPedido(
   if (clean.length === 0)
     return { ok: false, code: "items", error: "Sacola vazia." };
   if (!process.env.SUPABASE_SERVICE_ROLE_KEY)
-    return { ok: false, code: "config", error: "Loja indisponível no momento." };
+    return {
+      ok: false,
+      code: "config",
+      error: "Loja indisponível no momento.",
+    };
 
   const admin = createAdminClient();
 
@@ -763,7 +865,7 @@ async function montarPedido(
   const { data, error } = await admin
     .from("product_variants")
     .select(
-      "id, size, color, products ( name, price, promo_price, weight_grams, category_name )",
+      "id, size, color, products ( name, active_ecommerce, price, promo_price, weight_grams, category_name )",
     )
     .in(
       "id",
@@ -781,15 +883,41 @@ async function montarPedido(
   );
 
   const rows: LinhaPedido[] = [];
+  // Peça que saiu da loja (apagada, desativada ou sem preço) RECUSA o pedido,
+  // dizendo qual. Antes ela era pulada em silêncio — o cliente pagava sem ela
+  // e a sacola era limpa ao confirmar — ou, se só estava desativada, era
+  // vendida e reservada como se ainda estivesse à venda.
+  const fora: string[] = [];
+  const nomesFora: string[] = [];
+  // Preço que SUBIU desde que a peça entrou na sacola: recusa e devolve o
+  // preço atual, igual ao frete (`expectedPrice`). Cobrar R$ 259 de quem viu
+  // R$ 199 é a surpresa que faz o cliente desistir — ou reclamar depois.
+  const precos: Record<string, number> = {};
+  const subiram: string[] = [];
 
   for (const item of clean) {
     const v = byId.get(item.variantId);
-    if (!v?.products) continue; // variante sumiu do catálogo: ignora
-    const price =
-      v.products.promo_price != null && Number(v.products.promo_price) > 0
+    const price = !v?.products
+      ? NaN
+      : v.products.promo_price != null && Number(v.products.promo_price) > 0
         ? Number(v.products.promo_price)
         : Number(v.products.price ?? 0);
-    if (!Number.isFinite(price) || price <= 0) continue;
+    if (
+      !v?.products ||
+      !v.products.active_ecommerce ||
+      !Number.isFinite(price) ||
+      price <= 0
+    ) {
+      fora.push(item.variantId);
+      if (v?.products?.name) nomesFora.push(v.products.name);
+      continue;
+    }
+    if (item.price != null && price > item.price + 0.005) {
+      precos[v.id] = price;
+      subiram.push(
+        `${v.products.name} passou de ${formatBRL(item.price)} para ${formatBRL(price)}`,
+      );
+    }
 
     const label = [v.color, v.size].filter(Boolean).join(" / ") || null;
     rows.push({
@@ -805,6 +933,23 @@ async function montarPedido(
     });
   }
 
+  if (fora.length > 0)
+    return falha({
+      ok: false,
+      code: "items",
+      fora,
+      error:
+        nomesFora.length > 0
+          ? `Não está mais à venda: ${nomesFora.map(displayProductName).join(", ")}. Tire da sacola para continuar.`
+          : "Uma peça da sacola não está mais à venda. Tire-a para continuar.",
+    });
+  if (subiram.length > 0)
+    return falha({
+      ok: false,
+      code: "price_changed",
+      precos,
+      error: `O preço mudou: ${subiram.join("; ")}. A sacola já foi atualizada — confira e toque em pagar de novo.`,
+    });
   if (rows.length === 0)
     return falha({
       ok: false,

@@ -19,10 +19,13 @@ import { displayProductName } from "@/lib/product-name";
  * disparar o pagamento.
  */
 
-export type PayErroKind = "stock" | "coupon" | "other";
+export type PayErroKind = "stock" | "coupon" | "repeat" | "other";
 
 /** Mesmas frases da sacola, para o cliente não ler duas versões do mesmo aviso. */
-function avisoFalta(saldo: SaldoSacola | undefined, qty: number): string | null {
+function avisoFalta(
+  saldo: SaldoSacola | undefined,
+  qty: number,
+): string | null {
   // Variante fora do saldo = peça que entrou depois da última leitura: ainda
   // não sabemos, e dizer "esgotado" até a leitura chegar seria mentira.
   if (!saldo) return null;
@@ -54,6 +57,8 @@ export function StepPayment({
   busy,
   saindo,
   onPay,
+  onRepetir,
+  onLimparSacola,
   error,
   errorKind,
   onAjustarSacola,
@@ -76,6 +81,9 @@ export function StepPayment({
   busy: boolean;
   saindo: boolean;
   onPay: () => void;
+  /** "Comprar de novo mesmo assim", depois do aviso de pedido igual já pago. */
+  onRepetir: () => void;
+  onLimparSacola: () => void;
   error: string | null;
   errorKind: PayErroKind | null;
   onAjustarSacola: () => void;
@@ -141,7 +149,11 @@ export function StepPayment({
                   </p>
                 </div>
                 <p className="mt-0.5 text-muted">
-                  {[i.color, i.size ? `tam. ${i.size}` : null, i.qty > 1 ? `${i.qty} unidades` : null]
+                  {[
+                    i.color,
+                    i.size ? `tam. ${i.size}` : null,
+                    i.qty > 1 ? `${i.qty} unidades` : null,
+                  ]
                     .filter(Boolean)
                     .join(", ")}
                 </p>
@@ -204,7 +216,11 @@ export function StepPayment({
             </button>
           </div>
           {cupomErro && (
-            <p id={erroCupomId} role="alert" className="text-sm text-red-600 dark:text-red-400">
+            <p
+              id={erroCupomId}
+              role="alert"
+              className="text-sm text-red-600 dark:text-red-400"
+            >
               {cupomErro}
             </p>
           )}
@@ -280,6 +296,31 @@ export function StepPayment({
               >
                 Ajustar sacola
               </button>
+            )}
+            {errorKind === "repeat" && (
+              <div className="flex flex-wrap gap-2">
+                <Link
+                  href="/conta/pedidos"
+                  prefetch={false}
+                  className="inline-flex h-11 items-center justify-center rounded-xs bg-foreground px-5 font-medium text-background hover:opacity-90"
+                >
+                  Ver meus pedidos
+                </Link>
+                <button
+                  type="button"
+                  onClick={onLimparSacola}
+                  className="inline-flex h-11 items-center justify-center rounded-xs border border-foreground px-5 font-medium hover:bg-foreground hover:text-background"
+                >
+                  Esvaziar a sacola
+                </button>
+                <button
+                  type="button"
+                  onClick={onRepetir}
+                  className="inline-flex h-11 items-center justify-center px-2 font-medium underline underline-offset-4"
+                >
+                  Comprar de novo
+                </button>
+              </div>
             )}
             {errorKind === "coupon" && (
               <button

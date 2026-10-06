@@ -39,6 +39,9 @@ type CartState = {
   addItem: (item: Omit<CartItem, "qty">, qty?: number) => void;
   removeItem: (variantId: string) => void;
   setQty: (variantId: string, qty: number) => void;
+  /** Troca o preço guardado pelo que o SERVIDOR leu (preço mudou com a peça
+   * já na sacola). Só exibição: quem cobra continua relendo no servidor. */
+  setPrices: (precos: Record<string, number>) => void;
   setCoupon: (code: string | null) => void;
   setShipping: (s: CartShipping | null) => void;
   /** Guarda só CEP completo; incompleto é ignorado (não apaga o que já havia). */
@@ -83,6 +86,12 @@ export const useCart = create<CartState>()(
                 ),
           // Mudou a sacola, mudou o peso: a cotação antiga não vale mais.
           shipping: null,
+        })),
+      setPrices: (precos) =>
+        set((state) => ({
+          items: state.items.map((i) =>
+            i.variantId in precos ? { ...i, price: precos[i.variantId] } : i,
+          ),
         })),
       setCoupon: (code) => set({ coupon: code }),
       setShipping: (s) => set({ shipping: s }),

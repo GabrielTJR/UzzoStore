@@ -112,6 +112,7 @@ export function SacolaClient({
   const items = useCart((s) => s.items);
   const setQty = useCart((s) => s.setQty);
   const removeItem = useCart((s) => s.removeItem);
+  const setPrices = useCart((s) => s.setPrices);
   const clearCart = useCart((s) => s.clear);
   const coupon = useCart((s) => s.coupon);
   const setCoupon = useCart((s) => s.setCoupon);
@@ -303,7 +304,13 @@ export function SacolaClient({
 
     try {
       const res = await createOrderAction(
-        items.map((i) => ({ variantId: i.variantId, qty: i.qty })),
+        // O preço vai como REFERÊNCIA: se subiu, o servidor recusa em vez de
+        // registrar o pedido com um valor que o cliente não viu.
+        items.map((i) => ({
+          variantId: i.variantId,
+          qty: i.qty,
+          price: i.price,
+        })),
         "whatsapp",
         undefined,
         {
@@ -319,6 +326,10 @@ export function SacolaClient({
       );
 
       if (!res.ok || !res.totals) {
+        // Preço mudou: a sacola passa a mostrar o atual; peça fora da loja
+        // sai da sacola. Nos dois casos a mensagem diz o que aconteceu.
+        if (res.precos) setPrices(res.precos);
+        if (res.fora) for (const id of res.fora) removeItem(id);
         setError(res.error || "Erro ao registrar pedido.");
         showToast("Não foi possível registrar o pedido");
         return;
