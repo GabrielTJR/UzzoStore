@@ -121,7 +121,7 @@ export default async function EquipePage() {
               return (
                 <li
                   key={a.user_id}
-                  className="relative grid gap-x-6 gap-y-3 p-4 sm:grid-cols-[minmax(0,1fr)_11rem_9rem] sm:items-center lg:px-5"
+                  className="relative grid gap-x-6 gap-y-3 p-4 sm:grid-cols-[minmax(0,1fr)_11rem_10.5rem] sm:items-center lg:px-5"
                 >
                   <div className="min-w-0">
                     <p className="truncate font-medium">

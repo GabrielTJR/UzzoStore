@@ -95,7 +95,7 @@ export function TempPasswordForm({
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="text-sm underline-offset-4 hover:underline"
+        className="whitespace-nowrap text-sm underline-offset-4 hover:underline"
       >
         Nova senha
       </button>
