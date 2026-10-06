@@ -504,6 +504,8 @@ export type Database = {
           shipped_at: string | null
           done_at: string | null
           payment_reminder_sent_at: string | null
+          review_request_sent_at: string | null
+          shipping_days: number | null
           shipping_service_id: number | null
           melhorenvio_id: string | null
           label_url: string | null
@@ -537,6 +539,8 @@ export type Database = {
           shipped_at?: string | null
           done_at?: string | null
           payment_reminder_sent_at?: string | null
+          review_request_sent_at?: string | null
+          shipping_days?: number | null
           shipping_service_id?: number | null
           melhorenvio_id?: string | null
           label_url?: string | null
@@ -570,6 +574,8 @@ export type Database = {
           shipped_at?: string | null
           done_at?: string | null
           payment_reminder_sent_at?: string | null
+          review_request_sent_at?: string | null
+          shipping_days?: number | null
           shipping_service_id?: number | null
           melhorenvio_id?: string | null
           label_url?: string | null

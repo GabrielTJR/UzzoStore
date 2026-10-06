@@ -252,6 +252,17 @@ const ACOES: Record<string, Acao> = {
         : `Rotina diária mandou ${n} lembrete${n === 1 ? "" : "s"} de pagamento`;
     },
   },
+  "cron.review_request": {
+    area: "vendas",
+    auto: true,
+    rotulo: "Convites para avaliar",
+    frase: (c) => {
+      const n = typeof c.meta.enviados === "number" ? c.meta.enviados : 0;
+      return n === 0
+        ? "Rotina diária de convite para avaliar: nenhum e-mail a enviar"
+        : `Rotina diária mandou ${n} convite${n === 1 ? "" : "s"} para avaliar`;
+    },
+  },
   "coupon.over_limit": {
     area: "vendas",
     rotulo: "Cupom passou do limite",

@@ -508,6 +508,11 @@ export function OrderDetail({
                   {o.shippingService ?? (
                     <span className="text-muted">A combinar com o cliente</span>
                   )}
+                  {o.shippingService && o.shippingDays ? (
+                    <span className="block text-xs text-muted">
+                      Prazo: até {o.shippingDays} dias úteis
+                    </span>
+                  ) : null}
                 </Campo>
               )}
               {entrega && (

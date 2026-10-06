@@ -1,6 +1,10 @@
 import "server-only";
 import { logAudit } from "@/lib/audit";
-import { fretePedido, linkRastreio } from "@/lib/shipping-config";
+import {
+  fretePedido,
+  linkRastreio,
+  previsaoEntrega,
+} from "@/lib/shipping-config";
 
 /**
  * E-mails transacionais (pedido pago, pedido enviado) pela API do Resend.
@@ -221,6 +225,8 @@ export async function sendOrderPaidEmail(params: {
   shippingMethod: "pickup" | "delivery" | null;
   shippingCost: number;
   shippingService: string | null;
+  /** Prazo do frete em dias úteis (null = sem prazo gravado). */
+  shippingDays?: number | null;
   address: OrderEmailAddress | null;
   total: number;
 }): Promise<boolean> {
@@ -276,9 +282,11 @@ export async function sendOrderPaidEmail(params: {
       ? "Assim que estiver separado avisamos para você retirar na loja (Rua 3650, nº 3573 — Sala 2, Balneário Camboriú/SC)."
       : frete.tipo === "a_combinar"
         ? "O frete deste pedido não foi cobrado no site: vamos combinar a entrega com você pelo WhatsApp."
-        : `Vamos preparar o envio${
-            endereco ? ` para ${esc(endereco)}` : ""
-          }. Quando o pedido sair, você recebe outro e-mail com o código de rastreio.`;
+        : `Vamos preparar o envio${endereco ? ` para ${esc(endereco)}` : ""}.${
+            params.shippingDays
+              ? ` Depois de despachado, o prazo da transportadora é de até ${params.shippingDays} dia${params.shippingDays === 1 ? "" : "s"} úte${params.shippingDays === 1 ? "il" : "is"}.`
+              : ""
+          } Quando o pedido sair, você recebe outro e-mail com o código de rastreio.`;
 
   return send({
     to: params.to,
@@ -383,6 +391,8 @@ export async function sendOrderStatusEmail(params: {
   trackingCode?: string | null;
   /** "SEDEX (Correios)" — decide PARA ONDE o link de rastreio aponta. */
   shippingService?: string | null;
+  /** Prazo em dias úteis — vira "previsão de chegada" no e-mail de enviado. */
+  shippingDays?: number | null;
 }): Promise<boolean> {
   const copy = {
     ready: {
@@ -394,21 +404,28 @@ export async function sendOrderStatusEmail(params: {
       subject: `Pedido nº ${params.orderNumber} enviado`,
       title: "Seu pedido saiu para entrega 🚚",
       body: (() => {
-        if (!params.trackingCode)
-          return "Seu pedido já está a caminho. Qualquer dúvida sobre a entrega, é só chamar no WhatsApp.";
-        // O destino sai da transportadora do pedido, não do formato do código:
-        // a maior parte dos envios para fora da região não é Correios.
-        const { url, transportadora } = linkRastreio(
-          params.trackingCode,
-          params.shippingService,
-        );
-        const cod = `<strong>${esc(params.trackingCode)}</strong>`;
-        const via = transportadora ? ` (${esc(transportadora)})` : "";
-        return url
-          ? `Seu pedido já está a caminho! Acompanhe pelo código ${cod}${via}: <a href="${url}">rastrear encomenda</a>. Qualquer dúvida, é só chamar no WhatsApp.`
-          : `Seu pedido já está a caminho! Código de rastreio: ${cod} — acompanhe no site da ${
-              transportadora ? esc(transportadora) : "transportadora"
-            }. Qualquer dúvida, é só chamar no WhatsApp.`;
+        const chega = previsaoEntrega(new Date(), params.shippingDays);
+        const prev = chega
+          ? ` Previsão de chegada: até <strong>${new Intl.DateTimeFormat("pt-BR", { day: "2-digit", month: "2-digit", timeZone: "America/Sao_Paulo" }).format(chega)}</strong>.`
+          : "";
+        return corpoEnviado() + prev;
+        function corpoEnviado() {
+          if (!params.trackingCode)
+            return "Seu pedido já está a caminho. Qualquer dúvida sobre a entrega, é só chamar no WhatsApp.";
+          // O destino sai da transportadora do pedido, não do formato do código:
+          // a maior parte dos envios para fora da região não é Correios.
+          const { url, transportadora } = linkRastreio(
+            params.trackingCode,
+            params.shippingService,
+          );
+          const cod = `<strong>${esc(params.trackingCode)}</strong>`;
+          const via = transportadora ? ` (${esc(transportadora)})` : "";
+          return url
+            ? `Seu pedido já está a caminho! Acompanhe pelo código ${cod}${via}: <a href="${url}">rastrear encomenda</a>. Qualquer dúvida, é só chamar no WhatsApp.`
+            : `Seu pedido já está a caminho! Código de rastreio: ${cod} — acompanhe no site da ${
+                transportadora ? esc(transportadora) : "transportadora"
+              }. Qualquer dúvida, é só chamar no WhatsApp.`;
+        }
       })(),
     },
     done: {
@@ -506,6 +523,51 @@ export async function sendPaymentReminderEmail(params: {
       </p>
       <p style="font-size:13px;color:#666;margin:0">
         Mandamos este lembrete uma vez só. Se já resolveu, pode ignorar.
+      </p>`,
+    ),
+  });
+}
+
+/**
+ * Convite para avaliar (rotina diária, `api/cron/lembrete-pagamento`): alguns
+ * dias depois de o pedido ser concluído, UM por pedido. Leva para o pedido na
+ * conta, onde cada peça tem o "Avaliar esta peça".
+ */
+export async function sendReviewRequestEmail(params: {
+  to: string;
+  customerName: string | null;
+  orderId: string;
+  orderNumber: number;
+  items: { productName: string }[];
+}): Promise<boolean> {
+  const base =
+    process.env.NEXT_PUBLIC_SITE_URL?.trim() || "https://uzzostore.com.br";
+  const url = `${base}/conta/pedidos/${params.orderId}`;
+  const nome = params.customerName?.trim().split(/\s+/)[0];
+  const lista = params.items
+    .slice(0, 5)
+    .map((i) => `<li style="margin:0 0 4px">${esc(i.productName)}</li>`)
+    .join("");
+  return send({
+    to: params.to,
+    kind: "convite_avaliacao",
+    subject: "O que você achou das suas peças?",
+    html: layout(
+      `${nome ? `${esc(nome)}, como` : "Como"} ficaram as peças?`,
+      `<p style="font-size:15px;line-height:1.6;margin:0 0 12px">
+        Seu pedido nº ${params.orderNumber} já está com você. Conta pra gente
+        como ficou o tecido, o tamanho e o caimento — leva um minuto e ajuda
+        quem está em dúvida na hora de escolher.
+      </p>
+      <ul style="font-size:14px;line-height:1.5;margin:0 0 20px;padding-left:18px">${lista}</ul>
+      <p style="margin:0 0 16px">
+        <a href="${url}" style="display:inline-block;background:#111;color:#fff;padding:12px 28px;border-radius:2px;font-size:14px;text-decoration:none">
+          Avaliar minhas peças
+        </a>
+      </p>
+      <p style="font-size:13px;color:#666;margin:0">
+        Mandamos este convite uma vez só. Algo deu errado com o pedido? Responda
+        este e-mail ou chame no WhatsApp.
       </p>`,
     ),
   });

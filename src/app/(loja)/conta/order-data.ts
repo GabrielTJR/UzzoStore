@@ -54,6 +54,8 @@ export type AccountOrder = {
   coupon_code: string | null;
   discount: number;
   tracking_code: string | null;
+  /** Prazo do frete em dias úteis (migração 0030). */
+  shipping_days: number | null;
   subtotal: number;
   total: number;
   created_at: string;
@@ -77,7 +79,7 @@ const LIST_SELECT = `id, number, payment_status, fulfillment_status, channel,
 
 const DETAIL_SELECT = `id, number, payment_status, fulfillment_status, channel,
   shipping_method, shipping_address, shipping_service, shipping_cost,
-  coupon_code, discount, tracking_code, subtotal, total, created_at,
+  coupon_code, discount, tracking_code, shipping_days, subtotal, total, created_at,
   expires_at, paid_at, preparing_at, ready_at, shipped_at, done_at, ${ITEMS}`;
 
 type One<T> = T | T[] | null | undefined;
@@ -132,6 +134,8 @@ function toOrder(r: RawOrder): AccountOrder {
     coupon_code: (r.coupon_code as string | null) ?? null,
     discount: Number(r.discount ?? 0),
     tracking_code: (r.tracking_code as string | null) ?? null,
+    shipping_days:
+      r.shipping_days == null ? null : Number(r.shipping_days) || null,
     subtotal: Number(r.subtotal ?? 0),
     total: Number(r.total ?? 0),
     created_at: String(r.created_at),

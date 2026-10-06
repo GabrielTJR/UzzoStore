@@ -158,7 +158,8 @@ export function linkRastreio(
   const cod = (codigo ?? "").trim().toUpperCase();
   if (!cod) return { url: null, transportadora: null };
 
-  const transportadora = (servico ?? "").match(/\(([^)]+)\)\s*$/)?.[1]?.trim() ?? null;
+  const transportadora =
+    (servico ?? "").match(/\(([^)]+)\)\s*$/)?.[1]?.trim() ?? null;
 
   // Correios tem site próprio e estável: prefere o oficial ao intermediário.
   if (CODIGO_CORREIOS.test(cod)) {
@@ -182,7 +183,9 @@ export function linkRastreio(
 
 /** Transportadora gravada no parêntese final de `orders.shipping_service`
  * ("SEDEX (Correios)" → "Correios"). Mesma regra de `linkRastreio`. */
-function transportadoraDoServico(servico: string | null | undefined): string | null {
+function transportadoraDoServico(
+  servico: string | null | undefined,
+): string | null {
   return (servico ?? "").match(/\(([^)]+)\)\s*$/)?.[1]?.trim() || null;
 }
 
@@ -243,4 +246,43 @@ export function nomeServicoFrete(
   return limpo.toLowerCase().startsWith(marca.toLowerCase())
     ? limpo
     : `${marca} ${limpo}`;
+}
+
+/**
+ * Previsão de chegada: data do envio + o prazo da transportadora em dias
+ * ÚTEIS (seg–sex). Feriado não entra — por isso é "previsão", e o texto diz
+ * "até". Sem prazo gravado (retirada, frete a combinar, pedido antigo) → null.
+ */
+export function previsaoEntrega(
+  enviadoEm: string | Date | null | undefined,
+  diasUteis: number | null | undefined,
+): Date | null {
+  if (!enviadoEm || !diasUteis || diasUteis <= 0) return null;
+  const d = new Date(enviadoEm);
+  if (Number.isNaN(d.getTime())) return null;
+  let faltam = diasUteis;
+  while (faltam > 0) {
+    d.setDate(d.getDate() + 1);
+    const dia = d.getDay();
+    if (dia !== 0 && dia !== 6) faltam--;
+  }
+  return d;
+}
+
+const DIA_MES = new Intl.DateTimeFormat("pt-BR", {
+  day: "2-digit",
+  month: "2-digit",
+  timeZone: "America/Sao_Paulo",
+});
+
+/** Frase do prazo para o cliente. Antes do envio, o prazo da transportadora;
+ * depois, a data prevista. */
+export function textoPrazo(o: {
+  shipping_days: number | null | undefined;
+  shipped_at: string | null | undefined;
+}): string | null {
+  if (!o.shipping_days || o.shipping_days <= 0) return null;
+  const chega = previsaoEntrega(o.shipped_at, o.shipping_days);
+  if (chega) return `Previsão de chegada: até ${DIA_MES.format(chega)}`;
+  return `Entrega em até ${o.shipping_days} dia${o.shipping_days === 1 ? "" : "s"} úte${o.shipping_days === 1 ? "il" : "is"} depois do envio`;
 }

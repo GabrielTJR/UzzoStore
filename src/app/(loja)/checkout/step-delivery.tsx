@@ -23,7 +23,8 @@ import { AddressQuickForm } from "./address-quick-form";
  * pagamento.
  */
 
-export const ENDERECO_LOJA = "Rua 3650, nº 3573 — Sala 2, Balneário Camboriú/SC";
+export const ENDERECO_LOJA =
+  "Rua 3650, nº 3573 — Sala 2, Balneário Camboriú/SC";
 
 export function linhasEndereco(a: CustomerAddress): string[] {
   return [
@@ -38,6 +39,19 @@ const caixaOpcao = (marcada: boolean) =>
     marcada ? "border-foreground" : "border-border hover:border-foreground/60"
   }`;
 const radio = "mt-0.5 h-5 w-5 shrink-0 accent-foreground";
+
+/** Como receber: as duas opções LADO A LADO, em blocos. Antes eram cartões
+ * com rádio iguais aos do endereço e do frete, empilhados — e com "Retirar na
+ * loja" lá embaixo, depois dos fretes, a tela parecia ter duas opções
+ * marcadas ao mesmo tempo (o dono apontou, 06/10/2026). Agora a pergunta de
+ * cima tem cara própria, e endereço e frete têm título. */
+const blocoMetodo = (marcado: boolean) =>
+  `relative flex cursor-pointer flex-col rounded-sm border px-4 py-3.5 text-sm transition-colors has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-accent ${
+    marcado
+      ? "border-foreground bg-foreground text-background"
+      : "border-border hover:border-foreground/60"
+  }`;
+const subtitulo = "text-sm font-medium";
 
 export function StepDelivery({
   method,
@@ -81,7 +95,8 @@ export function StepDelivery({
   whatsappHref: string;
 }) {
   const entrega = method === "delivery";
-  const temSelecionado = !!addressId && enderecos.some((a) => a.id === addressId);
+  const temSelecionado =
+    !!addressId && enderecos.some((a) => a.id === addressId);
 
   let frete: ReactNode = null;
   if (entrega && !formAberto && temSelecionado) {
@@ -126,7 +141,7 @@ export function StepDelivery({
     else if (quote?.ok)
       frete = (
         <div>
-          <p className="text-sm font-medium">Frete</p>
+          <p className={subtitulo}>Frete</p>
           <ShippingOptions
             options={quote.options}
             selectedServiceId={servicoEscolhido}
@@ -137,94 +152,103 @@ export function StepDelivery({
   }
 
   // Sem `<form>` em volta de propósito: o endereço rápido é um formulário
-  // próprio e fica ENTRE as duas opções (como na prévia aprovada) — form
-  // dentro de form é HTML inválido e o Enter enviaria o de fora. Aqui não há
-  // campo de texto, então não se perde o Enter.
+  // próprio — form dentro de form é HTML inválido e o Enter enviaria o de
+  // fora. Aqui não há campo de texto, então não se perde o Enter.
   return (
     <div className="space-y-3">
-      <fieldset className="space-y-3">
+      <fieldset>
         <legend className="sr-only">Como receber</legend>
-        <label className={caixaOpcao(entrega)}>
-          <input
-            type="radio"
-            name="entrega"
-            checked={entrega}
-            onChange={() => onMethod("delivery")}
-            className={radio}
-          />
-          <span className="text-sm">
-            <span className="block font-medium">Receber em casa</span>
-            <span className="block text-muted">
-              Calculamos o frete pelo seu CEP.
+        <div className="grid grid-cols-2 gap-2">
+          <label className={blocoMetodo(entrega)}>
+            <input
+              type="radio"
+              name="entrega"
+              checked={entrega}
+              onChange={() => onMethod("delivery")}
+              className="sr-only"
+            />
+            <span className="font-medium">Receber em casa</span>
+            <span className={entrega ? "opacity-80" : "text-muted"}>
+              Frete pelo CEP
             </span>
-          </span>
-        </label>
-
-        {entrega && (
-          <div className="space-y-4 pb-2 pt-1">
-            {formAberto ? (
-              <AddressQuickForm
-                onSaved={onAddressSaved}
-                onCancel={enderecos.length > 0 ? onCloseForm : undefined}
-                onNeedsLogin={onNeedsLogin}
-              />
-            ) : (
-              <>
-                <fieldset className="space-y-2">
-                  <legend className="sr-only">Endereço de entrega</legend>
-                  {enderecos.map((a) => {
-                    const marcado = a.id === addressId;
-                    const [l1, l2, l3] = linhasEndereco(a);
-                    return (
-                      <label key={a.id} className={caixaOpcao(marcado)}>
-                        <input
-                          type="radio"
-                          name="endereco"
-                          checked={marcado}
-                          onChange={() => onAddress(a.id)}
-                          className={radio}
-                        />
-                        <span className="text-sm leading-relaxed">
-                          {a.label && (
-                            <span className="block font-medium">{a.label}</span>
-                          )}
-                          <span className={a.label ? "block text-muted" : "block"}>
-                            {l1}
-                          </span>
-                          <span className="block text-muted">{l2}</span>
-                          <span className="block text-muted">{l3}</span>
-                        </span>
-                      </label>
-                    );
-                  })}
-                </fieldset>
-                <button
-                  type="button"
-                  onClick={onOpenForm}
-                  className="inline-flex min-h-11 items-center text-sm underline underline-offset-4 hover:text-muted"
-                >
-                  Usar outro endereço
-                </button>
-                {frete}
-              </>
-            )}
-          </div>
-        )}
-
-        <label className={caixaOpcao(method === "pickup")}>
-          <input
-            type="radio"
-            name="entrega"
-            checked={method === "pickup"}
-            onChange={() => onMethod("pickup")}
-            className={radio}
-          />
-          <span className="text-sm">
-            <span className="block font-medium">Retirar na loja, grátis</span>
-            <span className="block text-muted">{ENDERECO_LOJA}</span>
-          </span>
-        </label>
+          </label>
+          <label className={blocoMetodo(method === "pickup")}>
+            <input
+              type="radio"
+              name="entrega"
+              checked={method === "pickup"}
+              onChange={() => onMethod("pickup")}
+              className="sr-only"
+            />
+            <span className="font-medium">Retirar na loja</span>
+            <span className={method === "pickup" ? "opacity-80" : "text-muted"}>
+              Grátis
+            </span>
+          </label>
+        </div>
       </fieldset>
+
+      {method === "pickup" && (
+        <p className="rounded-sm bg-surface px-4 py-3 text-sm">
+          Retire em <span className="font-medium">{ENDERECO_LOJA}</span>.
+          Avisamos por e-mail quando estiver separado.
+        </p>
+      )}
+
+      {entrega && (
+        <div className="space-y-4 pb-2 pt-3">
+          {formAberto ? (
+            <AddressQuickForm
+              onSaved={onAddressSaved}
+              onCancel={enderecos.length > 0 ? onCloseForm : undefined}
+              onNeedsLogin={onNeedsLogin}
+            />
+          ) : (
+            <>
+              <fieldset className="space-y-2">
+                <legend className={`${subtitulo} mb-2`}>
+                  Endereço de entrega
+                </legend>
+                {enderecos.map((a) => {
+                  const marcado = a.id === addressId;
+                  const [l1, l2, l3] = linhasEndereco(a);
+                  return (
+                    <label key={a.id} className={caixaOpcao(marcado)}>
+                      <input
+                        type="radio"
+                        name="endereco"
+                        checked={marcado}
+                        onChange={() => onAddress(a.id)}
+                        className={radio}
+                      />
+                      <span className="text-sm leading-relaxed">
+                        {a.label && (
+                          <span className="block font-medium">{a.label}</span>
+                        )}
+                        <span
+                          className={a.label ? "block text-muted" : "block"}
+                        >
+                          {l1}
+                        </span>
+                        <span className="block text-muted">{l2}</span>
+                        <span className="block text-muted">{l3}</span>
+                      </span>
+                    </label>
+                  );
+                })}
+              </fieldset>
+              <button
+                type="button"
+                onClick={onOpenForm}
+                className="inline-flex min-h-11 items-center text-sm underline underline-offset-4 hover:text-muted"
+              >
+                Usar outro endereço
+              </button>
+              {frete}
+            </>
+          )}
+        </div>
+      )}
 
       {aviso && (
         <p role="status" className="text-sm text-foreground">

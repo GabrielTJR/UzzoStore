@@ -644,7 +644,7 @@ async function notifyPaid(orderId: string, orderNumber: number): Promise<void> {
     const { data: order } = await admin
       .from("orders")
       .select(
-        "customer_id, total, subtotal, discount, coupon_code, shipping_method, shipping_address, shipping_cost, shipping_service, order_items ( product_name, variant_label, unit_price, qty )",
+        "customer_id, total, subtotal, discount, coupon_code, shipping_method, shipping_address, shipping_cost, shipping_service, shipping_days, order_items ( product_name, variant_label, unit_price, qty )",
       )
       .eq("id", orderId)
       .maybeSingle();
@@ -702,6 +702,8 @@ async function notifyPaid(orderId: string, orderNumber: number): Promise<void> {
       shippingMethod,
       shippingCost: Number(order.shipping_cost ?? 0),
       shippingService: order.shipping_service ?? null,
+      shippingDays:
+        shippingMethod === "delivery" ? (order.shipping_days ?? null) : null,
       address: addr,
       total: Number(order.total),
     });

@@ -806,6 +806,8 @@ type Rascunho = {
   /** Id do serviço no Melhor Envio (o nome muda; o id não) — é o que a
    * compra da etiqueta usa. */
   shippingServiceId: number | null;
+  /** Prazo em dias úteis da opção escolhida (vira "chega até dd/mm"). */
+  shippingDays: number | null;
   total: number;
 };
 
@@ -990,6 +992,7 @@ async function montarPedido(
   let shippingCost = 0;
   let shippingService: string | null = null;
   let shippingServiceId: number | null = null;
+  let shippingDays: number | null = null;
   if (extras?.freight) {
     const quote = await quoteShipping({
       cepDestino: extras.freight.cep,
@@ -1031,6 +1034,7 @@ async function montarPedido(
     shippingCost = opt.price;
     shippingService = `${opt.name}${opt.company ? ` (${opt.company})` : ""}`;
     shippingServiceId = opt.serviceId;
+    shippingDays = opt.days > 0 ? Math.min(opt.days, 365) : null;
   }
 
   const total = Math.max(0, subtotal - discount + shippingCost);
@@ -1055,6 +1059,7 @@ async function montarPedido(
       shippingCost,
       shippingService,
       shippingServiceId,
+      shippingDays,
       total,
     },
   };
@@ -1082,6 +1087,7 @@ async function gravarPedido(
     shippingCost,
     shippingService,
     shippingServiceId,
+    shippingDays,
     total,
   } = rascunho;
 
@@ -1149,6 +1155,7 @@ async function gravarPedido(
       shipping_cost: shippingCost,
       shipping_service: shippingService,
       shipping_service_id: shippingServiceId,
+      shipping_days: shippingDays,
       total,
       channel,
       shipping_method: shipping?.shippingMethod ?? null,

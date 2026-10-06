@@ -170,6 +170,8 @@ export type AdminOrder = {
   melhorenvioId: string | null;
   labelUrl: string | null;
   shippingServiceId: number | null;
+  /** Prazo do frete em dias úteis (migração 0030). */
+  shippingDays: number | null;
   isNew: boolean;
   shippingAddress: {
     label?: string | null;
@@ -195,6 +197,7 @@ type Row = {
   melhorenvio_id?: string | null;
   label_url?: string | null;
   shipping_service_id?: number | null;
+  shipping_days?: number | null;
   payment_status: string;
   fulfillment_status: string;
   expires_at: string | null;
@@ -226,7 +229,7 @@ const SELECT_PEDIDO = `id, number, payment_status, fulfillment_status, expires_a
        shipping_method, seen_at, shipping_address,
        shipping_service, shipping_cost, coupon_code, discount, tracking_code,
        paid_at, preparing_at, ready_at, shipped_at, done_at,
-       melhorenvio_id, label_url, shipping_service_id,
+       melhorenvio_id, label_url, shipping_service_id, shipping_days,
        customers ( full_name, phone, cpf ),
        order_items ( product_name, variant_label, unit_price, qty )`;
 
@@ -319,6 +322,7 @@ function paraPedido(o: Row): AdminOrder {
     melhorenvioId: o.melhorenvio_id ?? null,
     labelUrl: o.label_url ?? null,
     shippingServiceId: o.shipping_service_id ?? null,
+    shippingDays: o.shipping_days ?? null,
     isNew: o.seen_at === null,
     shippingAddress: o.shipping_address,
     items: (o.order_items ?? []).map((i) => ({

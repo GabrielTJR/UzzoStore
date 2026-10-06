@@ -2,7 +2,7 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 import { formatBRL } from "@/lib/format";
 import { displayProductName } from "@/lib/product-name";
-import { fretePedido, linkRastreio } from "@/lib/shipping-config";
+import { fretePedido, linkRastreio, textoPrazo } from "@/lib/shipping-config";
 import {
   MAPS_URL,
   STORE_ADDRESS_LINE,
@@ -181,6 +181,12 @@ export function OrderDetailView({
           <Bloco
             titulo={o.shipping_method === "pickup" ? "Retirada" : "Entrega"}
           >
+            {o.shipping_method === "delivery" &&
+              o.fulfillment_status !== "done" &&
+              o.fulfillment_status !== "canceled" &&
+              textoPrazo(o) && (
+                <p className="mb-3 text-sm font-medium">{textoPrazo(o)}</p>
+              )}
             {rastreio && o.tracking_code && (
               <div className="mb-4 rounded-xs bg-surface p-3 text-sm">
                 <p className="text-muted">

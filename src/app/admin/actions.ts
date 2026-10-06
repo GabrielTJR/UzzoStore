@@ -1275,7 +1275,7 @@ export async function updateFulfillmentAction(
   const { data: pedido } = await admin
     .from("orders")
     .select(
-      "number, customer_id, tracking_code, payment_status, fulfillment_status, shipping_service",
+      "number, customer_id, tracking_code, payment_status, fulfillment_status, shipping_service, shipping_days",
     )
     .eq("id", id)
     .maybeSingle();
@@ -1390,6 +1390,7 @@ export async function updateFulfillmentAction(
           status,
           trackingCode: pedido.tracking_code ?? null,
           shippingService: pedido.shipping_service ?? null,
+          shippingDays: pedido.shipping_days ?? null,
         });
     }
   }
