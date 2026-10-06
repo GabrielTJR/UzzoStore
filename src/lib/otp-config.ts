@@ -8,9 +8,10 @@
  * antes de o Supabase aceitar — e o cliente lê um erro que não entende.
  */
 
-/** Dígitos do código ("Email OTP Length" no painel). O projeto manda 8 —
- * medido em 06/10/2026, quando a tela pedia 6 e o cliente não conseguia entrar. */
-export const OTP_DIGITOS = 8;
+/** Dígitos do código ("Email OTP Length" no painel). 6 desde 06/10/2026, a
+ * pedido do dono (8 era demais para digitar). Mude os DOIS lados juntos: em
+ * 06/10 a tela pedia 6 com o painel em 8 e ninguém conseguia entrar. */
+export const OTP_DIGITOS = 6;
 
 /** Segundos até liberar o "Reenviar" (o Supabase recusa reenvio antes de 60 s). */
 export const OTP_REENVIO_SEG = 60;
