@@ -52,7 +52,11 @@ export async function sendLoginCodeAction(
   // Anti-robô ANTES dos freios: quem não passa nem chega a gastar o teto
   // global de envios (era por ele que um script tirava o login do ar para
   // todo cliente novo por uma hora). Desligado sem TURNSTILE_SECRET_KEY.
-  if (!(await turnstileValido(captchaToken)))
+  // Com o CAPTCHA ligado no PRÓPRIO Supabase (SUPABASE_AUTH_CAPTCHA=1), quem
+  // confere o token é ele, no signInWithOtp — conferir aqui antes gastaria o
+  // token (vale uma vez só) e o Supabase recusaria.
+  const captchaNoSupabase = process.env.SUPABASE_AUTH_CAPTCHA === "1";
+  if (!captchaNoSupabase && !(await turnstileValido(captchaToken)))
     return {
       ok: false,
       error:
@@ -81,6 +85,7 @@ export async function sendLoginCodeAction(
         // Conta nasce aqui mesmo: quem compra pela primeira vez não passa
         // por /cadastro.
         shouldCreateUser: true,
+        ...(captchaNoSupabase && captchaToken ? { captchaToken } : {}),
         emailRedirectTo: `${siteUrl()}/auth/callback?next=${next}`,
       },
     });

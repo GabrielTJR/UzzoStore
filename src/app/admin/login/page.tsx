@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { useTurnstile } from "@/components/turnstile";
 import { checkAdminEmail, changePassword, recordLogin } from "../auth-actions";
 
 type Mode = "email" | "password" | "firstAccess" | "resetSent";
@@ -13,6 +14,9 @@ const buttonClass =
 
 export default function AdminLoginPage() {
   const [supabase] = useState(() => createClient());
+  // Anti-robô: o token vai junto ao Supabase (confere quando o CAPTCHA
+  // estiver ligado no painel dele). Um widget só, fora dos formulários.
+  const turnstile = useTurnstile();
 
   const [mode, setMode] = useState<Mode>("email");
   const [email, setEmail] = useState("");
@@ -38,14 +42,21 @@ export default function AdminLoginPage() {
 
   async function submitPassword(e: React.FormEvent) {
     e.preventDefault();
-    setLoading(true);
     setError(null);
+    if (turnstile.precisaMarcar()) {
+      setError("Marque “Confirme que é humano”, logo abaixo, e tente de novo.");
+      return;
+    }
+    setLoading(true);
 
     try {
+      const captchaToken = (await turnstile.getToken()) ?? undefined;
       const { error: signErr } = await supabase.auth.signInWithPassword({
         email,
         password,
+        options: { captchaToken },
       });
+      turnstile.reset();
 
       if (signErr) {
         setError("E-mail ou senha inválidos.");
@@ -72,11 +83,18 @@ export default function AdminLoginPage() {
       setError("A nova senha deve ter ao menos 8 caracteres.");
       return;
     }
+    if (turnstile.precisaMarcar()) {
+      setError("Marque “Confirme que é humano”, logo abaixo, e tente de novo.");
+      return;
+    }
     setLoading(true);
+    const captchaToken = (await turnstile.getToken()) ?? undefined;
     const { error: signErr } = await supabase.auth.signInWithPassword({
       email,
       password: tempPassword,
+      options: { captchaToken },
     });
+    turnstile.reset();
     if (signErr) {
       setError("Senha provisória incorreta.");
       setLoading(false);
@@ -104,9 +122,12 @@ export default function AdminLoginPage() {
     setLoading(true);
     setError(null);
     const origin = window.location.origin;
+    const captchaToken = (await turnstile.getToken()) ?? undefined;
     await supabase.auth.resetPasswordForEmail(email, {
       redirectTo: `${origin}/auth/callback?next=/admin/definir-senha`,
+      captchaToken,
     });
+    turnstile.reset();
     setMode("resetSent");
     setLoading(false);
   }
@@ -217,6 +238,10 @@ export default function AdminLoginPage() {
             ← Trocar e-mail
           </button>
         </form>
+      )}
+
+      {mode !== "resetSent" && (
+        <div className="mt-4">{turnstile.widget}</div>
       )}
 
       {mode === "resetSent" && (

@@ -6,6 +6,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { EmailCodeForm } from "@/components/email-code-form";
 import { GoogleButton } from "@/components/google-button";
+import { useTurnstile } from "@/components/turnstile";
 import { emailAlreadyRegistered } from "./actions";
 
 // Mesmos campos do checkout (`email-code-form.tsx`): 48px de altura para o
@@ -96,6 +97,9 @@ export function LoginForm() {
   const [error, setError] = useState<string | null>(null);
   /** Senha errada (e não outra falha): é quando vale oferecer o código. */
   const [senhaErrada, setSenhaErrada] = useState(false);
+  // Anti-robô (Turnstile): o token vai junto ao Supabase, que o confere
+  // quando o CAPTCHA estiver ligado no painel dele (Attack Protection).
+  const turnstile = useTurnstile();
   // Quem comprou pelo checkout ganhou conta por CÓDIGO, sem senha nenhuma.
   // Se essa pessoa abre /entrar e só encontra "Senha", fica trancada do lado
   // de fora de uma conta que é dela. O modo "codigo" é a porta para ela — e
@@ -116,13 +120,20 @@ export function LoginForm() {
     e.preventDefault();
     setError(null);
     setSenhaErrada(false);
+    if (turnstile.precisaMarcar()) {
+      setError("Marque “Confirme que é humano”, logo abaixo, e tente de novo.");
+      return;
+    }
     setBusy(true);
     const form = new FormData(e.currentTarget);
+    const captchaToken = (await turnstile.getToken()) ?? undefined;
     const supabase = createClient();
     const { error } = await supabase.auth.signInWithPassword({
       email: String(form.get("email") ?? "").trim(),
       password: String(form.get("password") ?? ""),
+      options: { captchaToken },
     });
+    turnstile.reset();
     if (error) {
       setError("E-mail ou senha incorretos.");
       setSenhaErrada(true);
@@ -275,6 +286,7 @@ export function LoginForm() {
             )}
           </p>
         )}
+        {turnstile.widget}
         <button type="submit" disabled={busy} className={primary}>
           {busy ? "Entrando…" : "Entrar"}
         </button>
@@ -291,6 +303,7 @@ export function SignupForm() {
   const [error, setError] = useState<string | null>(null);
   const [sent, setSent] = useState(false);
   const [existing, setExisting] = useState(false);
+  const turnstile = useTurnstile();
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -312,11 +325,18 @@ export function SignupForm() {
       return;
     }
 
+    if (turnstile.precisaMarcar()) {
+      setBusy(false);
+      setError("Marque “Confirme que é humano”, logo abaixo, e tente de novo.");
+      return;
+    }
+    const captchaToken = (await turnstile.getToken()) ?? undefined;
     const supabase = createClient();
     const { data, error } = await supabase.auth.signUp({
       email,
       password,
       options: {
+        captchaToken,
         data: { full_name: String(form.get("fullName") ?? "").trim() },
         emailRedirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent(next)}`,
       },
@@ -430,6 +450,7 @@ export function SignupForm() {
             {error}
           </p>
         )}
+        {turnstile.widget}
         <button type="submit" disabled={busy} className={primary}>
           {busy ? "Criando…" : "Criar conta"}
         </button>
@@ -448,6 +469,7 @@ export function SignupForm() {
 }
 
 export function ForgotPasswordForm() {
+  const turnstile = useTurnstile();
   const [busy, setBusy] = useState(false);
   const [sent, setSent] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -455,15 +477,22 @@ export function ForgotPasswordForm() {
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setError(null);
+    if (turnstile.precisaMarcar()) {
+      setError("Marque “Confirme que é humano”, logo abaixo, e tente de novo.");
+      return;
+    }
     setBusy(true);
     const form = new FormData(e.currentTarget);
+    const captchaToken = (await turnstile.getToken()) ?? undefined;
     const supabase = createClient();
     const { error } = await supabase.auth.resetPasswordForEmail(
       String(form.get("email") ?? "").trim(),
       {
         redirectTo: `${window.location.origin}/auth/callback?next=/nova-senha`,
+        captchaToken,
       },
     );
+    turnstile.reset();
     setBusy(false);
     if (error) {
       setError("Não foi possível enviar o e-mail.");
@@ -508,6 +537,7 @@ export function ForgotPasswordForm() {
           {error}
         </p>
       )}
+      {turnstile.widget}
       <button type="submit" disabled={busy} className={primary}>
         {busy ? "Enviando…" : "Enviar link"}
       </button>
