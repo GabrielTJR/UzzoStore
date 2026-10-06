@@ -1,6 +1,5 @@
 "use server";
 
-import { redirect } from "next/navigation";
 import { revalidatePath, updateTag } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -287,8 +286,8 @@ export async function payPendingOrderAction(
   return { ok: true, url: link.url };
 }
 
+/** Encerra a sessão. Quem chama recarrega a página (ver `SignOutButton`). */
 export async function signOutCustomerAction(): Promise<void> {
   const supabase = await createClient();
   await supabase.auth.signOut();
-  redirect("/");
 }

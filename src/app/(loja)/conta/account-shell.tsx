@@ -1,6 +1,5 @@
 import type { ReactNode } from "react";
-import { IconLogout } from "@/components/icons";
-import { signOutCustomerAction } from "./actions";
+import { SignOutButton } from "./sign-out-button";
 import { AccountNav } from "./account-nav";
 
 /**
@@ -40,30 +39,16 @@ export function AccountShell({
           </div>
           {/* No celular o "Sair" fica ao lado da saudação; no desktop desce
               para o pé da coluna, longe dos links de uso diário. */}
-          <SignOut className="md:hidden" />
+          <SignOutButton className="md:hidden" />
         </div>
         <div className="mt-5 md:mt-8">
           <AccountNav active={active} />
         </div>
-        <SignOut className="mt-6 hidden border-t border-border pt-4 md:block" />
+        <SignOutButton className="mt-6 hidden border-t border-border pt-4 md:block" />
       </aside>
 
       <div className="pt-8 md:pt-0">{children}</div>
     </div>
-  );
-}
-
-function SignOut({ className = "" }: { className?: string }) {
-  return (
-    <form action={signOutCustomerAction} className={className}>
-      <button
-        type="submit"
-        className="inline-flex min-h-11 items-center gap-2 text-sm text-muted transition-colors hover:text-foreground md:px-3"
-      >
-        <IconLogout size={18} />
-        Sair
-      </button>
-    </form>
   );
 }
 
