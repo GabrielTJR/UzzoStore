@@ -803,6 +803,9 @@ type Rascunho = {
   couponCode: string | null;
   shippingCost: number;
   shippingService: string | null;
+  /** Id do serviço no Melhor Envio (o nome muda; o id não) — é o que a
+   * compra da etiqueta usa. */
+  shippingServiceId: number | null;
   total: number;
 };
 
@@ -986,6 +989,7 @@ async function montarPedido(
   // da sacola morre aqui — localStorage não decide dinheiro.
   let shippingCost = 0;
   let shippingService: string | null = null;
+  let shippingServiceId: number | null = null;
   if (extras?.freight) {
     const quote = await quoteShipping({
       cepDestino: extras.freight.cep,
@@ -1026,6 +1030,7 @@ async function montarPedido(
       });
     shippingCost = opt.price;
     shippingService = `${opt.name}${opt.company ? ` (${opt.company})` : ""}`;
+    shippingServiceId = opt.serviceId;
   }
 
   const total = Math.max(0, subtotal - discount + shippingCost);
@@ -1049,6 +1054,7 @@ async function montarPedido(
       couponCode,
       shippingCost,
       shippingService,
+      shippingServiceId,
       total,
     },
   };
@@ -1075,6 +1081,7 @@ async function gravarPedido(
     couponCode,
     shippingCost,
     shippingService,
+    shippingServiceId,
     total,
   } = rascunho;
 
@@ -1141,6 +1148,7 @@ async function gravarPedido(
       coupon_code: couponCode,
       shipping_cost: shippingCost,
       shipping_service: shippingService,
+      shipping_service_id: shippingServiceId,
       total,
       channel,
       shipping_method: shipping?.shippingMethod ?? null,
