@@ -7,11 +7,8 @@ import { logAudit } from "@/lib/audit";
 import { normalizeEmail, onlyDigits } from "@/lib/customer-fields";
 import { OTP_DIGITOS, OTP_REENVIO_SEG } from "@/lib/otp-config";
 import { siteUrl } from "@/lib/site-url";
-import {
-  excedeuPorRotulo,
-  freiaIp,
-  freioEnvioCodigo,
-} from "@/lib/rate-limit";
+import { turnstileValido } from "@/lib/turnstile";
+import { excedeuPorRotulo, freiaIp, freioEnvioCodigo } from "@/lib/rate-limit";
 
 /**
  * Entrar com CÓDIGO numérico por e-mail (`OTP_DIGITOS`) (Supabase OTP) — usado no passo 1
@@ -47,9 +44,20 @@ export type SendCodeResult =
 export async function sendLoginCodeAction(
   emailRaw: string,
   origem?: "checkout" | "entrar",
+  captchaToken?: string | null,
 ): Promise<SendCodeResult> {
   const email = normalizeEmail(emailRaw);
   if (!email) return { ok: false, error: MSG_EMAIL_INVALIDO };
+
+  // Anti-robô ANTES dos freios: quem não passa nem chega a gastar o teto
+  // global de envios (era por ele que um script tirava o login do ar para
+  // todo cliente novo por uma hora). Desligado sem TURNSTILE_SECRET_KEY.
+  if (!(await turnstileValido(captchaToken)))
+    return {
+      ok: false,
+      error:
+        "Não conseguimos confirmar que é você (verificação anti-robô). Recarregue a página e tente de novo.",
+    };
 
   const freio = await freioEnvioCodigo(email);
   if (freio === "indisponivel" || freio === "global")
@@ -57,7 +65,8 @@ export async function sendLoginCodeAction(
   if (freio === "ip" || freio === "email")
     return {
       ok: false,
-      error: "Muitos pedidos de código. Aguarde alguns minutos e tente de novo.",
+      error:
+        "Muitos pedidos de código. Aguarde alguns minutos e tente de novo.",
     };
 
   // O destino do link (que segue no e-mail de "Confirm signup") sai de lista
@@ -158,7 +167,10 @@ export async function verifyLoginCodeAction(
       type: "email",
     });
   } catch {
-    return { ok: false, error: "Não foi possível confirmar agora. Tente de novo." };
+    return {
+      ok: false,
+      error: "Não foi possível confirmar agora. Tente de novo.",
+    };
   }
   const { data, error } = resultado;
   if (error) {
@@ -167,7 +179,10 @@ export async function verifyLoginCodeAction(
     // problema nosso ou deles, e dizer "código incorreto" faria o cliente
     // pedir outro código à toa.
     if (status >= 400 && status < 500) return { ok: false, error: MSG_CODIGO };
-    return { ok: false, error: "Não foi possível confirmar agora. Tente de novo." };
+    return {
+      ok: false,
+      error: "Não foi possível confirmar agora. Tente de novo.",
+    };
   }
   if (!data.session || !data.user) return { ok: false, error: MSG_CODIGO };
   const user = data.user;

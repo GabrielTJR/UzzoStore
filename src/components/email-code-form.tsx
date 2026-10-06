@@ -20,6 +20,7 @@ import {
   sendLoginCodeAction,
   verifyLoginCodeAction,
 } from "@/app/(loja)/entrar/code-actions";
+import { useTurnstile } from "@/components/turnstile";
 
 /**
  * Entrar com CÓDIGO por e-mail — passo 1 do checkout e "Entrar com código" de
@@ -87,15 +88,33 @@ const linkTexto =
 
 type Fase = "email" | "codigo" | "entrando";
 
-export function EmailCodeForm({
-  origem,
-  onVerified,
-  senhaHref = null,
-}: {
+type Props = {
   origem: "checkout" | "entrar";
   onVerified: () => void;
   senhaHref?: string | null;
-}) {
+};
+
+/**
+ * Casca: a checagem anti-robô (Turnstile) fica FORA dos dois passos, para a
+ * caixinha — quando a Cloudflare pede uma — não sumir na troca de e-mail para
+ * código, que acontece no mesmo toque do envio.
+ */
+export function EmailCodeForm(props: Props) {
+  const turnstile = useTurnstile();
+  return (
+    <>
+      <EmailCodeFormInner {...props} turnstile={turnstile} />
+      {turnstile.widget}
+    </>
+  );
+}
+
+function EmailCodeFormInner({
+  origem,
+  onVerified,
+  senhaHref = null,
+  turnstile,
+}: Props & { turnstile: ReturnType<typeof useTurnstile> }) {
   const uid = useId();
   const emailId = `${uid}-email`;
   const codeId = `${uid}-codigo`;
@@ -186,7 +205,9 @@ export function EmailCodeForm({
   async function enviar(alvo: string) {
     setSending(true);
     try {
-      const res = await sendLoginCodeAction(alvo, origem);
+      const captcha = await turnstile.getToken();
+      const res = await sendLoginCodeAction(alvo, origem, captcha);
+      turnstile.reset(); // o token vale uma vez: o "Reenviar" pede outro
       const t = Date.now();
       if (res.ok) {
         setSentAt(t);
@@ -369,8 +390,8 @@ export function EmailCodeForm({
             className={campo}
           />
           <p className="text-sm text-muted">
-            Vamos enviar um código de {OTP_DIGITOS} dígitos para o seu e-mail. Sem
-            senha.
+            Vamos enviar um código de {OTP_DIGITOS} dígitos para o seu e-mail.
+            Sem senha.
           </p>
         </div>
         {erroBox}
@@ -395,8 +416,7 @@ export function EmailCodeForm({
     <form onSubmit={handleCodeSubmit} noValidate className="space-y-4">
       <p className="text-sm text-muted">
         Enviamos o código para{" "}
-        <span className="break-all font-medium text-foreground">{email}</span>
-        .{" "}
+        <span className="break-all font-medium text-foreground">{email}</span>.{" "}
         <button
           type="button"
           onClick={handleTrocarEmail}
@@ -493,9 +513,7 @@ export function EmailCodeForm({
             </button>
           )}
         </p>
-        <p>
-          Olhe o spam e a aba Promoções. Vale sempre o código mais recente.
-        </p>
+        <p>Olhe o spam e a aba Promoções. Vale sempre o código mais recente.</p>
       </div>
 
       <button
