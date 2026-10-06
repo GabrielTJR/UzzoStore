@@ -315,6 +315,10 @@ function EmailCodeFormInner({
           /* sem sessionStorage: só perde o detector */
         }
         apagarRascunho();
+        if (res.senhaDesativada)
+          window.alert(
+            "Conta confirmada! Por segurança, a senha escolhida no cadastro foi desativada. Entre sempre com um código por e-mail, ou crie uma senha nova em Minha conta → Dados.",
+          );
         setFase("entrando");
         onVerified();
         return;

@@ -125,7 +125,15 @@ export async function sendLoginCodeAction(
   }
 }
 
-export type VerifyCodeResult = { ok: true } | { ok: false; error: string };
+export type VerifyCodeResult =
+  | {
+      ok: true;
+      /** Conta criada pelo CADASTRO (com senha) e confirmada agora por
+       * código: a senha escolhida foi desativada (passo b abaixo). A tela
+       * avisa — sem isso a pessoa tentaria a senha e acharia que errou. */
+      senhaDesativada?: boolean;
+    }
+  | { ok: false; error: string };
 
 /**
  * Confere o código e, dando certo, deixa a sessão gravada em cookie nesta
@@ -200,11 +208,15 @@ export async function verifyLoginCodeAction(
   //    aqui, trocada por uma aleatória que ninguém conhece. Só na PRIMEIRA
   //    confirmação (janela de 2 min): conta antiga mantém a senha do dono.
   const confirmadoEm = Date.parse(user.email_confirmed_at ?? "");
+  let senhaDesativada = false;
   if (Number.isFinite(confirmadoEm) && Date.now() - confirmadoEm < 120_000) {
     try {
       const { error: pwErr } = await supabase.auth.updateUser({
         password: randomBytes(32).toString("base64url"),
       });
+      // Veio do /cadastro (que grava o nome nos metadados): ali a pessoa
+      // ESCOLHEU uma senha — avisar. Conta nascida pelo código não tinha senha.
+      if (!pwErr && user.user_metadata?.full_name) senhaDesativada = true;
       if (pwErr)
         await logAudit(user, {
           action: "auth.otp_pwreset_failed",
@@ -242,5 +254,5 @@ export async function verifyLoginCodeAction(
     entityId: user.id,
   });
 
-  return { ok: true };
+  return { ok: true, ...(senhaDesativada ? { senhaDesativada } : {}) };
 }
