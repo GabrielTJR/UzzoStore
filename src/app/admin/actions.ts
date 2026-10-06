@@ -1053,6 +1053,61 @@ export async function createMeasurementModelAction(
   redirect(`/admin/medidas/${created.id}`);
 }
 
+/**
+ * Copia um modelo de medidas (colunas, linhas e avisos) com o nome
+ * "<nome> (cópia)" — quase toda tabela nova é outra com um ajuste. Abre a
+ * cópia no editor; nenhum produto passa a usá-la sozinho.
+ */
+export async function duplicateMeasurementModelAction(
+  formData: FormData,
+): Promise<void> {
+  const actor = await getAdminUser();
+  if (!actor || serviceRoleMissing()) return;
+  const id = String(formData.get("modelId") ?? "");
+  if (!id) return;
+
+  const admin = createAdminClient();
+  const { data: orig } = await admin
+    .from("measurement_models")
+    .select("name, columns, rows, note_top, note_bottom")
+    .eq("id", id)
+    .maybeSingle();
+  if (!orig) return;
+
+  // Primeiro nome livre: "X (cópia)", "X (cópia 2)"…
+  const { data: nomes } = await admin
+    .from("measurement_models")
+    .select("name")
+    .ilike("name", `${orig.name} (cópia%`);
+  const usados = new Set((nomes ?? []).map((n) => n.name.toLowerCase()));
+  let name = `${orig.name} (cópia)`;
+  for (let i = 2; usados.has(name.toLowerCase()); i++)
+    name = `${orig.name} (cópia ${i})`;
+
+  const { data: created, error } = await admin
+    .from("measurement_models")
+    .insert({
+      name,
+      columns: orig.columns,
+      rows: orig.rows,
+      note_top: orig.note_top,
+      note_bottom: orig.note_bottom,
+    })
+    .select("id")
+    .single();
+  if (error || !created) return;
+
+  await logAudit(actor, {
+    action: "measurement_model.duplicate",
+    entityType: "measurement_model",
+    entityId: created.id,
+    entityLabel: name,
+    metadata: { from: orig.name },
+  });
+  revalidatePath("/admin/medidas");
+  redirect(`/admin/medidas/${created.id}`);
+}
+
 export async function saveMeasurementModelAction(
   _prev: ActionResult | null,
   formData: FormData,

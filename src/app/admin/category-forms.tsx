@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useActionState, useEffect, useRef } from "react";
 import {
   createCategoryAction,
@@ -10,6 +11,7 @@ import {
 import { useToast } from "@/components/toast";
 import { SubmitButton } from "@/components/submit-button";
 import type { AdminCategory } from "@/lib/admin-products";
+import { categorySlug } from "@/lib/categories";
 
 const field =
   "rounded-xs border border-border bg-transparent px-3 py-2 text-sm outline-none focus:border-foreground";
@@ -33,30 +35,32 @@ export function NewCategoryForm() {
   }, [state]);
 
   return (
-    <form
-      ref={formRef}
-      action={action}
-      className="flex flex-wrap items-end gap-3"
-    >
-      <label className="text-xs text-muted">
+    <form ref={formRef} action={action} className="space-y-3">
+      <label className="block text-sm font-medium">
         Nome da categoria
         <input
           name="name"
           required
           placeholder="Ex.: Jaquetas"
-          className={`${field} mt-1 block w-56`}
+          className={`${field} mt-1.5 block h-10 w-full font-normal`}
         />
       </label>
       <SubmitButton
         pendingText="Salvando…"
-        className="h-9 rounded-xs bg-foreground px-5 text-sm font-medium text-background hover:opacity-90"
+        className="h-10 w-full rounded-xs bg-foreground text-sm font-semibold text-background hover:opacity-90"
       >
-        + Criar categoria
+        Criar categoria
       </SubmitButton>
     </form>
   );
 }
 
+/**
+ * Uma categoria: nome editável, onde ela aparece na loja e quantas peças tem.
+ * "Na loja" segue a mesma regra da vitrine: a categoria só tem endereço num
+ * departamento quando há peça ATIVA dela lá (senão `/feminino/<categoria>` dá
+ * 404), então o link só aparece nesse caso.
+ */
 export function CategoryRow({ category }: { category: AdminCategory }) {
   const [state, action] = useActionState<ActionResult | null, FormData>(
     updateCategoryAction,
@@ -71,50 +75,84 @@ export function CategoryRow({ category }: { category: AdminCategory }) {
   }, [state]);
 
   const count = category.products;
+  const slug = categorySlug(category.name);
+  const lojas = (["masculino", "feminino"] as const).filter(
+    (d) => category.ativos[d] > 0,
+  );
 
   return (
-    <div className="flex flex-wrap items-end gap-3 rounded-xs border border-border p-3">
-      <form action={action} className="flex flex-1 flex-wrap items-end gap-3">
+    <li className="grid gap-x-6 gap-y-3 p-4 md:grid-cols-[minmax(0,1fr)_13rem_8rem_auto] md:items-center lg:px-5">
+      <form action={action} className="flex items-center gap-2">
         <input type="hidden" name="categoryId" value={category.id} />
-        <label className="text-xs text-muted">
-          Nome
-          <input
-            name="name"
-            required
-            defaultValue={category.name}
-            className={`${field} mt-1 block w-56`}
-          />
-        </label>
+        <input
+          name="name"
+          required
+          defaultValue={category.name}
+          aria-label="Nome da categoria"
+          className={`${field} h-9 w-full max-w-72 font-medium`}
+        />
         <SubmitButton
           pendingText="Salvando…"
-          className="h-9 rounded-xs border border-border px-4 text-sm font-medium hover:border-foreground"
+          className="h-9 shrink-0 rounded-xs border border-border px-3 text-sm font-medium hover:border-foreground"
         >
           Salvar
         </SubmitButton>
       </form>
 
-      <span className="text-xs text-muted">
-        {count} {count === 1 ? "produto" : "produtos"}
-      </span>
+      <div className="text-sm">
+        {lojas.length > 0 ? (
+          <span className="flex flex-wrap gap-x-3">
+            {lojas.map((d) => (
+              <Link
+                key={d}
+                href={`/${d}/${slug}`}
+                target="_blank"
+                prefetch={false}
+                className="underline-offset-4 hover:underline"
+              >
+                {d === "masculino" ? "Masculino" : "Feminino"} (
+                {category.ativos[d]})
+              </Link>
+            ))}
+          </span>
+        ) : (
+          <span className="text-muted">Fora da loja (sem peça ativa)</span>
+        )}
+      </div>
+
+      <div className="text-sm">
+        {count > 0 ? (
+          <Link
+            href={`/admin/produtos?categoria=${encodeURIComponent(category.name)}`}
+            prefetch={false}
+            className="underline-offset-4 hover:underline"
+          >
+            {count} {count === 1 ? "produto" : "produtos"}
+          </Link>
+        ) : (
+          <span className="text-muted">Nenhum produto</span>
+        )}
+      </div>
 
       <form
         action={deleteCategoryAction}
         onSubmit={(e) => {
           const msg =
             count > 0
-              ? `Excluir a categoria "${category.name}"? Os ${count} produto(s) dela ficam sem categoria.`
+              ? `Excluir a categoria "${category.name}"? Os ${count} produto(s) dela ficam sem categoria (não são apagados).`
               : `Excluir a categoria "${category.name}"?`;
           if (!window.confirm(msg)) e.preventDefault();
         }}
+        className="md:text-right"
       >
         <input type="hidden" name="categoryId" value={category.id} />
         <SubmitButton
           pendingText="Excluindo…"
-          className="h-9 px-2 text-sm text-red-600 hover:underline dark:text-red-400"
+          className="text-sm text-red-600 underline-offset-4 hover:underline dark:text-red-400"
         >
           Excluir
         </SubmitButton>
       </form>
-    </div>
+    </li>
   );
 }

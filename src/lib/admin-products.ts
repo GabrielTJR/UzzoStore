@@ -257,7 +257,9 @@ export async function getAdminProduct(
     price: row.price != null ? Number(row.price) : null,
     promoPrice: row.promo_price != null ? Number(row.promo_price) : null,
     weightGrams: row.weight_grams ?? null,
-    department: isDepartmentValue(row.department) ? row.department : "masculino",
+    department: isDepartmentValue(row.department)
+      ? row.department
+      : "masculino",
     measurementModelId: row.measurement_model_id,
     colors,
   };
@@ -266,7 +268,11 @@ export async function getAdminProduct(
 export type AdminCategory = {
   id: string;
   name: string;
+  /** Todos os produtos da categoria (inclusive inativos). */
   products: number;
+  /** Ativos na loja, por departamento (unissex conta nos dois) — é o que
+   * decide se `/masculino/<categoria>` existe. */
+  ativos: { masculino: number; feminino: number };
 };
 
 /** Categorias (setores) + quantos produtos cada uma tem — tela /admin/categorias. */
@@ -278,17 +284,35 @@ export async function getAdminCategories(): Promise<AdminCategory[]> {
       .select("id, name")
       .eq("kind", "setor")
       .order("name"),
-    admin.from("products").select("category_id"),
+    admin.from("products").select("category_id, active_ecommerce, department"),
   ]);
   if (cats.error || !cats.data) return [];
-  const counts: Record<string, number> = {};
-  for (const p of (prods.data ?? []) as { category_id: string | null }[]) {
-    if (p.category_id) counts[p.category_id] = (counts[p.category_id] ?? 0) + 1;
+  const conta: Record<string, AdminCategory["ativos"] & { total: number }> = {};
+  for (const p of (prods.data ?? []) as {
+    category_id: string | null;
+    active_ecommerce: boolean;
+    department: string | null;
+  }[]) {
+    if (!p.category_id) continue;
+    const c = (conta[p.category_id] ??= {
+      total: 0,
+      masculino: 0,
+      feminino: 0,
+    });
+    c.total += 1;
+    if (!p.active_ecommerce) continue;
+    const dep = p.department ?? "masculino";
+    if (dep === "masculino" || dep === "unissex") c.masculino += 1;
+    if (dep === "feminino" || dep === "unissex") c.feminino += 1;
   }
   return cats.data.map((c) => ({
     id: c.id,
     name: c.name,
-    products: counts[c.id] ?? 0,
+    products: conta[c.id]?.total ?? 0,
+    ativos: {
+      masculino: conta[c.id]?.masculino ?? 0,
+      feminino: conta[c.id]?.feminino ?? 0,
+    },
   }));
 }
 
@@ -340,6 +364,11 @@ export type MeasurementModelListItem = {
   columns: number;
   rows: number;
   products: number;
+  /** Para a prévia da lista: nomes das colunas e tamanhos, na ordem. */
+  colunas: string[];
+  tamanhos: string[];
+  /** Produtos que usam o modelo (para "onde isto aparece"). */
+  usadoEm: { id: string; name: string }[];
 };
 
 /** Lista de modelos de medidas + uso (tela /admin/medidas). */
@@ -352,23 +381,40 @@ export async function getMeasurementModelsList(): Promise<
       .from("measurement_models")
       .select("id, name, columns, rows")
       .order("name"),
-    admin.from("products").select("measurement_model_id"),
+    admin
+      .from("products")
+      .select("id, name, measurement_model_id")
+      .not("measurement_model_id", "is", null)
+      .order("name"),
   ]);
   if (models.error || !models.data) return [];
-  const usage: Record<string, number> = {};
+  const usage: Record<string, { id: string; name: string }[]> = {};
   for (const p of (prods.data ?? []) as {
+    id: string;
+    name: string;
     measurement_model_id: string | null;
   }[]) {
     if (p.measurement_model_id)
-      usage[p.measurement_model_id] = (usage[p.measurement_model_id] ?? 0) + 1;
+      (usage[p.measurement_model_id] ??= []).push({ id: p.id, name: p.name });
   }
-  return models.data.map((m) => ({
-    id: m.id,
-    name: m.name,
-    columns: Array.isArray(m.columns) ? m.columns.length : 0,
-    rows: Array.isArray(m.rows) ? m.rows.length : 0,
-    products: usage[m.id] ?? 0,
-  }));
+  return models.data.map((m) => {
+    const colunas = Array.isArray(m.columns) ? m.columns.map(String) : [];
+    const tamanhos = Array.isArray(m.rows)
+      ? m.rows.map((r) =>
+          String((r as { size?: unknown } | null)?.size ?? "").trim(),
+        )
+      : [];
+    return {
+      id: m.id,
+      name: m.name,
+      columns: colunas.length,
+      rows: tamanhos.length,
+      products: usage[m.id]?.length ?? 0,
+      colunas,
+      tamanhos: tamanhos.filter(Boolean),
+      usadoEm: usage[m.id] ?? [],
+    };
+  });
 }
 
 /** Opções (id+name) para o select de modelo no produto. */

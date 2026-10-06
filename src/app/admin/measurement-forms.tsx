@@ -24,21 +24,21 @@ export function NewMeasurementModelForm() {
   }, [state]);
 
   return (
-    <form action={action} className="flex flex-wrap items-end gap-3">
-      <label className="text-xs text-muted">
+    <form action={action} className="space-y-3">
+      <label className="block text-sm font-medium">
         Nome do modelo
         <input
           name="name"
           required
           placeholder="Ex.: Bermuda Sarja"
-          className={`${field} mt-1 block w-64`}
+          className={`${field} mt-1.5 block h-10 w-full font-normal`}
         />
       </label>
       <SubmitButton
         pendingText="Criando…"
-        className="h-9 rounded-xs bg-foreground px-5 text-sm font-medium text-background hover:opacity-90"
+        className="h-10 w-full rounded-xs bg-foreground text-sm font-semibold text-background hover:opacity-90"
       >
-        + Criar modelo
+        Criar modelo
       </SubmitButton>
     </form>
   );

@@ -1,40 +1,50 @@
 import type { Metadata } from "next";
-import { redirect } from "next/navigation";
-import { getAdminRecord } from "@/lib/admin";
+import { getAdminRecord, requireAdmin } from "@/lib/admin";
+import { CARGOS } from "@/lib/admin-roles";
+import { PageHeader, Panel } from "../admin-ui";
 import { NameForm, PasswordForm } from "./account-forms";
 
 export const metadata: Metadata = { title: "Minha conta" };
 
 export default async function ContaPage() {
-  const rec = await getAdminRecord();
-  if (!rec) redirect("/admin/login");
-  if (rec.record.must_change_password) redirect("/admin/definir-senha");
+  await requireAdmin();
+  const rec = (await getAdminRecord())!;
+  const cargo = CARGOS[rec.record.role];
+  const semNome = !rec.record.full_name?.trim();
 
   return (
-    <section className="max-w-lg space-y-10">
-      <header>
-        <h1 className="font-display text-2xl font-bold lg:text-3xl">
-          Minha conta
-        </h1>
-        <p className="mt-1 text-sm text-muted">
-          {rec.user.email}
-          {rec.record.role === "owner" && " · Owner"}
-        </p>
-      </header>
+    <>
+      <PageHeader title="Minha conta" description={rec.user.email} />
 
-      <div className="rounded-sm border border-border p-6">
-        <h2 className="mb-4 text-sm font-medium text-muted">
-          Nome
-        </h2>
-        <NameForm currentName={rec.record.full_name} />
-      </div>
+      <div className="grid max-w-5xl items-start gap-6 lg:grid-cols-[minmax(0,1fr)_18rem]">
+        <Panel className="divide-y divide-border">
+          <section className="p-5 lg:p-6">
+            <h2 className="font-semibold">Seu nome</h2>
+            <p
+              className={`mb-4 mt-1 text-sm ${semNome ? "text-amber-700 dark:text-amber-400" : "text-muted"}`}
+            >
+              {semNome
+                ? "Ainda sem nome: o registro de atividades e a equipe mostram o começo do seu e-mail no lugar."
+                : "Aparece no registro de atividades e na lista da equipe."}
+            </p>
+            <NameForm currentName={rec.record.full_name} />
+          </section>
+          <section className="p-5 lg:p-6">
+            <h2 className="font-semibold">Senha</h2>
+            <p className="mb-4 mt-1 text-sm text-muted">
+              Para trocar, digite a nova duas vezes. Quem esquecer a senha pode
+              pedir uma provisória ao dono, em Equipe.
+            </p>
+            <PasswordForm />
+          </section>
+        </Panel>
 
-      <div className="rounded-sm border border-border p-6">
-        <h2 className="mb-4 text-sm font-medium text-muted">
-          Senha
-        </h2>
-        <PasswordForm />
+        <Panel className="p-5 text-sm">
+          <h2 className="font-semibold">Seu acesso</h2>
+          <p className="mt-2 font-medium">{cargo.nome}</p>
+          <p className="text-muted">{cargo.descricao}</p>
+        </Panel>
       </div>
-    </section>
+    </>
   );
 }

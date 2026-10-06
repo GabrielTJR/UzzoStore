@@ -4,7 +4,7 @@ import { useActionState } from "react";
 import { createCouponAction } from "@/app/admin/actions";
 import { SubmitButton } from "@/components/submit-button";
 import { useToast } from "@/components/toast";
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 
 const field =
   "h-11 w-full rounded-xs border border-border bg-transparent px-3 text-sm outline-none focus:border-foreground";
@@ -13,19 +13,19 @@ const label = "block text-sm font-medium";
 export function CouponForm() {
   const [state, formAction] = useActionState(createCouponAction, null);
   const { showToast } = useToast();
+  const formRef = useRef<HTMLFormElement>(null);
 
   useEffect(() => {
     if (!state) return;
-    if (state.ok) showToast("Cupom criado ✓");
-    else if (state.error) showToast(state.error, "error");
+    if (state.ok) {
+      showToast("Cupom criado");
+      formRef.current?.reset();
+    } else if (state.error) showToast(state.error, "error");
   }, [state, showToast]);
 
   return (
-    <form
-      action={formAction}
-      className="grid gap-4 rounded-sm border border-border p-5 sm:grid-cols-2 lg:grid-cols-5"
-    >
-      <div className="space-y-1.5">
+    <form ref={formRef} action={formAction} className="grid grid-cols-2 gap-4">
+      <div className="col-span-2 space-y-1.5">
         <label className={label} htmlFor="code">
           Código *
         </label>
@@ -80,8 +80,13 @@ export function CouponForm() {
         </label>
         <input id="expiresAt" name="expiresAt" type="date" className={field} />
       </div>
-      <div className="sm:col-span-2 lg:col-span-5">
-        <SubmitButton>Criar cupom</SubmitButton>
+      <p className="col-span-2 -mt-1 text-xs text-muted">
+        Deixe em branco o que não tiver limite. O cupom nasce ativo.
+      </p>
+      <div className="col-span-2">
+        <SubmitButton className="h-11 w-full rounded-xs bg-foreground text-sm font-semibold text-background hover:opacity-90">
+          Criar cupom
+        </SubmitButton>
       </div>
     </form>
   );

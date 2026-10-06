@@ -1,8 +1,10 @@
-import Link from "next/link";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { requireAdmin } from "@/lib/admin";
+import { requireArea } from "@/lib/admin";
 import { getMeasurementModel } from "@/lib/admin-products";
+import { SubmitButton } from "@/components/submit-button";
+import { duplicateMeasurementModelAction } from "../../actions";
+import { PageHeader, Panel, secondaryButton } from "../../admin-ui";
 import { MeasurementModelEditor } from "../../measurement-model-editor";
 import { DeleteMeasurementModelButton } from "../../measurement-forms";
 
@@ -13,29 +15,29 @@ export default async function EditarMedidaPage({
 }: {
   params: Promise<{ id: string }>;
 }) {
-  await requireAdmin();
+  await requireArea("medidas");
   const { id } = await params;
   const model = await getMeasurementModel(id);
   if (!model) notFound();
 
   return (
-    <section className="max-w-3xl">
-      <header className="mb-8 flex items-start justify-between gap-4">
-        <div>
-          <Link
-            href="/admin/medidas"
-            className="text-sm text-muted underline-offset-4 hover:text-foreground hover:underline"
-          >
-            ‹ Tabelas de medidas
-          </Link>
-          <h1 className="font-display text-2xl font-bold lg:text-3xl">
-            {model.name}
-          </h1>
-        </div>
+    <div className="max-w-4xl">
+      <PageHeader
+        title={model.name}
+        back={{ href: "/admin/medidas", label: "Tabelas de medidas" }}
+      >
+        <form action={duplicateMeasurementModelAction}>
+          <input type="hidden" name="modelId" value={model.id} />
+          <SubmitButton pendingText="Duplicando…" className={secondaryButton}>
+            Duplicar
+          </SubmitButton>
+        </form>
         <DeleteMeasurementModelButton modelId={model.id} name={model.name} />
-      </header>
+      </PageHeader>
 
-      <MeasurementModelEditor model={model} />
-    </section>
+      <Panel className="p-5 lg:p-6">
+        <MeasurementModelEditor model={model} />
+      </Panel>
+    </div>
   );
 }
