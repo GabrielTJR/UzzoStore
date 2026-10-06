@@ -385,7 +385,7 @@ export function Audience({ result }: { result: AudienceResult }) {
       <Funil funnel={data.funnel} whatsapp={data.whatsapp} />
 
       <p className="max-w-[90ch] text-xs text-muted">
-        Fonte: Google Analytics. "No site agora" é imediato; os demais números chegam com algumas horas de atraso (o Google processa antes de liberar) e são atualizados aqui a cada 15 minutos. O site só mede
+        Fonte: Google Analytics. “No site agora” é imediato; os demais números chegam com algumas horas de atraso (o Google processa antes de liberar) e são atualizados aqui a cada 15 minutos. O site só mede
         quem aceita os cookies de medição, então o movimento real é maior que
         estes números.
       </p>
