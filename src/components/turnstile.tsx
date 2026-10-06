@@ -113,3 +113,21 @@ export function useTurnstile() {
 
   return { widget, getToken, reset, precisaMarcar };
 }
+
+/**
+ * O Supabase recusou o token anti-robô (CAPTCHA ligado no painel dele). Sem
+ * separar este caso, a tela dizia "senha incorreta" para quem acertou a senha
+ * — e com chave trocada no painel ninguém entrava sem saber por quê.
+ */
+export function erroDeCaptcha(
+  err: { code?: string; message?: string } | null | undefined,
+): boolean {
+  if (!err) return false;
+  return (
+    err.code === "captcha_failed" ||
+    (err.message ?? "").toLowerCase().includes("captcha")
+  );
+}
+
+export const MSG_CAPTCHA_FALHOU =
+  "A verificação anti-robô falhou. Recarregue a página e tente de novo — se continuar, avise a loja.";

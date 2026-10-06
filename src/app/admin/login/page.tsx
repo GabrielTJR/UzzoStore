@@ -2,7 +2,11 @@
 
 import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
-import { useTurnstile } from "@/components/turnstile";
+import {
+  erroDeCaptcha,
+  MSG_CAPTCHA_FALHOU,
+  useTurnstile,
+} from "@/components/turnstile";
 import { checkAdminEmail, changePassword, recordLogin } from "../auth-actions";
 
 type Mode = "email" | "password" | "firstAccess" | "resetSent";
@@ -59,7 +63,11 @@ export default function AdminLoginPage() {
       turnstile.reset();
 
       if (signErr) {
-        setError("E-mail ou senha inválidos.");
+        setError(
+          erroDeCaptcha(signErr)
+            ? MSG_CAPTCHA_FALHOU
+            : "E-mail ou senha inválidos.",
+        );
         return;
       }
 
@@ -96,7 +104,11 @@ export default function AdminLoginPage() {
     });
     turnstile.reset();
     if (signErr) {
-      setError("Senha provisória incorreta.");
+      setError(
+        erroDeCaptcha(signErr)
+          ? MSG_CAPTCHA_FALHOU
+          : "Senha provisória incorreta.",
+      );
       setLoading(false);
       return;
     }
@@ -134,9 +146,7 @@ export default function AdminLoginPage() {
 
   return (
     <section className="mx-auto flex min-h-[60vh] max-w-sm flex-col justify-center px-6 py-16">
-      <h1 className="font-display text-3xl font-bold">
-        Área administrativa
-      </h1>
+      <h1 className="font-display text-3xl font-bold">Área administrativa</h1>
 
       {mode === "email" && (
         <form onSubmit={submitEmail} className="mt-8 space-y-4">
@@ -240,9 +250,7 @@ export default function AdminLoginPage() {
         </form>
       )}
 
-      {mode !== "resetSent" && (
-        <div className="mt-4">{turnstile.widget}</div>
-      )}
+      {mode !== "resetSent" && <div className="mt-4">{turnstile.widget}</div>}
 
       {mode === "resetSent" && (
         <div className="mt-8 space-y-4">

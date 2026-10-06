@@ -6,7 +6,11 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { EmailCodeForm } from "@/components/email-code-form";
 import { GoogleButton } from "@/components/google-button";
-import { useTurnstile } from "@/components/turnstile";
+import {
+  erroDeCaptcha,
+  MSG_CAPTCHA_FALHOU,
+  useTurnstile,
+} from "@/components/turnstile";
 import { emailAlreadyRegistered } from "./actions";
 
 // Mesmos campos do checkout (`email-code-form.tsx`): 48px de altura para o
@@ -135,6 +139,11 @@ export function LoginForm() {
     });
     turnstile.reset();
     if (error) {
+      if (erroDeCaptcha(error)) {
+        setError(MSG_CAPTCHA_FALHOU);
+        setBusy(false);
+        return;
+      }
       setError("E-mail ou senha incorretos.");
       setSenhaErrada(true);
       setBusy(false);
@@ -344,9 +353,11 @@ export function SignupForm() {
     setBusy(false);
     if (error) {
       setError(
-        error.message.toLowerCase().includes("already")
-          ? "Já existe uma conta com esse e-mail."
-          : "Não foi possível criar a conta.",
+        erroDeCaptcha(error)
+          ? MSG_CAPTCHA_FALHOU
+          : error.message.toLowerCase().includes("already")
+            ? "Já existe uma conta com esse e-mail."
+            : "Não foi possível criar a conta.",
       );
       return;
     }
@@ -495,7 +506,11 @@ export function ForgotPasswordForm() {
     turnstile.reset();
     setBusy(false);
     if (error) {
-      setError("Não foi possível enviar o e-mail.");
+      setError(
+        erroDeCaptcha(error)
+          ? MSG_CAPTCHA_FALHOU
+          : "Não foi possível enviar o e-mail.",
+      );
       return;
     }
     setSent(true);
