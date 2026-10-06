@@ -266,9 +266,11 @@ async function queryProducts(opts: ProductQuery): Promise<ProductPage> {
       .select(
         // `category_name`/`effective_price` são colunas do produto (migração
         // 0013): dispensam o join com `categories` e são o que o PostgREST
-        // consegue ordenar através do embed.
+        // consegue ordenar através do embed. ⚠️ O PostgREST só ordena por coluna
+        // do embed que esteja NO SELECT — por isso `tem_estoque` entra aqui
+        // (sem ela, a ordem "esgotado no fim" dava erro e caía no plano B).
         `slug, featured,
-         products!inner ( id, name, price, promo_price, category_name, effective_price,
+         products!inner ( id, name, price, promo_price, category_name, effective_price,${comEstoque ? " tem_estoque," : ""}
            product_colors ( sort_order, gallery, colors ( name, hex ),
              product_variants!product_variants_product_color_id_fkey (
                stock_cache ( qty_available, reservado_ate ) ) ) )`,
