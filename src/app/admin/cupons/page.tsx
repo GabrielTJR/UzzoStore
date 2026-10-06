@@ -93,7 +93,78 @@ export default async function AdminCuponsPage() {
               {ativos} {ativos === 1 ? "ativo" : "ativos"}
             </span>
           </div>
-          <div className="overflow-x-auto">
+          {/* Celular: um cartão por cupom (a tabela de 6 colunas saía da
+              tela, escondendo situação e ações). */}
+          <ul className="divide-y divide-border md:hidden">
+            {lista.map((c) => {
+              const s = SITUACAO[c.situacao];
+              return (
+                <li key={c.code} className="space-y-2 p-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="font-mono font-semibold">{c.code}</p>
+                      <p className="text-sm text-muted">
+                        {Number(c.percent_off)}% de desconto
+                      </p>
+                    </div>
+                    <span
+                      className={`shrink-0 rounded-xs px-2 py-0.5 text-xs font-semibold ${s.classe}`}
+                    >
+                      {s.rotulo}
+                    </span>
+                  </div>
+                  <p className="text-sm text-muted">
+                    {Number(c.min_subtotal) > 0
+                      ? `Acima de ${formatBRL(Number(c.min_subtotal))}`
+                      : "Qualquer valor"}
+                    {", "}
+                    {c.expires_at
+                      ? `até ${data(c.expires_at)}`
+                      : "sem validade"}
+                    {(c as { uma_por_cliente?: boolean }).uma_por_cliente &&
+                      ", uma vez por cliente"}
+                  </p>
+                  <p className="text-sm">
+                    {c.used_count}
+                    {c.max_uses != null ? ` de ${c.max_uses}` : ""}{" "}
+                    {c.used_count === 1 ? "uso" : "usos"}
+                    {c.rendeu && (
+                      <span className="text-muted">
+                        {" "}
+                        — rendeu {formatBRL(c.rendeu.vendido)}
+                      </span>
+                    )}
+                  </p>
+                  <div className="flex items-center gap-5 pt-1">
+                    {(c.situacao === "ativo" || c.situacao === "pausado") && (
+                      <form action={toggleCouponAction}>
+                        <input type="hidden" name="code" value={c.code} />
+                        <input
+                          type="hidden"
+                          name="active"
+                          value={c.active ? "0" : "1"}
+                        />
+                        <button className="inline-flex min-h-10 items-center text-sm font-medium underline-offset-4 hover:underline">
+                          {c.active ? "Pausar" : "Ativar"}
+                        </button>
+                      </form>
+                    )}
+                    <DeleteCouponButton
+                      code={c.code}
+                      usos={c.used_count}
+                      ativo={c.active}
+                    />
+                  </div>
+                </li>
+              );
+            })}
+            {lista.length === 0 && (
+              <li className="p-8 text-center text-sm text-muted">
+                Nenhum cupom ainda. Crie o primeiro abaixo.
+              </li>
+            )}
+          </ul>
+          <div className="hidden overflow-x-auto md:block">
             <table className="w-full min-w-[46rem] text-sm">
               <thead className="text-left text-xs text-muted">
                 <tr className="border-b border-border">

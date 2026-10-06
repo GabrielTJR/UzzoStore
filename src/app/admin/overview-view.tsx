@@ -189,11 +189,19 @@ export function OverviewView({
               <thead className="border-b border-border text-left text-xs text-muted">
                 <tr>
                   <th className="px-4 py-3 font-medium">Pedido</th>
-                  <th className="px-4 py-3 font-medium">Quando</th>
+                  <th className="hidden px-4 py-3 font-medium sm:table-cell">
+                    Quando
+                  </th>
                   <th className="px-4 py-3 font-medium">Cliente</th>
-                  <th className="px-4 py-3 font-medium">Canal</th>
-                  <th className="px-4 py-3 font-medium">Pagamento</th>
-                  <th className="px-4 py-3 font-medium">Atendimento</th>
+                  <th className="hidden px-4 py-3 font-medium md:table-cell">
+                    Canal
+                  </th>
+                  <th className="hidden px-4 py-3 font-medium sm:table-cell">
+                    Pagamento
+                  </th>
+                  <th className="hidden px-4 py-3 font-medium md:table-cell">
+                    Atendimento
+                  </th>
                   <th className="px-4 py-3 text-right font-medium">Total</th>
                 </tr>
               </thead>
@@ -201,26 +209,37 @@ export function OverviewView({
                 {overview.recentes.map((o) => (
                   <tr key={o.id}>
                     <td className="whitespace-nowrap px-4 py-3 font-semibold">
-                      nº {o.number}
+                      <Link
+                        href={`/admin/pedidos?pedido=${o.number}`}
+                        prefetch={false}
+                        className="underline-offset-4 hover:underline"
+                      >
+                        nº {o.number}
+                      </Link>
                       {o.isNew && (
                         <span className="ml-2 rounded-xs bg-accent px-1.5 py-0.5 text-[0.7rem] font-bold text-accent-foreground">
                           novo
                         </span>
                       )}
+                      {/* No celular a data desce para baixo do número (a
+                          coluna "Quando" some para a tabela caber). */}
+                      <span className="block text-xs font-normal text-muted sm:hidden">
+                        {quando.format(new Date(o.createdAt))}
+                      </span>
                     </td>
-                    <td className="whitespace-nowrap px-4 py-3 text-muted">
+                    <td className="hidden whitespace-nowrap px-4 py-3 text-muted sm:table-cell">
                       {quando.format(new Date(o.createdAt))}
                     </td>
                     <td className="px-4 py-3">{o.customerName ?? "—"}</td>
-                    <td className="px-4 py-3 text-muted">
+                    <td className="hidden px-4 py-3 text-muted md:table-cell">
                       {o.channel === "whatsapp" ? "WhatsApp" : "Site"}
                     </td>
-                    <td className="px-4 py-3">
+                    <td className="hidden px-4 py-3 sm:table-cell">
                       {isPaymentStatus(o.paymentStatus)
                         ? PAYMENT_STATUS[o.paymentStatus]
                         : o.paymentStatus}
                     </td>
-                    <td className="px-4 py-3">
+                    <td className="hidden px-4 py-3 md:table-cell">
                       {isFulfillmentStatus(o.fulfillmentStatus)
                         ? FULFILLMENT_STATUS[o.fulfillmentStatus]
                         : o.fulfillmentStatus}

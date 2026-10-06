@@ -117,7 +117,11 @@ export function PedidosKanban({ orders }: { orders: AdminOrder[] }) {
           altura é o que fica acima (cabeçalho da página) e abaixo (a nota dos
           cancelados e o respiro da área de trabalho). Colunas de 11rem: as
           cinco cabem lado a lado num notebook de 1280px com o menu aberto. */}
-      <div className="relative grid h-[calc(100svh-15rem)] min-h-[26rem] snap-x grid-flow-col auto-cols-[minmax(11rem,1fr)] gap-3 overflow-x-auto pb-3 lg:h-[calc(100svh-14rem)]">
+      {/* Celular: as etapas EMPILHADAS, cada uma da altura do que tem (coluna
+          vazia vira uma faixa curta). Colunas lado a lado de 11rem num telefone
+          ficavam espremidas e com meia tela de vazio. A partir de md, o quadro
+          de colunas com rolagem dentro de cada uma. */}
+      <div className="relative flex flex-col gap-3 pb-3 md:grid md:h-[calc(100svh-15rem)] md:min-h-[26rem] md:snap-x md:grid-flow-col md:auto-cols-[minmax(11rem,1fr)] md:overflow-x-auto lg:h-[calc(100svh-14rem)]">
         {COLUNAS.map((col, pos) => {
           const todos = orders.filter((o) => {
             const c = colunaDe(o);
@@ -181,7 +185,7 @@ export function PedidosKanban({ orders }: { orders: AdminOrder[] }) {
               {/* Só a lista rola; o cabeçalho da coluna fica parado. O
                   respiro lateral (`-mx-1 px-1`) deixa a borda e o foco dos
                   cartões à vista em vez de cortados pela rolagem. */}
-              <div className="-mx-1 min-h-0 flex-1 overflow-y-auto overscroll-contain px-1 pb-1">
+              <div className="-mx-1 min-h-0 flex-1 px-1 pb-1 md:overflow-y-auto md:overscroll-contain">
                 <ul className="space-y-2">
                   {visiveis.map((o) => {
                     const next = nextFulfillmentStatus(

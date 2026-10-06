@@ -81,8 +81,13 @@ export function CategoryRow({ category }: { category: AdminCategory }) {
   );
 
   return (
-    <li className="grid gap-x-6 gap-y-3 p-4 md:grid-cols-[minmax(0,1fr)_13rem_8rem_auto] md:items-center lg:px-5">
-      <form action={action} className="flex items-center gap-2">
+    <li className="grid grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-x-4 gap-y-2 p-4 md:grid-cols-[minmax(0,1fr)_13rem_8rem_auto] md:gap-x-6 lg:px-5">
+      {/* Celular: nome + Salvar numa linha, e loja/produtos/excluir na de
+          baixo (antes era uma linha para cada um). */}
+      <form
+        action={action}
+        className="col-span-3 flex items-center gap-2 md:col-span-1"
+      >
         <input type="hidden" name="categoryId" value={category.id} />
         <input
           name="name"

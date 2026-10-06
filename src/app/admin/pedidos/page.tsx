@@ -2,6 +2,7 @@ import Link from "next/link";
 import type { Metadata } from "next";
 import { requireArea } from "@/lib/admin";
 import {
+  situacaoCliente,
   getAdminOrderByNumber,
   getAdminOrders,
   getBoardOrders,
@@ -113,13 +114,13 @@ export default async function PedidosAdminPage({
               // Âncora do pedido na lista (`/admin/pedidos?vista=lista#pedido-1007`).
               id={`pedido-${o.number}`}
               aria-labelledby={`pedido-${o.number}-titulo`}
-              className={`scroll-mt-6 rounded-sm border bg-background p-5 ${
+              className={`scroll-mt-6 rounded-sm border bg-background p-4 lg:p-5 ${
                 o.isNew
                   ? "border-accent shadow-[inset_3px_0_0_var(--accent)]"
                   : "border-border"
               }`}
             >
-              <header className="mb-4 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-b border-border pb-4">
+              <header className="mb-3 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-b border-border pb-3 lg:mb-4 lg:pb-4">
                 <h2
                   id={`pedido-${o.number}-titulo`}
                   className="flex flex-wrap items-center gap-x-2.5 gap-y-1 font-semibold"
@@ -135,8 +136,32 @@ export default async function PedidosAdminPage({
                 </p>
               </header>
 
+              {/* Celular: resumo de uma linha + "Abrir" (o mesmo modal do
+                  quadro). O detalhe inteiro de cada pedido, um embaixo do
+                  outro, virava uma rolagem de metros no telefone. */}
+              <div className="flex items-center justify-between gap-3 lg:hidden">
+                <p className="min-w-0 text-sm text-muted">
+                  {situacaoCliente(o.paymentStatus, o.fulfillmentStatus)}
+                  <span className="block text-xs">
+                    {o.items.reduce((n, i) => n + i.qty, 0)}{" "}
+                    {o.items.reduce((n, i) => n + i.qty, 0) === 1
+                      ? "peça"
+                      : "peças"}
+                  </span>
+                </p>
+                <Link
+                  href={pedidosHref("lista", o.number)}
+                  prefetch={false}
+                  scroll={false}
+                  className="inline-flex h-10 shrink-0 items-center rounded-xs border border-foreground px-4 text-sm font-semibold"
+                >
+                  Abrir
+                </Link>
+              </div>
               {/* O MESMO detalhe que o modal do quadro abre — fonte única. */}
-              <OrderDetail order={o} idPrefix="lista" />
+              <div className="hidden lg:block">
+                <OrderDetail order={o} idPrefix="lista" />
+              </div>
             </article>
           ))}
 

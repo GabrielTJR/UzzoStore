@@ -9,7 +9,7 @@ const campo =
 // Mesmo desenho dos filtros de /admin/produtos: a opção vazia leva o NOME do
 // filtro, e o filtro em uso fica com borda escura.
 const select = (ativo: boolean) =>
-  `${campo} max-w-48 pl-2.5 pr-7 ${ativo ? "border-foreground font-medium" : "text-muted"}`;
+  `${campo} w-full min-w-0 pl-2.5 pr-7 sm:w-auto sm:max-w-48 ${ativo ? "border-foreground font-medium" : "text-muted"}`;
 
 const PERIODOS: [string, string][] = [
   ["hoje", "Hoje"],
@@ -58,7 +58,9 @@ export function LogsFilters({
         )
           e.currentTarget.requestSubmit();
       }}
-      className="mb-4 flex flex-wrap items-center gap-2"
+      // Celular: grade de 2 colunas (busca e caixinha na largura toda) — com
+      // flex-wrap os selects ficavam de larguras diferentes, desalinhados.
+      className="mb-4 grid grid-cols-2 items-center gap-2 sm:flex sm:flex-wrap"
     >
       <input
         type="search"
@@ -66,7 +68,7 @@ export function LogsFilters({
         defaultValue={valores.busca}
         placeholder="Buscar pedido, produto, pessoa…"
         aria-label="Buscar no registro"
-        className={`${campo} w-full px-3 sm:w-64 xl:w-72`}
+        className={`${campo} col-span-2 w-full px-3 sm:w-64 xl:w-72`}
       />
       <select
         name="periodo"
@@ -120,7 +122,7 @@ export function LogsFilters({
         )}
         <option value="auto">Automático (site e sistema)</option>
       </select>
-      <label className="flex h-9 cursor-pointer items-center gap-2 px-1.5 text-sm text-muted hover:text-foreground">
+      <label className="col-span-2 flex h-9 cursor-pointer items-center gap-2 px-1.5 text-sm text-muted hover:text-foreground">
         <input
           type="checkbox"
           name="auto"
