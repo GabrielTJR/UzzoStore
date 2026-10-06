@@ -51,7 +51,7 @@ Authentication → **Emails** → aba do modelo → cole no corpo. As variáveis
 `{{ .ConfirmationURL }}` são preenchidas pelo Supabase.
 
 > ⚠️ **Desde out/2026 os dois modelos abaixo levam o CÓDIGO (`{{ .Token }}`).** O
-> checkout identifica o cliente por um código de 6 dígitos por e-mail
+> checkout identifica o cliente por um código numérico de 8 dígitos por e-mail (o "Email OTP Length" do painel; o site lê `OTP_DIGITOS` em `src/lib/otp-config.ts`)
 > (`signInWithOtp`): para e-mail NOVO o Supabase manda o "Confirm signup", para
 > e-mail que já tem conta manda o "Magic Link". Se algum dos dois sair sem o
 > código, o passo 1 do checkout só funciona pelo link, no mesmo navegador —

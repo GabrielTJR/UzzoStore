@@ -14,7 +14,7 @@ import {
 } from "@/lib/rate-limit";
 
 /**
- * Entrar com CÓDIGO de 6 dígitos por e-mail (Supabase OTP) — usado no passo 1
+ * Entrar com CÓDIGO numérico por e-mail (`OTP_DIGITOS`) (Supabase OTP) — usado no passo 1
  * do checkout e no "Entrar com código" de /entrar.
  *
  * Por que código e não link: o link abre no navegador do app de e-mail, não no

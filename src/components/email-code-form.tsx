@@ -411,10 +411,10 @@ export function EmailCodeForm({
           Código que enviamos para o seu e-mail
         </label>
         {/* UM input só (o autocompletar do código no iOS/Android e o colar
-            dependem disso), desenhado como 6 casas: o input fica por cima,
+            dependem disso), desenhado como uma casa por dígito (8, com folga no celular): o input fica por cima,
             transparente, e as casas abaixo só mostram os dígitos. */}
         <div className="relative">
-          <div aria-hidden className="flex gap-2">
+          <div aria-hidden className="flex gap-1.5 sm:gap-2">
             {Array.from({ length: OTP_DIGITOS }).map((_, i) => {
               const atual =
                 codeFocused &&
@@ -423,7 +423,7 @@ export function EmailCodeForm({
               return (
                 <span
                   key={i}
-                  className={`flex h-14 flex-1 items-center justify-center rounded-xs border text-2xl font-medium tabular-nums ${
+                  className={`flex h-14 min-w-0 flex-1 items-center justify-center rounded-xs border text-xl font-medium tabular-nums sm:text-2xl ${
                     atual
                       ? "border-accent ring-1 ring-accent"
                       : error
