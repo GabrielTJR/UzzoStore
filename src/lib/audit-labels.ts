@@ -391,6 +391,12 @@ const ACOES: Record<string, Acao> = {
   },
 
   // ── Acesso e equipe ───────────────────────────────────────────────────────
+  "admin.check_email": {
+    area: "acesso",
+    auto: true,
+    rotulo: "E-mail conferido no login do painel",
+    frase: () => "Alguém digitou um e-mail na tela de login do painel",
+  },
   "auth.login": {
     area: "acesso",
     rotulo: "Login",

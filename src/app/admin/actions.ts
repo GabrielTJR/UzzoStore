@@ -4,7 +4,7 @@ import { randomUUID } from "node:crypto";
 import { redirect } from "next/navigation";
 import { revalidatePath, updateTag } from "next/cache";
 import { CACHE_TAGS } from "@/lib/products";
-import { getAdminUser, getAdminFor, slugify } from "@/lib/admin";
+import { getAdminFor, slugify } from "@/lib/admin";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { logAudit } from "@/lib/audit";
@@ -208,7 +208,7 @@ export async function createProductAction(
   _prev: ActionResult | null,
   formData: FormData,
 ): Promise<ActionResult> {
-  const actor = await getAdminUser();
+  const actor = await getAdminFor("produtos");
   if (!actor) return { ok: false, error: "Não autorizado." };
   if (serviceRoleMissing())
     return { ok: false, error: "Falta SUPABASE_SERVICE_ROLE_KEY no servidor." };
@@ -365,7 +365,7 @@ export async function updateProductAction(
   _prev: ActionResult | null,
   formData: FormData,
 ): Promise<ActionResult> {
-  const actor = await getAdminUser();
+  const actor = await getAdminFor("produtos");
   if (!actor) return { ok: false, error: "Não autorizado." };
   if (serviceRoleMissing())
     return { ok: false, error: "Falta SUPABASE_SERVICE_ROLE_KEY no servidor." };
@@ -443,7 +443,7 @@ export async function toggleFeaturedAction(
   _prev: ActionResult | null,
   formData: FormData,
 ): Promise<ActionResult> {
-  const actor = await getAdminUser();
+  const actor = await getAdminFor("produtos");
   if (!actor) return { ok: false, error: "Não autorizado." };
   if (serviceRoleMissing())
     return { ok: false, error: "Falta SUPABASE_SERVICE_ROLE_KEY no servidor." };
@@ -477,7 +477,7 @@ export async function toggleFeaturedAction(
 }
 
 export async function deleteProductAction(formData: FormData): Promise<void> {
-  const actor = await getAdminUser();
+  const actor = await getAdminFor("produtos");
   if (!actor) return;
   if (serviceRoleMissing()) return;
 
@@ -537,7 +537,7 @@ export async function addProductColorAction(
   _prev: ActionResult | null,
   formData: FormData,
 ): Promise<ActionResult> {
-  const actor = await getAdminUser();
+  const actor = await getAdminFor("produtos");
   if (!actor) return { ok: false, error: "Não autorizado." };
   if (serviceRoleMissing())
     return { ok: false, error: "Falta SUPABASE_SERVICE_ROLE_KEY no servidor." };
@@ -595,7 +595,7 @@ export async function addProductColorAction(
 export async function removeProductColorAction(
   formData: FormData,
 ): Promise<void> {
-  const actor = await getAdminUser();
+  const actor = await getAdminFor("produtos");
   if (!actor) return;
   if (serviceRoleMissing()) return;
 
@@ -689,7 +689,7 @@ export async function saveVariantAction(
   _prev: ActionResult | null,
   formData: FormData,
 ): Promise<ActionResult> {
-  const actor = await getAdminUser();
+  const actor = await getAdminFor("produtos");
   if (!actor) return { ok: false, error: "Não autorizado." };
   if (serviceRoleMissing())
     return { ok: false, error: "Falta SUPABASE_SERVICE_ROLE_KEY no servidor." };
@@ -812,7 +812,7 @@ export async function saveVariantAction(
 }
 
 export async function deleteVariantAction(formData: FormData): Promise<void> {
-  const actor = await getAdminUser();
+  const actor = await getAdminFor("produtos");
   if (!actor) return;
   if (serviceRoleMissing()) return;
 
@@ -837,7 +837,7 @@ export async function createColorAction(
   _prev: ActionResult | null,
   formData: FormData,
 ): Promise<ActionResult> {
-  const actor = await getAdminUser();
+  const actor = await getAdminFor("cores");
   if (!actor) return { ok: false, error: "Não autorizado." };
   if (serviceRoleMissing())
     return { ok: false, error: "Falta SUPABASE_SERVICE_ROLE_KEY no servidor." };
@@ -871,7 +871,7 @@ export async function updateColorAction(
   _prev: ActionResult | null,
   formData: FormData,
 ): Promise<ActionResult> {
-  const actor = await getAdminUser();
+  const actor = await getAdminFor("cores");
   if (!actor) return { ok: false, error: "Não autorizado." };
   if (serviceRoleMissing())
     return { ok: false, error: "Falta SUPABASE_SERVICE_ROLE_KEY no servidor." };
@@ -911,7 +911,7 @@ export async function updateColorAction(
 }
 
 export async function deleteColorAction(formData: FormData): Promise<void> {
-  const actor = await getAdminUser();
+  const actor = await getAdminFor("cores");
   if (!actor) return;
   if (serviceRoleMissing()) return;
 
@@ -950,7 +950,7 @@ export async function createCategoryAction(
   _prev: ActionResult | null,
   formData: FormData,
 ): Promise<ActionResult> {
-  const actor = await getAdminUser();
+  const actor = await getAdminFor("categorias");
   if (!actor) return { ok: false, error: "Não autorizado." };
   if (serviceRoleMissing())
     return { ok: false, error: "Falta SUPABASE_SERVICE_ROLE_KEY no servidor." };
@@ -987,7 +987,7 @@ export async function updateCategoryAction(
   _prev: ActionResult | null,
   formData: FormData,
 ): Promise<ActionResult> {
-  const actor = await getAdminUser();
+  const actor = await getAdminFor("categorias");
   if (!actor) return { ok: false, error: "Não autorizado." };
   if (serviceRoleMissing())
     return { ok: false, error: "Falta SUPABASE_SERVICE_ROLE_KEY no servidor." };
@@ -1024,7 +1024,7 @@ export async function updateCategoryAction(
 }
 
 export async function deleteCategoryAction(formData: FormData): Promise<void> {
-  const actor = await getAdminUser();
+  const actor = await getAdminFor("categorias");
   if (!actor) return;
   if (serviceRoleMissing()) return;
 
@@ -1060,7 +1060,7 @@ export async function createMeasurementModelAction(
   _prev: ActionResult | null,
   formData: FormData,
 ): Promise<ActionResult> {
-  const actor = await getAdminUser();
+  const actor = await getAdminFor("medidas");
   if (!actor) return { ok: false, error: "Não autorizado." };
   if (serviceRoleMissing())
     return { ok: false, error: "Falta SUPABASE_SERVICE_ROLE_KEY no servidor." };
@@ -1101,7 +1101,7 @@ export async function createMeasurementModelAction(
 export async function duplicateMeasurementModelAction(
   formData: FormData,
 ): Promise<void> {
-  const actor = await getAdminUser();
+  const actor = await getAdminFor("medidas");
   if (!actor || serviceRoleMissing()) return;
   const id = String(formData.get("modelId") ?? "");
   if (!id) return;
@@ -1152,7 +1152,7 @@ export async function saveMeasurementModelAction(
   _prev: ActionResult | null,
   formData: FormData,
 ): Promise<ActionResult> {
-  const actor = await getAdminUser();
+  const actor = await getAdminFor("medidas");
   if (!actor) return { ok: false, error: "Não autorizado." };
   if (serviceRoleMissing())
     return { ok: false, error: "Falta SUPABASE_SERVICE_ROLE_KEY no servidor." };
@@ -1228,7 +1228,7 @@ export async function saveMeasurementModelAction(
 export async function deleteMeasurementModelAction(
   formData: FormData,
 ): Promise<void> {
-  const actor = await getAdminUser();
+  const actor = await getAdminFor("medidas");
   if (!actor) return;
   if (serviceRoleMissing()) return;
 
@@ -1261,7 +1261,7 @@ export async function deleteMeasurementModelAction(
 export async function updateFulfillmentAction(
   formData: FormData,
 ): Promise<void> {
-  const actor = await getAdminUser();
+  const actor = await getAdminFor("pedidos");
   if (!actor) return;
   if (serviceRoleMissing()) return;
 
@@ -1365,7 +1365,7 @@ export async function updateFulfillmentAction(
 export async function updatePaymentStatusAction(
   formData: FormData,
 ): Promise<void> {
-  const actor = await getAdminUser();
+  const actor = await getAdminFor("pedidos");
   if (!actor) return;
   if (serviceRoleMissing()) return;
 
@@ -1457,7 +1457,7 @@ export async function updatePaymentStatusAction(
 export async function updateOrderTrackingAction(
   formData: FormData,
 ): Promise<void> {
-  const actor = await getAdminUser();
+  const actor = await getAdminFor("pedidos");
   if (!actor) return;
   if (serviceRoleMissing()) return;
 
@@ -1576,7 +1576,7 @@ export async function deleteCouponAction(formData: FormData): Promise<void> {
 
 /** Marca todos os pedidos como vistos (tira o destaque de "novo"). */
 export async function markOrdersSeenAction(): Promise<void> {
-  const actor = await getAdminUser();
+  const actor = await getAdminFor("pedidos");
   if (!actor) return;
   if (serviceRoleMissing()) return;
   const admin = createAdminClient();
@@ -1890,7 +1890,7 @@ export async function createUploadUrlsAction(
   files: { name: string }[],
   folder: string,
 ): Promise<{ ok: boolean; error?: string; targets?: UploadTarget[] }> {
-  const actor = await getAdminUser();
+  const actor = await getAdminFor("produtos");
   if (!actor) return { ok: false, error: "Não autorizado." };
   // Fotos da página inicial (pasta "home") são da vitrine: o vendedor sobe
   // foto de produto, não de destaque.
@@ -1929,7 +1929,7 @@ export async function commitPhotosAction(
   productColorId: string,
   paths: string[],
 ): Promise<ActionResult> {
-  const actor = await getAdminUser();
+  const actor = await getAdminFor("produtos");
   if (!actor) return { ok: false, error: "Não autorizado." };
   if (serviceRoleMissing())
     return { ok: false, error: "Falta SUPABASE_SERVICE_ROLE_KEY no servidor." };
@@ -1970,7 +1970,7 @@ export async function commitPhotosAction(
 }
 
 export async function removePhotoAction(formData: FormData): Promise<void> {
-  const actor = await getAdminUser();
+  const actor = await getAdminFor("produtos");
   if (!actor) return;
   if (serviceRoleMissing()) return;
 

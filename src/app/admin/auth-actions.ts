@@ -3,31 +3,48 @@
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { logAudit } from "@/lib/audit";
+import { freiaIp } from "@/lib/rate-limit";
 import type { ActionResult } from "./actions";
+
+/** Consultas de "é primeiro acesso?" por IP na janela do freio (10 min). */
+const LIMITE_CHECAGEM_EMAIL = 20;
 
 /**
  * Passo 1 do login (email-first): informa se o e-mail é de um admin que está
  * no PRIMEIRO acesso (precisa trocar a senha). Só expõe o flag mustChange.
+ *
+ * É endpoint público (a tela de login não tem sessão). Por isso:
+ * - freio por IP, como toda action pública que custa algo;
+ * - parte da tabela `admins` filtrada por quem está no primeiro acesso (quase
+ *   sempre zero ou uma linha) e confere o e-mail de cada um pelo id. Antes ela
+ *   baixava a lista de TODOS os usuários do Auth — clientes inclusive — a cada
+ *   chamada, e passando de 1000 usuários deixava de achar o admin.
  */
 export async function checkAdminEmail(
   email: string,
 ): Promise<{ mustChange: boolean }> {
-  const clean = email.trim().toLowerCase();
+  const clean = String(email ?? "")
+    .trim()
+    .toLowerCase();
   if (!clean || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
     return { mustChange: false };
   }
+  // Freio estourado responde "não" — o login segue pela senha normal, e quem
+  // está no primeiro acesso só precisa esperar alguns minutos.
+  if (await freiaIp("admin.check_email", LIMITE_CHECAGEM_EMAIL))
+    return { mustChange: false };
+
   const admin = createAdminClient();
-  const { data } = await admin.auth.admin.listUsers({ page: 1, perPage: 1000 });
-  const user = (data?.users ?? []).find(
-    (u) => u.email?.toLowerCase() === clean,
-  );
-  if (!user) return { mustChange: false };
-  const { data: row } = await admin
+  const { data: pendentes } = await admin
     .from("admins")
-    .select("must_change_password")
-    .eq("user_id", user.id)
-    .maybeSingle();
-  return { mustChange: !!row?.must_change_password };
+    .select("user_id")
+    .eq("must_change_password", true)
+    .limit(20);
+  for (const p of pendentes ?? []) {
+    const { data } = await admin.auth.admin.getUserById(p.user_id);
+    if (data?.user?.email?.toLowerCase() === clean) return { mustChange: true };
+  }
+  return { mustChange: false };
 }
 
 /**
