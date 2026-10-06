@@ -162,6 +162,22 @@ const ACOES: Record<string, Acao> = {
         ? `${sujeito(c)} gravou o rastreio ${c.meta.tracking} ${c.item ? `no pedido ${c.item}` : "num pedido"}`
         : `${sujeito(c)} apagou o rastreio de ${pedido(c)}`,
   },
+  "shipping.label_cart": {
+    area: "vendas",
+    rotulo: "Etiqueta preparada",
+    frase: (c) => `${sujeito(c)} consultou o preço da etiqueta de ${pedido(c)}`,
+  },
+  "shipping.label_bought": {
+    area: "vendas",
+    rotulo: "Etiqueta comprada",
+    frase: (c) => `${sujeito(c)} comprou a etiqueta de ${pedido(c)}`,
+  },
+  "shipping.label_failed": {
+    area: "vendas",
+    rotulo: "Falha na etiqueta",
+    frase: (c) =>
+      `O Melhor Envio recusou a etiqueta de ${pedido(c)}${str(c.meta.error) ? `: ${c.meta.error}` : ""}`,
+  },
   "payment.link_failed": {
     area: "vendas",
     rotulo: "Falha no link de pagamento",

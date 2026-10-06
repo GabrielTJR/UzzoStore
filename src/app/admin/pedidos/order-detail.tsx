@@ -18,6 +18,7 @@ import { linkRastreio } from "@/lib/shipping-config";
 import { IconChat, IconExternal } from "@/components/icons";
 import { SubmitButton } from "@/components/submit-button";
 import { ConfirmForm } from "./confirm-form";
+import { LabelPanel } from "./label-panel";
 import {
   updateFulfillmentAction,
   updatePaymentStatusAction,
@@ -589,6 +590,14 @@ export function OrderDetail({
                     cliente sai com o que estiver gravado aqui.
                   </p>
                 )}
+                <LabelPanel
+                  orderId={o.id}
+                  paid={o.paymentStatus === "paid"}
+                  melhorenvioId={o.melhorenvioId}
+                  labelUrl={o.labelUrl}
+                  trackingCode={o.trackingCode}
+                  temServico={!!o.shippingServiceId}
+                />
               </div>
             )}
           </Secao>
