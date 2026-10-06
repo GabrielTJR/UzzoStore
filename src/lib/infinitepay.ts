@@ -611,7 +611,16 @@ export async function confirmPayment(params: {
   // Só agora o cupom do pedido ONLINE conta como usado: o dinheiro entrou.
   // (Roda uma vez por pedido: só a chamada que tirou o pedido de "não pago"
   // chega até aqui.)
-  if (order.coupon_code) await consumeCoupon(admin, order.coupon_code);
+  if (order.coupon_code && !(await consumeCoupon(admin, order.coupon_code)))
+    // Limite já atingido quando o dinheiro entrou (dois pagamentos juntos no
+    // último uso). A venda vale; a loja só precisa saber.
+    await logAudit(null, {
+      action: "coupon.over_limit",
+      entityType: "order",
+      entityId: order.id,
+      entityLabel: `nº ${order.number}`,
+      metadata: { cupom: order.coupon_code },
+    });
 
   // A peça JÁ saiu do estoque na criação do pedido (reserva, migração 0018).
   // Aqui só se apaga a reserva: baixar de novo venderia a mesma peça duas vezes.

@@ -45,6 +45,25 @@ export async function checkCoupon(
     return { ok: false, error: generico };
   if (data.max_uses != null && data.used_count >= data.max_uses)
     return { ok: false, error: generico };
+  // No pagamento online o uso só conta quando o dinheiro entra. Sem contar os
+  // pedidos AINDA PENDENTES (dentro do prazo de 20 min), um cupom de 1 uso
+  // passava para vários clientes ao mesmo tempo e todos podiam pagar. Os
+  // pendentes do próprio cliente não contam: o pagamento seguinte os
+  // reaproveita ou cancela.
+  if (data.max_uses != null) {
+    const user = await getSessionUser();
+    let q = admin
+      .from("orders")
+      .select("id", { count: "exact", head: true })
+      .eq("coupon_code", code)
+      .eq("channel", "online")
+      .eq("payment_status", "pending")
+      .gt("expires_at", new Date().toISOString());
+    if (user) q = q.neq("customer_id", user.id);
+    const { count } = await q;
+    if (data.used_count + (count ?? 0) >= data.max_uses)
+      return { ok: false, error: generico };
+  }
   if (subtotal < Number(data.min_subtotal))
     return {
       ok: false,
@@ -84,20 +103,33 @@ export async function checkCoupon(
   return { ok: true, code, percentOff, discount };
 }
 
-/** Consome 1 uso (chamar só depois de o pedido ser gravado). */
+/**
+ * Consome 1 uso (chamar só depois de o pedido ser gravado/pago). Devolve
+ * `false` quando o limite já estava atingido — quem chama não desfaz a venda,
+ * só registra.
+ *
+ * Pela função `consumir_cupom` (migração 0026), que soma e confere o limite no
+ * MESMO comando: ler-somar-gravar perdia usos quando dois pagamentos chegavam
+ * juntos. Sem a migração, cai na conta antiga (melhor que não contar).
+ */
 export async function consumeCoupon(
   admin: ReturnType<typeof createAdminClient>,
   code: string,
-): Promise<void> {
-  // Best-effort: contagem de uso é estatística, não trava de segurança.
+): Promise<boolean> {
+  const { data: consumiu, error } = await admin.rpc("consumir_cupom", {
+    p_code: code,
+  });
+  if (!error) return consumiu === true;
+
   const { data } = await admin
     .from("coupons")
     .select("used_count")
     .eq("code", code)
     .maybeSingle();
-  if (data)
-    await admin
-      .from("coupons")
-      .update({ used_count: data.used_count + 1 })
-      .eq("code", code);
+  if (!data) return false;
+  await admin
+    .from("coupons")
+    .update({ used_count: data.used_count + 1 })
+    .eq("code", code);
+  return true;
 }

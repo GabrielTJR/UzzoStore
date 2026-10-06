@@ -208,6 +208,15 @@ const ACOES: Record<string, Acao> = {
     frase: (c) =>
       `${sujeito(c)} ${c.meta.active ? "ativou" : "pausou"} o cupom ${c.item ?? ""}`.trim(),
   },
+  "coupon.over_limit": {
+    area: "vendas",
+    rotulo: "Cupom passou do limite",
+    frase: (c) =>
+      `${pedido(c)[0].toUpperCase()}${pedido(c).slice(1)} foi pago com o cupom ${str(c.meta.cupom) ?? ""} depois de o limite de usos acabar`.replace(
+        /\s+/g,
+        " ",
+      ),
+  },
   "coupon.delete": {
     area: "vendas",
     rotulo: "Cupom excluído",
