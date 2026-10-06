@@ -15,6 +15,7 @@ import { CancelOrderButton } from "../cancel-order-button";
 import { PayOrderButton } from "../pay-order-button";
 import { podePagarAgora } from "../pode-pagar";
 import { CopyButton } from "@/components/copy-button";
+import { ReorderButton } from "../reorder-button";
 import {
   OrderStatus,
   OrderThumb,
@@ -75,6 +76,11 @@ export function OrderDetailView({ order: o }: { order: AccountOrder }) {
         </p>
         <OrderStatus order={o} className="mt-3 text-base" />
       </header>
+
+      {/* Pedido que não está à espera de pagamento: dá para repetir. */}
+      {!podePagarAgora(o) && o.items.some((i) => i.variant_id) && (
+        <ReorderButton orderId={o.id} className="mb-6" />
+      )}
 
       {/* Pagar vem antes de tudo: é a única coisa que o cliente PRECISA fazer. */}
       {podePagarAgora(o) && (

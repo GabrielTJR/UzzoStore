@@ -291,3 +291,132 @@ export async function signOutCustomerAction(): Promise<void> {
   const supabase = await createClient();
   await supabase.auth.signOut();
 }
+
+export type ItemRecompra = {
+  variantId: string;
+  productSlug: string;
+  productName: string;
+  color: string | null;
+  size: string | null;
+  price: number;
+  image: string | null;
+  qty: number;
+  maxQty: number;
+};
+
+/**
+ * "Comprar de novo": as peças de um pedido do PRÓPRIO cliente, com o preço e o
+ * estoque de HOJE (o preço do pedido antigo não vale mais). Peça que saiu da
+ * loja ou esgotou volta em `fora`, para a tela dizer. Só monta a lista — quem
+ * põe na sacola é o navegador (a sacola é localStorage); o servidor confere
+ * tudo de novo no checkout, como sempre.
+ */
+export async function reorderAction(orderId: string): Promise<{
+  ok: boolean;
+  itens: ItemRecompra[];
+  fora: string[];
+  error?: string;
+}> {
+  const user = await getCurrentUser();
+  if (!user)
+    return { ok: false, itens: [], fora: [], error: "Entre na sua conta." };
+
+  // Cookie client: o RLS só deixa ler o pedido do próprio cliente.
+  const supabase = await createClient();
+  const { data: pedido } = await supabase
+    .from("orders")
+    .select("id, order_items ( variant_id, product_name, qty )")
+    .eq("id", String(orderId ?? ""))
+    .eq("customer_id", user.id)
+    .maybeSingle();
+  if (!pedido)
+    return { ok: false, itens: [], fora: [], error: "Pedido não encontrado." };
+
+  const linhas = (
+    (
+      pedido as unknown as {
+        order_items: {
+          variant_id: string | null;
+          product_name: string;
+          qty: number;
+        }[];
+      }
+    ).order_items ?? []
+  ).filter((l) => l.variant_id);
+  const ids = [...new Set(linhas.map((l) => l.variant_id as string))];
+  if (ids.length === 0)
+    return { ok: true, itens: [], fora: linhas.map((l) => l.product_name) };
+
+  const { data: variantes } = await supabase
+    .from("product_variants")
+    .select(
+      `id, size, color,
+       product_colors ( foto:gallery->>0 ),
+       stock_cache ( qty_available ),
+       products ( name, price, promo_price, active_ecommerce, product_content ( slug ) )`,
+    )
+    .in("id", ids);
+
+  type V = {
+    id: string;
+    size: string | null;
+    color: string | null;
+    product_colors: { foto: string | null } | null;
+    stock_cache: { qty_available: number }[] | { qty_available: number } | null;
+    products: {
+      name: string;
+      price: number | null;
+      promo_price: number | null;
+      active_ecommerce: boolean;
+      product_content: { slug: string } | { slug: string }[] | null;
+    } | null;
+  };
+  const porId = new Map(
+    ((variantes ?? []) as unknown as V[]).map((v) => [v.id, v]),
+  );
+
+  const itens: ItemRecompra[] = [];
+  const fora: string[] = [];
+  for (const l of linhas) {
+    const v = porId.get(l.variant_id as string);
+    const p = v?.products;
+    const slug = Array.isArray(p?.product_content)
+      ? p?.product_content[0]?.slug
+      : p?.product_content?.slug;
+    const estoque = v
+      ? (Array.isArray(v.stock_cache)
+          ? v.stock_cache
+          : v.stock_cache
+            ? [v.stock_cache]
+            : []
+        ).reduce((n, s) => n + Number(s.qty_available ?? 0), 0)
+      : 0;
+    const preco =
+      p?.promo_price != null && Number(p.promo_price) > 0
+        ? Number(p.promo_price)
+        : Number(p?.price ?? 0);
+    if (
+      !v ||
+      !p ||
+      !p.active_ecommerce ||
+      !slug ||
+      !(preco > 0) ||
+      estoque <= 0
+    ) {
+      fora.push(l.product_name);
+      continue;
+    }
+    itens.push({
+      variantId: v.id,
+      productSlug: slug,
+      productName: p.name,
+      color: v.color,
+      size: v.size,
+      price: preco,
+      image: v.product_colors?.foto ?? null,
+      qty: Math.min(l.qty, estoque),
+      maxQty: estoque,
+    });
+  }
+  return { ok: true, itens, fora };
+}
