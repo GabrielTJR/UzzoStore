@@ -65,7 +65,8 @@ async function validar(
 ): Promise<{ config: HomeConfig } | { erro: string }> {
   if (!raw || typeof raw !== "object") return { erro: "Dados inválidos." };
   // Teto de tamanho: a configuração inteira cabe em poucos KB.
-  if (JSON.stringify(raw).length > 60_000) return { erro: "Dados grandes demais." };
+  if (JSON.stringify(raw).length > 60_000)
+    return { erro: "Dados grandes demais." };
 
   const r = raw as { hero?: { title?: unknown; image?: unknown } };
   if (typeof r.hero?.title !== "string" || !r.hero.title.trim())
@@ -95,11 +96,15 @@ async function validar(
       .from("product_content")
       .select("slug, products!inner ( name )")
       .eq("slug", config.hero.look.slug)
+      // Peça fora da loja daria um link "Na foto" para uma página 404.
+      .eq("products.active_ecommerce", true)
       .maybeSingle();
     const nome = (data as unknown as { products: { name: string } } | null)
       ?.products?.name;
     if (!data || !nome)
-      return { erro: "A peça escolhida em \"Na foto\" não foi encontrada." };
+      return {
+        erro: 'A peça escolhida em "Na foto" não foi encontrada ou não está ativa na loja.',
+      };
     config.hero.look = { name: nome, slug: data.slug };
   }
 
@@ -196,11 +201,16 @@ export async function discardHomeDraftAction(): Promise<HomeConfigResult> {
   if (!actor) return { ok: false, error: erro };
 
   const admin = createAdminClient();
-  const { error } = await admin.from("home_config").delete().eq("slot", "rascunho");
+  const { error } = await admin
+    .from("home_config")
+    .delete()
+    .eq("slot", "rascunho");
   if (error)
     return {
       ok: false,
-      error: semTabela(error) ? MSG_SEM_MIGRACAO : "Não foi possível descartar.",
+      error: semTabela(error)
+        ? MSG_SEM_MIGRACAO
+        : "Não foi possível descartar.",
     };
 
   const { data } = await admin

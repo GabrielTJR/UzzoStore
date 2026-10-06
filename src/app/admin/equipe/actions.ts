@@ -86,11 +86,26 @@ export async function addAdminAction(
   if (existingAdmin) {
     return { ok: false, error: "Essa pessoa já está na equipe." };
   }
+  // Conta que já existia (um cliente, por exemplo): a senha provisória que o
+  // dono digitou passa a valer, e a troca no 1º acesso também. Antes ela era
+  // descartada em silêncio, e o dono entregava uma senha que não funcionava.
+  // DEPOIS da conferência acima de propósito: quem já é da equipe (o próprio
+  // dono, inclusive) nunca tem a senha trocada por aqui.
+  if (!isNew) {
+    const { error: pwErr } = await admin.auth.admin.updateUserById(userId!, {
+      password: tempPassword,
+    });
+    if (pwErr)
+      return {
+        ok: false,
+        error: "Não foi possível definir a senha provisória.",
+      };
+  }
   const { error: insErr } = await admin.from("admins").insert({
     user_id: userId,
     full_name: name || null,
     role,
-    must_change_password: isNew,
+    must_change_password: true,
   });
   if (insErr) return { ok: false, error: "Erro ao adicionar à equipe." };
 

@@ -20,21 +20,22 @@ type Row = {
 
 /**
  * Equipe + e-mail e último acesso de cada um. O último acesso vem do PRÓPRIO
- * Supabase Auth (`last_sign_in_at`), na mesma chamada que já trazia o e-mail —
- * nenhuma leitura a mais do registro de atividades.
+ * Supabase Auth (`last_sign_in_at`), na mesma chamada que traz o e-mail —
+ * nenhuma leitura do registro de atividades.
  */
 async function getAdmins(): Promise<Row[]> {
   const admin = createAdminClient();
-  const [{ data: rows }, { data: usersData }] = await Promise.all([
-    admin
-      .from("admins")
-      .select("user_id, full_name, role, must_change_password, created_at")
-      .order("created_at"),
-    admin.auth.admin.listUsers({ page: 1, perPage: 1000 }),
-  ]);
-  const byId = new Map((usersData?.users ?? []).map((u) => [u.id, u]));
-  return (rows ?? []).map((r) => {
-    const u = byId.get(r.user_id);
+  const { data: rows } = await admin
+    .from("admins")
+    .select("user_id, full_name, role, must_change_password, created_at")
+    .order("created_at");
+  // Um getUserById por pessoa da equipe (são poucas). Listar TODOS os usuários
+  // do Auth trazia os clientes junto e, passando de 1000, a equipe sumia.
+  const users = await Promise.all(
+    (rows ?? []).map((r) => admin.auth.admin.getUserById(r.user_id)),
+  );
+  return (rows ?? []).map((r, i) => {
+    const u = users[i]?.data?.user;
     return {
       user_id: r.user_id,
       full_name: r.full_name,
