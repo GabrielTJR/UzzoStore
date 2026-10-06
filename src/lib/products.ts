@@ -257,81 +257,100 @@ async function queryProducts(opts: ProductQuery): Promise<ProductPage> {
     if (colorProductIds.length === 0) return { items: [], total: 0 };
   }
 
-  let query = supabase
-    .from("product_content")
-    .select(
-      // `category_name`/`effective_price` são colunas do produto (migração
-      // 0013): dispensam o join com `categories` e são o que o PostgREST
-      // consegue ordenar através do embed.
-      `slug, featured,
-       products!inner ( id, name, price, promo_price, category_name, effective_price,
-         product_colors ( sort_order, gallery, colors ( name, hex ),
-           product_variants!product_variants_product_color_id_fkey (
-             stock_cache ( qty_available, reservado_ate ) ) ) )`,
-      { count: "exact" },
-    )
-    .eq("products.active_ecommerce", true);
+  // Montada numa função para dar para refazer SEM a ordenação por estoque:
+  // antes da migração 0027 a coluna não existe, e pedir por ela derrubaria o
+  // catálogo inteiro.
+  const montar = (comEstoque: boolean) => {
+    let query = supabase
+      .from("product_content")
+      .select(
+        // `category_name`/`effective_price` são colunas do produto (migração
+        // 0013): dispensam o join com `categories` e são o que o PostgREST
+        // consegue ordenar através do embed.
+        `slug, featured,
+         products!inner ( id, name, price, promo_price, category_name, effective_price,
+           product_colors ( sort_order, gallery, colors ( name, hex ),
+             product_variants!product_variants_product_color_id_fkey (
+               stock_cache ( qty_available, reservado_ate ) ) ) )`,
+        { count: "exact" },
+      )
+      .eq("products.active_ecommerce", true);
 
-  if (opts.featured) query = query.eq("featured", true);
-  if (opts.department) {
-    if (DEPARTMENT_COLUMN_READY) {
-      query = query.in("products.department", [opts.department, "unissex"]);
-    } else if (opts.department !== "masculino") {
-      // Antes da migração 0022 não há coluna: o catálogo inteiro é masculino,
-      // então qualquer outro departamento é vazio por definição.
-      return { items: [], total: 0 };
+    if (opts.featured) query = query.eq("featured", true);
+    if (opts.department) {
+      if (DEPARTMENT_COLUMN_READY) {
+        query = query.in("products.department", [opts.department, "unissex"]);
+      } else if (opts.department !== "masculino") {
+        // Antes da migração 0022 não há coluna: o catálogo inteiro é masculino,
+        // então qualquer outro departamento é vazio por definição.
+        return null; // nada a buscar
+      }
     }
-  }
-  if (opts.categoryIds?.length)
-    query = query.in("products.category_id", opts.categoryIds);
-  if (opts.onlyPromo) query = query.gt("products.promo_price", 0);
-  if (opts.search) {
-    // `%` e `,` quebrariam o filtro do PostgREST; escapamos antes.
-    const termo = normalizeSearch(opts.search.replace(/[%,()]/g, " ").trim());
-    // Compara com `name_search` (minúscula e sem acento, migração 0014) — o
-    // cadastro do ERP mistura "CALÇA" e "SUETER", e no celular se digita sem
-    // acento. Normalizar só um dos lados falharia no outro sentido.
-    if (termo) query = query.like("products.name_search", `%${termo}%`);
-  }
-  if (colorProductIds) query = query.in("products.id", colorProductIds);
-  if (opts.productIds) {
-    if (opts.productIds.length === 0) return { items: [], total: 0 };
-    query = query.in("products.id", opts.productIds);
-  }
+    if (opts.categoryIds?.length)
+      query = query.in("products.category_id", opts.categoryIds);
+    if (opts.onlyPromo) query = query.gt("products.promo_price", 0);
+    if (opts.search) {
+      // `%` e `,` quebrariam o filtro do PostgREST; escapamos antes.
+      const termo = normalizeSearch(opts.search.replace(/[%,()]/g, " ").trim());
+      // Compara com `name_search` (minúscula e sem acento, migração 0014) — o
+      // cadastro do ERP mistura "CALÇA" e "SUETER", e no celular se digita sem
+      // acento. Normalizar só um dos lados falharia no outro sentido.
+      if (termo) query = query.like("products.name_search", `%${termo}%`);
+    }
+    if (colorProductIds) query = query.in("products.id", colorProductIds);
+    if (opts.productIds) {
+      if (opts.productIds.length === 0) return null; // nada a buscar
+      query = query.in("products.id", opts.productIds);
+    }
 
-  // Ordenação por coluna do embed `products` (o PostgREST aceita 1 nível; por
-  // isso `category_name` e `effective_price` são colunas do produto — migração
-  // 0013). `slug` fecha como desempate: ordem instável duplicaria/sumiria
-  // itens entre páginas.
-  // Ordenação: `products(coluna)` no order de topo reordena o resultado.
-  // (`referencedTable` NÃO serve aqui — ele ordena as linhas dentro do embed.)
-  // Só funciona com 1 nível, por isso `category_name`/`effective_price` são
-  // colunas materializadas em `products` (migração 0013).
-  const sort: SortKey = opts.sort ?? "categoria";
-  if (sort === "menor-preco") {
-    query = query.order("products(effective_price)", { ascending: true });
-  } else if (sort === "maior-preco") {
-    query = query.order("products(effective_price)", { ascending: false });
-  } else if (sort === "nome") {
-    query = query.order("products(name)", { ascending: true });
-  } else if (sort === "promocao") {
-    query = query
-      .order("products(promo_price)", { ascending: false, nullsFirst: false })
-      .order("products(effective_price)", { ascending: true });
-  } else {
-    query = query
-      .order("products(category_name)", { ascending: true, nullsFirst: false })
-      .order("products(name)", { ascending: true });
-  }
-  query = query.order("slug");
+    // Ordenação por coluna do embed `products` (o PostgREST aceita 1 nível; por
+    // isso `category_name` e `effective_price` são colunas do produto — migração
+    // 0013). `slug` fecha como desempate: ordem instável duplicaria/sumiria
+    // itens entre páginas.
+    // Ordenação: `products(coluna)` no order de topo reordena o resultado.
+    // (`referencedTable` NÃO serve aqui — ele ordena as linhas dentro do embed.)
+    // Só funciona com 1 nível, por isso `category_name`/`effective_price` são
+    // colunas materializadas em `products` (migração 0013).
+    // Esgotado por último, em qualquer ordenação: `products.tem_estoque` é
+    // mantida por gatilho a cada movimento de estoque (migração 0027). A peça
+    // segue visível (com o selo "Esgotado"), só não ocupa o topo da vitrine.
+    if (comEstoque)
+      query = query.order("products(tem_estoque)", { ascending: false });
+    const sort: SortKey = opts.sort ?? "categoria";
+    if (sort === "menor-preco") {
+      query = query.order("products(effective_price)", { ascending: true });
+    } else if (sort === "maior-preco") {
+      query = query.order("products(effective_price)", { ascending: false });
+    } else if (sort === "nome") {
+      query = query.order("products(name)", { ascending: true });
+    } else if (sort === "promocao") {
+      query = query
+        .order("products(promo_price)", { ascending: false, nullsFirst: false })
+        .order("products(effective_price)", { ascending: true });
+    } else {
+      query = query
+        .order("products(category_name)", {
+          ascending: true,
+          nullsFirst: false,
+        })
+        .order("products(name)", { ascending: true });
+    }
+    query = query.order("slug");
 
-  const perPage = opts.perPage ?? PRODUCTS_PER_PAGE;
-  if (opts.page && opts.page > 0) {
-    const from = (opts.page - 1) * perPage;
-    query = query.range(from, from + perPage - 1);
-  }
+    const perPage = opts.perPage ?? PRODUCTS_PER_PAGE;
+    if (opts.page && opts.page > 0) {
+      const from = (opts.page - 1) * perPage;
+      query = query.range(from, from + perPage - 1);
+    }
 
-  const { data, error, count } = await query;
+    return query;
+  };
+
+  const consulta = montar(true);
+  if (!consulta) return { items: [], total: 0 };
+  let { data, error, count } = await consulta;
+  if (error && /tem_estoque/.test(error.message ?? ""))
+    ({ data, error, count } = await montar(false)!);
   // Página além da última: o PostgREST recusa o intervalo (416, PGRST103).
   // Não é falha — quem chama manda o cliente para uma página que existe.
   if (error?.code === "PGRST103")

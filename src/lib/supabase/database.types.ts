@@ -810,6 +810,7 @@ export type Database = {
           price: number | null
           promo_price: number | null
           reference: string | null
+          tem_estoque: boolean
           source_timestamp: number | null
           updated_at: string
           weight_grams: number | null
@@ -830,6 +831,7 @@ export type Database = {
           price?: number | null
           promo_price?: number | null
           reference?: string | null
+          tem_estoque?: boolean
           source_timestamp?: number | null
           updated_at?: string
           weight_grams?: number | null
@@ -850,6 +852,7 @@ export type Database = {
           price?: number | null
           promo_price?: number | null
           reference?: string | null
+          tem_estoque?: boolean
           source_timestamp?: number | null
           updated_at?: string
           weight_grams?: number | null
