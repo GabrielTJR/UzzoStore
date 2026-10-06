@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { EmailCodeForm } from "@/components/email-code-form";
+import { GoogleButton } from "@/components/google-button";
 import { emailAlreadyRegistered } from "./actions";
 
 // Mesmos campos do checkout (`email-code-form.tsx`): 48px de altura para o
@@ -177,6 +178,7 @@ export function LoginForm() {
   if (modo === "codigo") {
     return (
       <div className="space-y-6">
+        <GoogleButton next={next} />
         {abas}
         {/* Mesmo componente do checkout: rascunho no localStorage, foco no
             campo do código dentro do toque (iOS) e detector de laço já vêm
@@ -196,16 +198,26 @@ export function LoginForm() {
 
   return (
     <div className="space-y-6">
+      <GoogleButton next={next} />
       {abas}
       <form onSubmit={handleSubmit} className="space-y-4">
         {/* Chega aqui vindo de um link de e-mail que não valeu mais (expirou,
             foi aberto em outro aparelho ou já tinha sido usado). Sem isto a
             pessoa cairia na tela de login sem entender por quê. */}
+        {params.get("erro") === "google" && (
+          <div className="rounded-xs bg-surface px-4 py-3 text-sm">
+            Não deu para entrar com o Google (a janela foi fechada ou o acesso
+            foi negado). Tente de novo ou entre com um código por e-mail.
+          </div>
+        )}
         {params.get("erro") === "link-invalido" && (
           <div className="rounded-xs bg-surface px-4 py-3 text-sm">
             Esse link expirou ou foi aberto em outro aparelho. Entre com sua
             senha, com um código ou{" "}
-            <Link href="/esqueci-senha" className="underline underline-offset-4">
+            <Link
+              href="/esqueci-senha"
+              className="underline underline-offset-4"
+            >
               peça um novo link
             </Link>
             .
@@ -230,7 +242,10 @@ export function LoginForm() {
             <label className={label} htmlFor="password">
               Senha
             </label>
-            <Link href="/esqueci-senha" className="text-sm text-muted underline-offset-4 hover:text-foreground hover:underline">
+            <Link
+              href="/esqueci-senha"
+              className="text-sm text-muted underline-offset-4 hover:text-foreground hover:underline"
+            >
               Esqueci a senha
             </Link>
           </div>
@@ -330,14 +345,21 @@ export function SignupForm() {
           </p>
         </div>
         <div className="grid gap-3 sm:grid-cols-2">
-          <Link href={`/entrar?next=${encodeURIComponent(next)}`} className={primary}>
+          <Link
+            href={`/entrar?next=${encodeURIComponent(next)}`}
+            className={primary}
+          >
             Entrar
           </Link>
           <Link href="/esqueci-senha" className={`${secondary} bg-background`}>
             Esqueci minha senha
           </Link>
         </div>
-        <button type="button" onClick={() => setExisting(false)} className={linkMuted}>
+        <button
+          type="button"
+          onClick={() => setExisting(false)}
+          className={linkMuted}
+        >
           Usar outro e-mail
         </button>
       </div>
@@ -346,7 +368,10 @@ export function SignupForm() {
 
   if (sent) {
     return (
-      <div role="status" className="space-y-2 rounded-sm bg-surface p-5 text-sm">
+      <div
+        role="status"
+        className="space-y-2 rounded-sm bg-surface p-5 text-sm"
+      >
         <p className="font-semibold">Confira seu e-mail</p>
         <p className="text-muted">
           Enviamos um link para confirmar sua conta. Depois de confirmar, você
@@ -358,64 +383,67 @@ export function SignupForm() {
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4">
-      <div className="space-y-1.5">
-        <label className={label} htmlFor="fullName">
-          Nome completo
-        </label>
-        <input
-          id="fullName"
-          name="fullName"
-          required
-          autoComplete="name"
-          className={field}
-        />
-      </div>
-      <div className="space-y-1.5">
-        <label className={label} htmlFor="email">
-          E-mail
-        </label>
-        <input
-          id="email"
-          name="email"
-          type="email"
-          required
-          autoComplete="email"
-          inputMode="email"
-          className={field}
-        />
-      </div>
-      <div className="space-y-1.5">
-        <label className={label} htmlFor="password">
-          Senha
-        </label>
-        <PasswordInput
-          id="password"
-          autoComplete="new-password"
-          describedBy="senha-dica"
-        />
-        <p id="senha-dica" className="text-sm text-muted">
-          Mínimo de 8 caracteres.
+    <div className="space-y-6">
+      <GoogleButton next={next} separador="ou crie com e-mail e senha" />
+      <form onSubmit={handleSubmit} className="space-y-4">
+        <div className="space-y-1.5">
+          <label className={label} htmlFor="fullName">
+            Nome completo
+          </label>
+          <input
+            id="fullName"
+            name="fullName"
+            required
+            autoComplete="name"
+            className={field}
+          />
+        </div>
+        <div className="space-y-1.5">
+          <label className={label} htmlFor="email">
+            E-mail
+          </label>
+          <input
+            id="email"
+            name="email"
+            type="email"
+            required
+            autoComplete="email"
+            inputMode="email"
+            className={field}
+          />
+        </div>
+        <div className="space-y-1.5">
+          <label className={label} htmlFor="password">
+            Senha
+          </label>
+          <PasswordInput
+            id="password"
+            autoComplete="new-password"
+            describedBy="senha-dica"
+          />
+          <p id="senha-dica" className="text-sm text-muted">
+            Mínimo de 8 caracteres.
+          </p>
+        </div>
+        {error && (
+          <p role="alert" className={errorCls}>
+            {error}
+          </p>
+        )}
+        <button type="submit" disabled={busy} className={primary}>
+          {busy ? "Criando…" : "Criar conta"}
+        </button>
+        <p className="border-t border-border pt-5 text-sm text-muted">
+          Já tem conta?{" "}
+          <Link
+            href={`/entrar?next=${encodeURIComponent(next)}`}
+            className="font-medium text-foreground underline underline-offset-4"
+          >
+            Entrar
+          </Link>
         </p>
-      </div>
-      {error && (
-        <p role="alert" className={errorCls}>
-          {error}
-        </p>
-      )}
-      <button type="submit" disabled={busy} className={primary}>
-        {busy ? "Criando…" : "Criar conta"}
-      </button>
-      <p className="border-t border-border pt-5 text-sm text-muted">
-        Já tem conta?{" "}
-        <Link
-          href={`/entrar?next=${encodeURIComponent(next)}`}
-          className="font-medium text-foreground underline underline-offset-4"
-        >
-          Entrar
-        </Link>
-      </p>
-    </form>
+      </form>
+    </div>
   );
 }
 
@@ -446,7 +474,10 @@ export function ForgotPasswordForm() {
 
   if (sent) {
     return (
-      <div role="status" className="space-y-2 rounded-sm bg-surface p-5 text-sm">
+      <div
+        role="status"
+        className="space-y-2 rounded-sm bg-surface p-5 text-sm"
+      >
         <p className="font-semibold">Confira seu e-mail</p>
         <p className="text-muted">
           Se existir uma conta com esse e-mail, enviamos um link para criar uma
@@ -521,7 +552,10 @@ export function NewPasswordForm() {
           invalid={!!error}
           describedBy="nova-senha-dica"
         />
-        <p id="nova-senha-dica" className={error ? errorCls : "text-sm text-muted"}>
+        <p
+          id="nova-senha-dica"
+          className={error ? errorCls : "text-sm text-muted"}
+        >
           {error ?? "Mínimo de 8 caracteres."}
         </p>
       </div>

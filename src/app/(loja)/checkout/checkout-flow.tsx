@@ -14,6 +14,7 @@ import { freteRecomendado } from "@/lib/freight-choice";
 import { nomeServicoFrete } from "@/lib/shipping-config";
 import { formatBRL } from "@/lib/format";
 import { EmailCodeForm } from "@/components/email-code-form";
+import { GoogleButton } from "@/components/google-button";
 import {
   cartStockAction,
   startOnlinePaymentAction,
@@ -690,6 +691,11 @@ export function CheckoutFlow({
           ) : null
         }
       >
+        {/* Fora do app (Instagram/Facebook) o Google abre; dentro, o botão
+            vira uma dica e o código por e-mail segue como caminho. */}
+        <div className="mb-5">
+          <GoogleButton next="/checkout" />
+        </div>
         <EmailCodeForm
           origem="checkout"
           senhaHref="/entrar?next=%2Fcheckout"

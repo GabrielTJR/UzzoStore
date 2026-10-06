@@ -24,6 +24,13 @@ export async function GET(request: NextRequest) {
   const next = safeNext(searchParams.get("next"), origin);
   const isAdmin = next.startsWith("/admin");
 
+  // Volta do Google com erro (janela fechada, acesso negado): não é "link
+  // expirado", e a mensagem certa mora em /entrar?erro=google.
+  if (!code && searchParams.get("error") && !isAdmin)
+    return NextResponse.redirect(
+      `${origin}/entrar?erro=google&next=${encodeURIComponent(next)}`,
+    );
+
   if (code) {
     const supabase = await createClient();
     const { error } = await supabase.auth.exchangeCodeForSession(code);
