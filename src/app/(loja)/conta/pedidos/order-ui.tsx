@@ -38,7 +38,9 @@ type Tom = "acao" | "andamento" | "fim" | "parado";
 
 /** O tom da frase: o cobalto (o SINAL da loja) só onde o cliente tem algo a
  * fazer — pagar. */
-function tomDaSituacao(o: Pick<AccountOrder, "payment_status" | "fulfillment_status">): Tom {
+function tomDaSituacao(
+  o: Pick<AccountOrder, "payment_status" | "fulfillment_status">,
+): Tom {
   const s = situacaoCliente(o.payment_status, o.fulfillment_status);
   if (s === "Aguardando pagamento") return "acao";
   if (s === "Concluído") return "fim";
@@ -64,7 +66,11 @@ export function OrderStatus({
   return (
     <span
       className={`inline-flex items-center gap-2 text-sm ${
-        tom === "acao" ? "font-semibold text-accent" : tom === "andamento" ? "font-semibold" : "text-muted"
+        tom === "acao"
+          ? "font-semibold text-accent"
+          : tom === "andamento"
+            ? "font-semibold"
+            : "text-muted"
       } ${className}`}
     >
       <span aria-hidden className={`h-2 w-2 shrink-0 rounded-full ${ponto}`} />
@@ -117,7 +123,8 @@ function resumoDasPecas(items: AccountOrderItem[]): string {
 /** Ações de pedido em aberto — os botões que já existiam, só reposicionados. */
 function AcoesPendentes({ order }: { order: AccountOrder }) {
   const cancelavel =
-    order.payment_status === "pending" && order.fulfillment_status !== "canceled";
+    order.payment_status === "pending" &&
+    order.fulfillment_status !== "canceled";
   if (!cancelavel) return null;
   return (
     <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3 border-t border-border px-4 py-3 sm:px-5">
@@ -181,15 +188,34 @@ const HORARIO_LOJA = "Seg a Sex 10h–19h, sábado 10h–14h.";
  * etapa gravada (só a do pedido), então só "Pedido feito" leva data — melhor
  * que inventar.
  */
+/** Data em que o pedido chegou a uma etapa física (null se não há). */
+function dataEtapa(o: AccountOrder, etapa: string): string | undefined {
+  const iso = {
+    preparing: o.preparing_at,
+    ready: o.ready_at,
+    shipped: o.shipped_at,
+    done: o.done_at,
+  }[etapa];
+  return iso ? dataPedido(iso, true) : undefined;
+}
+
 export function passosDoPedido(o: AccountOrder): Passo[] {
-  const feito: Passo = { rotulo: "Pedido feito", estado: "feito", dica: dataPedido(o.created_at, true) };
+  const feito: Passo = {
+    rotulo: "Pedido feito",
+    estado: "feito",
+    dica: dataPedido(o.created_at, true),
+  };
 
   // Pago e depois cancelado: o pagamento chegou sem peça sobrando. Quem pagou
   // não pode ler só "Cancelado" (mesma regra de `situacaoCliente`).
   if (o.payment_status === "paid" && o.fulfillment_status === "canceled")
     return [
       feito,
-      { rotulo: "Pagamento confirmado", estado: "feito" },
+      {
+        rotulo: "Pagamento confirmado",
+        estado: "feito",
+        dica: o.paid_at ? dataPedido(o.paid_at, true) : undefined,
+      },
       {
         rotulo: "Em revisão pela loja",
         estado: "atual",
@@ -218,7 +244,10 @@ export function passosDoPedido(o: AccountOrder): Passo[] {
   // Até onde o pedido chegou: 0 = feito, 1 = pago, 2.. = etapas físicas.
   const alcancado = !pago
     ? 0
-    : Math.max(1, etapas.indexOf(o.fulfillment_status as (typeof etapas)[number]) + 2);
+    : Math.max(
+        1,
+        etapas.indexOf(o.fulfillment_status as (typeof etapas)[number]) + 2,
+      );
 
   const dicas: Record<string, string> = {
     preparing: "Estamos separando suas peças.",
@@ -235,7 +264,13 @@ export function passosDoPedido(o: AccountOrder): Passo[] {
       ? {
           rotulo: "Pagamento confirmado",
           estado: alcancado === 1 ? "atual" : "feito",
-          dica: alcancado === 1 ? "Já vamos separar suas peças." : undefined,
+          // Etapa feita mostra QUANDO aconteceu; a atual, o que vem agora.
+          dica:
+            alcancado === 1
+              ? `${o.paid_at ? `${dataPedido(o.paid_at, true)}. ` : ""}Já vamos separar suas peças.`
+              : o.paid_at
+                ? dataPedido(o.paid_at, true)
+                : undefined,
         }
       : {
           rotulo: "Aguardando pagamento",
@@ -247,14 +282,20 @@ export function passosDoPedido(o: AccountOrder): Passo[] {
         },
     ...etapas.map((s, i): Passo => {
       const idx = i + 2;
-      const estado = idx < alcancado ? "feito" : idx === alcancado ? "atual" : "futuro";
+      const estado =
+        idx < alcancado ? "feito" : idx === alcancado ? "atual" : "futuro";
       return {
         rotulo:
           s === "shipped" && !o.shipping_method
             ? "Enviado ou entregue"
             : FULFILLMENT_STATUS[s],
         estado: s === "done" && idx === alcancado ? "feito" : estado,
-        dica: idx === alcancado ? dicas[s] : undefined,
+        dica: (() => {
+          const quando = dataEtapa(o, s);
+          if (idx === alcancado)
+            return quando ? `${quando}. ${dicas[s]}` : dicas[s];
+          return idx < alcancado ? quando : undefined;
+        })(),
       };
     }),
   ];
@@ -284,7 +325,8 @@ export function OrderTimeline({ order }: { order: AccountOrder }) {
               <span
                 aria-hidden
                 className={`absolute left-[5px] top-4 h-[calc(100%-0.75rem)] w-0.5 ${
-                  passos[i + 1].estado === "feito" || passos[i + 1].estado === "atual"
+                  passos[i + 1].estado === "feito" ||
+                  passos[i + 1].estado === "atual"
                     ? "bg-foreground"
                     : "bg-border"
                 }`}
@@ -307,7 +349,9 @@ export function OrderTimeline({ order }: { order: AccountOrder }) {
                 }`}
               >
                 {p.rotulo}
-                {p.estado === "feito" && <span className="sr-only"> (concluído)</span>}
+                {p.estado === "feito" && (
+                  <span className="sr-only"> (concluído)</span>
+                )}
               </p>
               {p.dica && <p className="mt-0.5 text-sm text-muted">{p.dica}</p>}
             </div>
@@ -334,7 +378,9 @@ export function EmptyState({
   return (
     <div className="rounded-sm bg-surface px-6 py-10 text-center">
       <p className="font-display text-lg font-bold">{title}</p>
-      {text && <p className="mx-auto mt-1 max-w-sm text-sm text-muted">{text}</p>}
+      {text && (
+        <p className="mx-auto mt-1 max-w-sm text-sm text-muted">{text}</p>
+      )}
       <Link
         href={href}
         className="mt-5 inline-flex h-11 items-center justify-center rounded-xs bg-foreground px-6 text-sm font-medium text-background transition-opacity hover:opacity-90"

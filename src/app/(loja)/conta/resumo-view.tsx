@@ -90,7 +90,9 @@ export function ResumoView({
           titulo="Endereços"
           linha={
             principal
-              ? [principal.street, principal.number].filter(Boolean).join(", ") +
+              ? [principal.street, principal.number]
+                  .filter(Boolean)
+                  .join(", ") +
                 (addresses.length > 1 ? ` e mais ${addresses.length - 1}` : "")
               : "Nenhum endereço salvo"
           }

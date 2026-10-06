@@ -14,7 +14,13 @@ import type { AccountOrder } from "../../order-data";
 import { CancelOrderButton } from "../cancel-order-button";
 import { PayOrderButton } from "../pay-order-button";
 import { podePagarAgora } from "../pode-pagar";
-import { OrderStatus, OrderThumb, OrderTimeline, dataPedido } from "../order-ui";
+import { CopyButton } from "@/components/copy-button";
+import {
+  OrderStatus,
+  OrderThumb,
+  OrderTimeline,
+  dataPedido,
+} from "../order-ui";
 
 /**
  * Detalhe do pedido. No celular, a ordem é a das perguntas do cliente: onde
@@ -38,14 +44,18 @@ export function OrderDetailView({ order: o }: { order: AccountOrder }) {
       ? { rotulo: "Retirada na loja", valor: "grátis" }
       : frete.tipo === "cobrado"
         ? {
-            rotulo: frete.transportadora ? `Frete (${frete.transportadora})` : "Frete",
+            rotulo: frete.transportadora
+              ? `Frete (${frete.transportadora})`
+              : "Frete",
             valor: formatBRL(frete.valor),
           }
         : frete.tipo === "gratis"
           ? { rotulo: "Frete", valor: "grátis" }
           : { rotulo: "Frete", valor: "a combinar pelo WhatsApp" };
 
-  const rastreio = o.tracking_code ? linkRastreio(o.tracking_code, o.shipping_service) : null;
+  const rastreio = o.tracking_code
+    ? linkRastreio(o.tracking_code, o.shipping_service)
+    : null;
   const addr = o.shipping_method === "delivery" ? o.shipping_address : null;
 
   return (
@@ -60,7 +70,9 @@ export function OrderDetailView({ order: o }: { order: AccountOrder }) {
         <h1 className="font-display text-2xl font-bold md:text-3xl">
           Pedido nº {o.number}
         </h1>
-        <p className="mt-1 text-sm text-muted">Feito em {dataPedido(o.created_at, true)}</p>
+        <p className="mt-1 text-sm text-muted">
+          Feito em {dataPedido(o.created_at, true)}
+        </p>
         <OrderStatus order={o} className="mt-3 text-base" />
       </header>
 
@@ -139,16 +151,23 @@ export function OrderDetailView({ order: o }: { order: AccountOrder }) {
             </p>
           </Bloco>
 
-          <Bloco titulo={o.shipping_method === "pickup" ? "Retirada" : "Entrega"}>
+          <Bloco
+            titulo={o.shipping_method === "pickup" ? "Retirada" : "Entrega"}
+          >
             {rastreio && o.tracking_code && (
               <div className="mb-4 rounded-xs bg-surface p-3 text-sm">
                 <p className="text-muted">
                   Código de rastreio
-                  {rastreio.transportadora ? ` — ${rastreio.transportadora}` : ""}
+                  {rastreio.transportadora
+                    ? ` — ${rastreio.transportadora}`
+                    : ""}
                 </p>
-                <p className="mt-0.5 select-all font-mono text-base font-semibold">
-                  {o.tracking_code}
-                </p>
+                <div className="mt-0.5 flex flex-wrap items-center gap-3">
+                  <p className="select-all font-mono text-base font-semibold">
+                    {o.tracking_code}
+                  </p>
+                  <CopyButton text={o.tracking_code} label="Copiar código" />
+                </div>
                 {rastreio.url ? (
                   <a
                     href={rastreio.url}
@@ -161,7 +180,8 @@ export function OrderDetailView({ order: o }: { order: AccountOrder }) {
                   </a>
                 ) : (
                   <p className="mt-1 text-muted">
-                    Acompanhe no site da {rastreio.transportadora ?? "transportadora"}.
+                    Acompanhe no site da{" "}
+                    {rastreio.transportadora ?? "transportadora"}.
                   </p>
                 )}
               </div>
@@ -171,7 +191,9 @@ export function OrderDetailView({ order: o }: { order: AccountOrder }) {
                 <p className="font-medium">Uzzo Store</p>
                 <p className="text-muted">{STORE_ADDRESS_LINE}</p>
                 <p className="text-muted">{STORE_CITY_LINE}</p>
-                <p className="mt-1 text-muted">Seg a Sex 10h–19h, sábado 10h–14h.</p>
+                <p className="mt-1 text-muted">
+                  Seg a Sex 10h–19h, sábado 10h–14h.
+                </p>
                 <a
                   href={MAPS_URL}
                   target="_blank"
@@ -190,26 +212,35 @@ export function OrderDetailView({ order: o }: { order: AccountOrder }) {
                   {addr.complement ? ` — ${addr.complement}` : ""}
                 </p>
                 <p className="text-muted">
-                  {[addr.district, [addr.city, addr.state].filter(Boolean).join("/")]
+                  {[
+                    addr.district,
+                    [addr.city, addr.state].filter(Boolean).join("/"),
+                  ]
                     .filter(Boolean)
                     .join(", ")}
                 </p>
                 {addr.cep && <p className="text-muted">CEP {addr.cep}</p>}
               </div>
             ) : (
-              <p className="text-sm text-muted">Combinada pelo WhatsApp com a loja.</p>
+              <p className="text-sm text-muted">
+                Combinada pelo WhatsApp com a loja.
+              </p>
             )}
           </Bloco>
 
           <a
-            href={whatsappLink(`Olá! Tenho uma dúvida sobre o pedido nº ${o.number}.`)}
+            href={whatsappLink(
+              `Olá! Tenho uma dúvida sobre o pedido nº ${o.number}.`,
+            )}
             target="_blank"
             rel="noopener noreferrer"
             className="flex min-h-11 items-center gap-3 rounded-sm border border-border px-4 py-3 text-sm transition-colors hover:border-foreground"
           >
             <IconChat size={20} />
             <span>
-              <span className="block font-medium">Dúvida sobre este pedido?</span>
+              <span className="block font-medium">
+                Dúvida sobre este pedido?
+              </span>
               <span className="text-muted">Fale com a loja no WhatsApp</span>
             </span>
           </a>

@@ -1,6 +1,12 @@
 "use client";
 
-import { useActionState, useEffect, useId, useState, type FormEvent } from "react";
+import {
+  useActionState,
+  useEffect,
+  useId,
+  useState,
+  type FormEvent,
+} from "react";
 import {
   updateProfileAction,
   changeCustomerPasswordAction,
@@ -58,13 +64,16 @@ export function ProfileForm({ profile }: { profile: CustomerProfile }) {
     const e: Partial<Record<Campo, string>> = {};
     if (!isFullName(fullName)) e.fullName = "Informe nome e sobrenome.";
     // Vazio pode (a conta não é o checkout); preenchido tem de ser válido.
-    if (onlyDigits(cpf) && !isValidCpf(cpf)) e.cpf = "CPF inválido. Confira os números.";
+    if (onlyDigits(cpf) && !isValidCpf(cpf))
+      e.cpf = "CPF inválido. Confira os números.";
     if (onlyDigits(phone) && !isValidPhone(phone))
       e.phone = "Telefone inválido. Use DDD e número.";
     if (!Object.keys(e).length) return;
     ev.preventDefault();
     setErros(e);
-    const primeiro = (["fullName", "cpf", "phone"] as Campo[]).find((c) => e[c]);
+    const primeiro = (["fullName", "cpf", "phone"] as Campo[]).find(
+      (c) => e[c],
+    );
     if (primeiro) document.getElementById(id(primeiro))?.focus();
   }
 
@@ -86,7 +95,9 @@ export function ProfileForm({ profile }: { profile: CustomerProfile }) {
   return (
     <form action={action} onSubmit={validar} noValidate className="space-y-4">
       <div className="space-y-1.5">
-        <label className={rotulo} htmlFor={id("fullName")}>Nome completo</label>
+        <label className={rotulo} htmlFor={id("fullName")}>
+          Nome completo
+        </label>
         <input
           {...props("fullName")}
           autoComplete="name"
@@ -100,7 +111,9 @@ export function ProfileForm({ profile }: { profile: CustomerProfile }) {
       </div>
       <div className="grid gap-4 sm:grid-cols-2">
         <div className="space-y-1.5">
-          <label className={rotulo} htmlFor={id("cpf")}>CPF</label>
+          <label className={rotulo} htmlFor={id("cpf")}>
+            CPF
+          </label>
           <input
             {...props("cpf")}
             inputMode="numeric"
@@ -114,7 +127,9 @@ export function ProfileForm({ profile }: { profile: CustomerProfile }) {
           {erroDe("cpf")}
         </div>
         <div className="space-y-1.5">
-          <label className={rotulo} htmlFor={id("phone")}>Celular / WhatsApp</label>
+          <label className={rotulo} htmlFor={id("phone")}>
+            Celular / WhatsApp
+          </label>
           <input
             {...props("phone")}
             type="tel"
@@ -196,7 +211,9 @@ export function PasswordForm() {
       className="space-y-4"
     >
       <div className="space-y-1.5">
-        <label className={rotulo} htmlFor="nova-senha">Nova senha</label>
+        <label className={rotulo} htmlFor="nova-senha">
+          Nova senha
+        </label>
         <div className="relative">
           <input
             id="nova-senha"
@@ -221,7 +238,10 @@ export function PasswordForm() {
             {ver ? "Ocultar" : "Mostrar"}
           </button>
         </div>
-        <p id="nova-senha-dica" className={erro ? erroCls : "text-sm text-muted"}>
+        <p
+          id="nova-senha-dica"
+          className={erro ? erroCls : "text-sm text-muted"}
+        >
           {erro ?? "Mínimo de 8 caracteres."}
         </p>
       </div>

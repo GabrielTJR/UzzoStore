@@ -158,6 +158,18 @@ export type AdminOrder = {
   couponCode: string | null;
   discount: number;
   trackingCode: string | null;
+  /** Quando cada etapa aconteceu (migração 0029). */
+  etapas: {
+    paid: string | null;
+    preparing: string | null;
+    ready: string | null;
+    shipped: string | null;
+    done: string | null;
+  };
+  /** Etiqueta do Melhor Envio já comprada pelo painel. */
+  melhorenvioId: string | null;
+  labelUrl: string | null;
+  shippingServiceId: number | null;
   isNew: boolean;
   shippingAddress: {
     label?: string | null;
@@ -175,6 +187,14 @@ export type AdminOrder = {
 type Row = {
   id: string;
   number: number;
+  paid_at?: string | null;
+  preparing_at?: string | null;
+  ready_at?: string | null;
+  shipped_at?: string | null;
+  done_at?: string | null;
+  melhorenvio_id?: string | null;
+  label_url?: string | null;
+  shipping_service_id?: number | null;
   payment_status: string;
   fulfillment_status: string;
   expires_at: string | null;
@@ -205,6 +225,8 @@ type Row = {
 const SELECT_PEDIDO = `id, number, payment_status, fulfillment_status, expires_at, channel, total, created_at,
        shipping_method, seen_at, shipping_address,
        shipping_service, shipping_cost, coupon_code, discount, tracking_code,
+       paid_at, preparing_at, ready_at, shipped_at, done_at,
+       melhorenvio_id, label_url, shipping_service_id,
        customers ( full_name, phone, cpf ),
        order_items ( product_name, variant_label, unit_price, qty )`;
 
@@ -287,6 +309,16 @@ function paraPedido(o: Row): AdminOrder {
     couponCode: o.coupon_code ?? null,
     discount: Number(o.discount ?? 0),
     trackingCode: o.tracking_code ?? null,
+    etapas: {
+      paid: o.paid_at ?? null,
+      preparing: o.preparing_at ?? null,
+      ready: o.ready_at ?? null,
+      shipped: o.shipped_at ?? null,
+      done: o.done_at ?? null,
+    },
+    melhorenvioId: o.melhorenvio_id ?? null,
+    labelUrl: o.label_url ?? null,
+    shippingServiceId: o.shipping_service_id ?? null,
     isNew: o.seen_at === null,
     shippingAddress: o.shipping_address,
     items: (o.order_items ?? []).map((i) => ({

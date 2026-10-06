@@ -28,6 +28,9 @@ export type OrderAddress = {
 };
 
 export type AccountOrderItem = {
+  /** Para "Comprar de novo" (volta à sacola) e para avaliar a peça. */
+  variant_id: string | null;
+  product_id: string | null;
   product_name: string;
   variant_label: string | null;
   unit_price: number;
@@ -55,11 +58,18 @@ export type AccountOrder = {
   total: number;
   created_at: string;
   expires_at: string | null;
+  /** Quando cada etapa aconteceu (gatilho da migração 0029; null antes dela
+   * ou se a etapa não aconteceu). */
+  paid_at: string | null;
+  preparing_at: string | null;
+  ready_at: string | null;
+  shipped_at: string | null;
+  done_at: string | null;
   items: AccountOrderItem[];
 };
 
-const ITEMS = `order_items ( product_name, variant_label, unit_price, qty, created_at,
-  product_variants ( product_colors ( foto:gallery->>0 ), products ( product_content ( slug ) ) ) )`;
+const ITEMS = `order_items ( variant_id, product_name, variant_label, unit_price, qty, created_at,
+  product_variants ( product_id, product_colors ( foto:gallery->>0 ), products ( product_content ( slug ) ) ) )`;
 
 /** A lista só precisa do cabeçalho do pedido + as peças (foto e nome). */
 const LIST_SELECT = `id, number, payment_status, fulfillment_status, channel,
@@ -68,18 +78,21 @@ const LIST_SELECT = `id, number, payment_status, fulfillment_status, channel,
 const DETAIL_SELECT = `id, number, payment_status, fulfillment_status, channel,
   shipping_method, shipping_address, shipping_service, shipping_cost,
   coupon_code, discount, tracking_code, subtotal, total, created_at,
-  expires_at, ${ITEMS}`;
+  expires_at, paid_at, preparing_at, ready_at, shipped_at, done_at, ${ITEMS}`;
 
 type One<T> = T | T[] | null | undefined;
-const one = <T,>(v: One<T>): T | null => (Array.isArray(v) ? (v[0] ?? null) : (v ?? null));
+const one = <T>(v: One<T>): T | null =>
+  Array.isArray(v) ? (v[0] ?? null) : (v ?? null);
 
 type RawItem = {
+  variant_id?: string | null;
   product_name: string;
   variant_label: string | null;
   unit_price: number | string;
   qty: number;
   created_at?: string;
   product_variants: One<{
+    product_id?: string | null;
     product_colors: One<{ foto: string | null }>;
     products: One<{ product_content: One<{ slug: string }> }>;
   }>;
@@ -90,10 +103,14 @@ type RawOrder = Record<string, unknown> & { order_items?: RawItem[] };
 function toOrder(r: RawOrder): AccountOrder {
   const items = [...(r.order_items ?? [])]
     // Ordem em que entraram no pedido: a "1ª peça" do cartão é estável.
-    .sort((a, b) => String(a.created_at ?? "").localeCompare(String(b.created_at ?? "")))
+    .sort((a, b) =>
+      String(a.created_at ?? "").localeCompare(String(b.created_at ?? "")),
+    )
     .map((it): AccountOrderItem => {
       const v = one(it.product_variants);
       return {
+        variant_id: it.variant_id ?? null,
+        product_id: v?.product_id ?? null,
         product_name: it.product_name,
         variant_label: it.variant_label,
         unit_price: Number(it.unit_price),
@@ -119,6 +136,11 @@ function toOrder(r: RawOrder): AccountOrder {
     total: Number(r.total ?? 0),
     created_at: String(r.created_at),
     expires_at: (r.expires_at as string | null) ?? null,
+    paid_at: (r.paid_at as string | null) ?? null,
+    preparing_at: (r.preparing_at as string | null) ?? null,
+    ready_at: (r.ready_at as string | null) ?? null,
+    shipped_at: (r.shipped_at as string | null) ?? null,
+    done_at: (r.done_at as string | null) ?? null,
     items,
   };
 }

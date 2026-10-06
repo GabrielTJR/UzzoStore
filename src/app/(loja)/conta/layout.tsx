@@ -12,7 +12,11 @@ import { AccountShell } from "./account-shell";
  * Sem sessão não há casca: a página logo abaixo chama `requireCustomer` e
  * manda para /entrar com o `next` certo.
  */
-export default async function ContaLayout({ children }: { children: ReactNode }) {
+export default async function ContaLayout({
+  children,
+}: {
+  children: ReactNode;
+}) {
   const profile = await getCustomerProfile();
   if (!profile) return children;
 

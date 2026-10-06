@@ -136,6 +136,14 @@ const camposLongos = `${campos} grid-cols-[repeat(auto-fit,minmax(15rem,1fr))]`;
  * e entrega), com a régua preenchida até onde o pedido chegou. É o mesmo
  * desenho do indicador no cabeçalho das colunas do quadro.
  */
+const dataEtapa = new Intl.DateTimeFormat("pt-BR", {
+  day: "2-digit",
+  month: "2-digit",
+  hour: "2-digit",
+  minute: "2-digit",
+  timeZone: "America/Sao_Paulo",
+});
+
 function Trilha({ order: o }: { order: AdminOrder }) {
   const etapas = fulfillmentSteps(o.shippingMethod);
   const cancelado = o.fulfillmentStatus === "canceled";
@@ -154,6 +162,18 @@ function Trilha({ order: o }: { order: AdminOrder }) {
             } ${aqui ? "font-semibold" : ""}`}
           >
             {FULFILLMENT_STATUS[s]}
+            {/* Quando chegou nesta etapa (a 1ª é a criação do pedido). */}
+            {(() => {
+              const iso =
+                s === "pending"
+                  ? o.createdAt
+                  : o.etapas[s as keyof AdminOrder["etapas"]];
+              return alcancada && iso ? (
+                <span className="mt-0.5 block font-normal text-muted">
+                  {dataEtapa.format(new Date(iso))}
+                </span>
+              ) : null;
+            })()}
             {alcancada && !aqui && <span className="sr-only"> (feita)</span>}
             {aqui && <span className="sr-only"> (etapa atual)</span>}
           </li>
@@ -262,6 +282,11 @@ export function OrderDetail({
                       : "automático, quem confirma é a InfinitePay"}
                   </span>
                 </span>
+                {o.etapas.paid && o.paymentStatus === "paid" && (
+                  <span className="mt-1 block text-xs text-muted">
+                    Pago em {dataEtapa.format(new Date(o.etapas.paid))}
+                  </span>
+                )}
                 {o.expiresAt && o.paymentStatus === "pending" && (
                   <span className="mt-1 block text-xs text-muted">
                     Expira em {quando.format(new Date(o.expiresAt))}; a reserva

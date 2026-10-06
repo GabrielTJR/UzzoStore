@@ -49,7 +49,11 @@ const secundario =
 type Campo = "cep" | "number" | "street" | "city" | "state";
 type ViaCep = "idle" | "buscando" | "ok" | "falha" | "naoachou";
 
-function useResultToast(state: ActionResult | null, ok: string, onOk?: () => void) {
+function useResultToast(
+  state: ActionResult | null,
+  ok: string,
+  onOk?: () => void,
+) {
   const { showToast } = useToast();
   useEffect(() => {
     if (state?.ok) {
@@ -96,7 +100,9 @@ export function AddressForm({
   const [erros, setErros] = useState<Partial<Record<Campo, string>>>({});
 
   const controller = useRef<AbortController | null>(null);
-  const ultimoCep = useRef<string | null>(address ? onlyDigits(address.cep) : null);
+  const ultimoCep = useRef<string | null>(
+    address ? onlyDigits(address.cep) : null,
+  );
   const cepRef = useRef<HTMLInputElement>(null);
   const numberRef = useRef<HTMLInputElement>(null);
   const streetRef = useRef<HTMLInputElement>(null);
@@ -104,7 +110,13 @@ export function AddressForm({
   const stateRef = useRef<HTMLSelectElement>(null);
   /** Foca depois do render: rua/cidade podem ter acabado de aparecer. */
   function focar(c: Campo) {
-    const alvo = { cep: cepRef, number: numberRef, street: streetRef, city: cityRef, state: stateRef }[c];
+    const alvo = {
+      cep: cepRef,
+      number: numberRef,
+      street: streetRef,
+      city: cityRef,
+      state: stateRef,
+    }[c];
     requestAnimationFrame(() => alvo.current?.focus());
   }
 
@@ -117,7 +129,9 @@ export function AddressForm({
     controller.current = c;
     ultimoCep.current = d;
     try {
-      const r = await fetch(`https://viacep.com.br/ws/${d}/json/`, { signal: c.signal });
+      const r = await fetch(`https://viacep.com.br/ws/${d}/json/`, {
+        signal: c.signal,
+      });
       if (!r.ok) throw new Error(String(r.status));
       const j = (await r.json()) as {
         erro?: boolean | string;
@@ -138,7 +152,13 @@ export function AddressForm({
       setUf((j.uf ?? "").toUpperCase());
       setVia("ok");
       setManual(!j.logradouro); // CEP geral de cidade pequena não traz rua
-      setErros((e) => ({ ...e, cep: undefined, street: undefined, city: undefined, state: undefined }));
+      setErros((e) => ({
+        ...e,
+        cep: undefined,
+        street: undefined,
+        city: undefined,
+        state: undefined,
+      }));
       numberRef.current?.focus(); // o número é o que sempre falta
     } catch {
       if (c.signal.aborted || ultimoCep.current !== d) return;
@@ -174,11 +194,14 @@ export function AddressForm({
   function validar(ev: FormEvent<HTMLFormElement>) {
     const e: Partial<Record<Campo, string>> = {};
     if (onlyDigits(cep).length !== 8) e.cep = "Digite os 8 números do CEP.";
-    if (!cleanText(number, 20)) e.number = "Informe o número (ou toque em sem número).";
+    if (!cleanText(number, 20))
+      e.number = "Informe o número (ou toque em sem número).";
     if (cleanText(street, 120).length < 2) e.street = "Informe a rua.";
     if (cleanText(city, 80).length < 2) e.city = "Informe a cidade.";
     if (!isValidUf(uf)) e.state = "Escolha o estado.";
-    const primeiro = (["cep", "number", "street", "city", "state"] as Campo[]).find((c) => e[c]);
+    const primeiro = (
+      ["cep", "number", "street", "city", "state"] as Campo[]
+    ).find((c) => e[c]);
     if (!primeiro) return;
     ev.preventDefault();
     if ((e.street || e.city || e.state) && via !== "buscando") setManual(true);
@@ -195,7 +218,11 @@ export function AddressForm({
     ) : null;
   const limpaErro = (c: Campo) => setErros((x) => ({ ...x, [c]: undefined }));
 
-  const linhaEndereco = [street, district, city && uf ? `${city}/${uf}` : city || uf]
+  const linhaEndereco = [
+    street,
+    district,
+    city && uf ? `${city}/${uf}` : city || uf,
+  ]
     .filter(Boolean)
     .join(", ");
 
@@ -206,12 +233,16 @@ export function AddressForm({
       noValidate
       className="space-y-4 rounded-sm border border-foreground p-4 sm:p-5"
     >
-      <p className="font-semibold">{address ? "Editar endereço" : "Novo endereço"}</p>
+      <p className="font-semibold">
+        {address ? "Editar endereço" : "Novo endereço"}
+      </p>
       {address && <input type="hidden" name="addressId" value={address.id} />}
 
       <div className="grid grid-cols-2 gap-3">
         <div className="space-y-1.5">
-          <label htmlFor={id("cep")} className={rotulo}>CEP</label>
+          <label htmlFor={id("cep")} className={rotulo}>
+            CEP
+          </label>
           <input
             ref={cepRef}
             id={id("cep")}
@@ -227,7 +258,9 @@ export function AddressForm({
           />
         </div>
         <div className="space-y-1.5">
-          <label htmlFor={id("number")} className={rotulo}>Número</label>
+          <label htmlFor={id("number")} className={rotulo}>
+            Número
+          </label>
           <input
             ref={numberRef}
             id={id("number")}
@@ -260,10 +293,14 @@ export function AddressForm({
       )}
 
       {via === "buscando" && (
-        <p role="status" className="text-sm text-muted">Buscando endereço…</p>
+        <p role="status" className="text-sm text-muted">
+          Buscando endereço…
+        </p>
       )}
       {via === "naoachou" && (
-        <p role="alert" className={erroCls}>CEP não encontrado. Confira os números.</p>
+        <p role="alert" className={erroCls}>
+          CEP não encontrado. Confira os números.
+        </p>
       )}
       {via === "falha" && (
         <p role="status" className="text-sm text-muted">
@@ -286,7 +323,9 @@ export function AddressForm({
       {manual ? (
         <div className="space-y-4">
           <div className="space-y-1.5">
-            <label htmlFor={id("street")} className={rotulo}>Rua</label>
+            <label htmlFor={id("street")} className={rotulo}>
+              Rua
+            </label>
             <input
               ref={streetRef}
               id={id("street")}
@@ -304,7 +343,9 @@ export function AddressForm({
             {erroDe("street")}
           </div>
           <div className="space-y-1.5">
-            <label htmlFor={id("district")} className={rotulo}>Bairro</label>
+            <label htmlFor={id("district")} className={rotulo}>
+              Bairro
+            </label>
             <input
               id={id("district")}
               name="district"
@@ -315,7 +356,9 @@ export function AddressForm({
           </div>
           <div className="grid grid-cols-[1fr_6rem] gap-3">
             <div className="space-y-1.5">
-              <label htmlFor={id("city")} className={rotulo}>Cidade</label>
+              <label htmlFor={id("city")} className={rotulo}>
+                Cidade
+              </label>
               <input
                 ref={cityRef}
                 id={id("city")}
@@ -332,7 +375,9 @@ export function AddressForm({
               />
             </div>
             <div className="space-y-1.5">
-              <label htmlFor={id("state")} className={rotulo}>Estado</label>
+              <label htmlFor={id("state")} className={rotulo}>
+                Estado
+              </label>
               <select
                 ref={stateRef}
                 id={id("state")}
@@ -349,7 +394,9 @@ export function AddressForm({
               >
                 <option value="">UF</option>
                 {UFS.map((u) => (
-                  <option key={u} value={u}>{u}</option>
+                  <option key={u} value={u}>
+                    {u}
+                  </option>
                 ))}
               </select>
             </div>
@@ -383,7 +430,8 @@ export function AddressForm({
 
       <div className="space-y-1.5">
         <label htmlFor={id("label")} className={rotulo}>
-          Nome do endereço <span className="font-normal text-muted">(opcional)</span>
+          Nome do endereço{" "}
+          <span className="font-normal text-muted">(opcional)</span>
         </label>
         <input
           id={id("label")}
@@ -416,7 +464,10 @@ export function AddressForm({
             Cancelar
           </button>
         )}
-        <SubmitButton pendingText="Salvando…" className={`${primario} sm:min-w-48`}>
+        <SubmitButton
+          pendingText="Salvando…"
+          className={`${primario} sm:min-w-48`}
+        >
           {address ? "Salvar endereço" : "Adicionar endereço"}
         </SubmitButton>
       </div>
@@ -521,7 +572,11 @@ export function AddressCard({
 }
 
 /** Lista + formulário, com um único formulário aberto por vez. */
-export function AddressesManager({ addresses }: { addresses: CustomerAddress[] }) {
+export function AddressesManager({
+  addresses,
+}: {
+  addresses: CustomerAddress[];
+}) {
   // "novo" | id do endereço em edição | null
   const [aberto, setAberto] = useState<string | null>(null);
   const vazio = addresses.length === 0;
@@ -530,11 +585,17 @@ export function AddressesManager({ addresses }: { addresses: CustomerAddress[] }
     <div className="space-y-4">
       {vazio && aberto !== "novo" && (
         <div className="rounded-sm bg-surface px-6 py-10 text-center">
-          <p className="font-display text-lg font-bold">Nenhum endereço salvo</p>
+          <p className="font-display text-lg font-bold">
+            Nenhum endereço salvo
+          </p>
           <p className="mx-auto mt-1 max-w-sm text-sm text-muted">
             Salve onde você recebe as compras e o checkout já chega preenchido.
           </p>
-          <button type="button" onClick={() => setAberto("novo")} className={`${primario} mt-5`}>
+          <button
+            type="button"
+            onClick={() => setAberto("novo")}
+            className={`${primario} mt-5`}
+          >
             Adicionar endereço
           </button>
         </div>
@@ -552,7 +613,11 @@ export function AddressesManager({ addresses }: { addresses: CustomerAddress[] }
                 />
               </div>
             ) : (
-              <AddressCard key={a.id} address={a} onEdit={() => setAberto(a.id)} />
+              <AddressCard
+                key={a.id}
+                address={a}
+                onEdit={() => setAberto(a.id)}
+              />
             ),
           )}
         </div>

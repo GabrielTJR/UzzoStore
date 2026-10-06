@@ -498,6 +498,15 @@ export type Database = {
           microvix_order_id: string | null
           microvix_synced_at: string | null
           number: number
+          paid_at: string | null
+          preparing_at: string | null
+          ready_at: string | null
+          shipped_at: string | null
+          done_at: string | null
+          payment_reminder_sent_at: string | null
+          shipping_service_id: number | null
+          melhorenvio_id: string | null
+          label_url: string | null
           payment_status: string
           seen_at: string | null
           shipping_address: Json | null
@@ -522,6 +531,15 @@ export type Database = {
           microvix_order_id?: string | null
           microvix_synced_at?: string | null
           number?: number
+          paid_at?: string | null
+          preparing_at?: string | null
+          ready_at?: string | null
+          shipped_at?: string | null
+          done_at?: string | null
+          payment_reminder_sent_at?: string | null
+          shipping_service_id?: number | null
+          melhorenvio_id?: string | null
+          label_url?: string | null
           payment_status?: string
           seen_at?: string | null
           shipping_address?: Json | null
@@ -546,6 +564,15 @@ export type Database = {
           microvix_order_id?: string | null
           microvix_synced_at?: string | null
           number?: number
+          paid_at?: string | null
+          preparing_at?: string | null
+          ready_at?: string | null
+          shipped_at?: string | null
+          done_at?: string | null
+          payment_reminder_sent_at?: string | null
+          shipping_service_id?: number | null
+          melhorenvio_id?: string | null
+          label_url?: string | null
           payment_status?: string
           seen_at?: string | null
           shipping_address?: Json | null
@@ -792,6 +819,45 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      product_reviews: {
+        Row: {
+          author_name: string | null
+          body: string | null
+          created_at: string
+          customer_id: string
+          id: string
+          order_id: string | null
+          product_id: string
+          rating: number
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          author_name?: string | null
+          body?: string | null
+          created_at?: string
+          customer_id: string
+          id?: string
+          order_id?: string | null
+          product_id: string
+          rating: number
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          author_name?: string | null
+          body?: string | null
+          created_at?: string
+          customer_id?: string
+          id?: string
+          order_id?: string | null
+          product_id?: string
+          rating?: number
+          status?: string
+          updated_at?: string
+        }
+        Relationships: []
       }
       products: {
         Row: {
