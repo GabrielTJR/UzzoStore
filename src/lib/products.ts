@@ -415,7 +415,9 @@ async function queryProducts(opts: ProductQuery): Promise<ProductPage> {
  * todos, então uma consulta serve todas as visitas até o admin editar algo.
  * (`unstable_cache` inclui os argumentos na chave.)
  */
-const cachedProducts = unstable_cache(queryProducts, ["produtos"], {
+// Chave "produtos-v2": a ordem mudou (esgotado no fim, 06/10). O cache de dados
+// da Vercel sobrevive ao deploy, e com a chave antiga a lista velha seguia no ar.
+const cachedProducts = unstable_cache(queryProducts, ["produtos-v2"], {
   revalidate: CACHE_LISTA,
   tags: [CACHE_TAGS.catalogo],
 });
