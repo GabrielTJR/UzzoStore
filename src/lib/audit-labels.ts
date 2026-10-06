@@ -208,6 +208,23 @@ const ACOES: Record<string, Acao> = {
     frase: (c) =>
       `${sujeito(c)} ${c.meta.active ? "ativou" : "pausou"} o cupom ${c.item ?? ""}`.trim(),
   },
+  "review.create": {
+    area: "catalogo",
+    rotulo: "Avaliação recebida",
+    frase: (c) =>
+      `${sujeito(c)} avaliou um produto${typeof c.meta.rating === "number" ? ` com ${c.meta.rating} estrela${c.meta.rating === 1 ? "" : "s"}` : ""}`,
+  },
+  "review.moderate": {
+    area: "catalogo",
+    rotulo: "Avaliação moderada",
+    frase: (c) =>
+      `${sujeito(c)} ${c.meta.status === "published" ? "publicou" : c.meta.status === "hidden" ? "escondeu" : "devolveu à fila"} uma avaliação`,
+  },
+  "review.delete": {
+    area: "catalogo",
+    rotulo: "Avaliação excluída",
+    frase: (c) => `${sujeito(c)} excluiu uma avaliação`,
+  },
   "cron.payment_reminder": {
     area: "vendas",
     auto: true,

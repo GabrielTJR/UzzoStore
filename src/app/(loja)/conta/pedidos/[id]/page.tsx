@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { requireCustomer } from "@/lib/customer";
 import { getCustomerOrder } from "../../order-data";
 import { OrderDetailView } from "./order-detail-view";
+import { minhasAvaliacoes } from "../../review-actions";
 
 export const metadata: Metadata = { title: "Detalhes do pedido" };
 
@@ -17,5 +18,9 @@ export default async function PedidoDetalhePage({
   // `getCustomerOrder` é defesa em profundidade.
   const order = await getCustomerOrder(user.id, id);
   if (!order) notFound();
-  return <OrderDetailView order={order} />;
+  // Só pedido entregue pode ser avaliado: só ele paga a leitura.
+  const entregue =
+    order.payment_status === "paid" && order.fulfillment_status === "done";
+  const avaliacoes = entregue ? await minhasAvaliacoes() : null;
+  return <OrderDetailView order={order} avaliacoes={avaliacoes} />;
 }

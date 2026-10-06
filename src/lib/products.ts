@@ -185,6 +185,8 @@ export const CACHE_TAGS = {
    * leitura de até 400 peças das capas. Quem a derruba é a edição de produto
    * (`revalidateProduct`) e de categoria (via `categorias`). */
   capas: "capas",
+  /** Avaliações publicadas (página do produto). Derrubada ao moderar. */
+  avaliacoes: "avaliacoes",
 } as const;
 
 /**

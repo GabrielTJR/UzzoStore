@@ -16,6 +16,7 @@ import { PayOrderButton } from "../pay-order-button";
 import { podePagarAgora } from "../pode-pagar";
 import { CopyButton } from "@/components/copy-button";
 import { ReorderButton } from "../reorder-button";
+import { ReviewForm } from "../review-form";
 import {
   OrderStatus,
   OrderThumb,
@@ -32,7 +33,14 @@ import {
  * "Pagar agora" e "Cancelar pedido" são os componentes que já existiam, com a
  * mesma lógica e as mesmas actions — só mudaram de lugar.
  */
-export function OrderDetailView({ order: o }: { order: AccountOrder }) {
+export function OrderDetailView({
+  order: o,
+  avaliacoes = null,
+}: {
+  order: AccountOrder;
+  /** Avaliações do cliente por produto; null = pedido ainda não avaliável. */
+  avaliacoes?: Record<string, { rating: number; status: string }> | null;
+}) {
   const frete = fretePedido(o);
   const pago = o.payment_status === "paid";
   const cancelavel =
@@ -123,6 +131,19 @@ export function OrderDetailView({ order: o }: { order: AccountOrder }) {
                       <p className="text-muted">
                         {it.qty} × {formatBRL(it.unit_price)}
                       </p>
+                      {/* Uma avaliação por PRODUTO: dois tamanhos da mesma peça
+                          mostram o formulário só na primeira linha. */}
+                      {avaliacoes &&
+                        it.product_id &&
+                        o.items.findIndex(
+                          (x) => x.product_id === it.product_id,
+                        ) === k && (
+                          <ReviewForm
+                            orderId={o.id}
+                            productId={it.product_id}
+                            atual={avaliacoes[it.product_id] ?? null}
+                          />
+                        )}
                     </div>
                     <p className="shrink-0 text-sm font-medium tabular-nums">
                       {formatBRL(it.unit_price * it.qty)}

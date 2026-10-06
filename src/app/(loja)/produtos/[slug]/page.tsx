@@ -7,6 +7,8 @@ import { RelatedProducts } from "@/components/related-products";
 import { BenefitsStrip } from "@/components/benefits-strip";
 import { shippingConfigured } from "@/lib/shipping";
 import { siteUrl } from "@/lib/site-url";
+import { getProductReviews } from "@/lib/reviews";
+import { ProductReviewsSection } from "@/components/product-reviews";
 import { categorySlug } from "@/lib/categories";
 
 /**
@@ -72,6 +74,8 @@ export default async function ProdutoPage({
   const { slug } = await params;
   const product = await getProductBySlug(slug);
   if (!product) notFound();
+  // Avaliações aprovadas (cacheadas; etiqueta `avaliacoes`).
+  const reviews = await getProductReviews(product.id);
 
   // Dados estruturados (schema.org/Product): é o que deixa o Google mostrar
   // preço e "em estoque" no resultado da busca. Sai do mesmo produto em cache
@@ -89,6 +93,15 @@ export default async function ProdutoPage({
     image: product.colors.flatMap((c) => c.gallery.slice(0, 1)).slice(0, 6),
     ...(product.description ? { description: product.description } : {}),
     brand: { "@type": "Brand", name: product.brand || "Uzzo Store" },
+    ...(reviews.total > 0
+      ? {
+          aggregateRating: {
+            "@type": "AggregateRating",
+            ratingValue: reviews.media.toFixed(1),
+            reviewCount: reviews.total,
+          },
+        }
+      : {}),
     ...(product.reference ? { sku: product.reference } : {}),
     ...(product.price != null
       ? {
@@ -152,6 +165,8 @@ export default async function ProdutoPage({
           colors={product.colors}
           measurement={product.measurement}
         />
+
+        <ProductReviewsSection reviews={reviews} />
 
         <RelatedProducts
           categoryName={product.category}
