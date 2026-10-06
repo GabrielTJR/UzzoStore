@@ -674,11 +674,15 @@ export function CheckoutFlow({
           logged ? (
             // Sair é a única forma honesta de "trocar o e-mail": a sessão é
             // dessa conta. A sacola fica (localStorage).
+            // Recarga completa ao sair: o cabeçalho (lib/viewer.ts) só relê
+            // "quem é" ao carregar a página.
             <form
-              action={signOutAtCheckoutAction}
-              onSubmit={(e) => {
+              onSubmit={async (e) => {
+                e.preventDefault();
                 if (!window.confirm("Sair desta conta e usar outro e-mail?"))
-                  e.preventDefault();
+                  return;
+                await signOutAtCheckoutAction();
+                window.location.assign("/checkout");
               }}
             >
               <button
