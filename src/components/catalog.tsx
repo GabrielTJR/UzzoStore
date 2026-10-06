@@ -107,6 +107,7 @@ export async function Catalog({
     categoryIds: categorias.map((s) => bySlug.get(s)!.id),
     colorNames: cores,
     onlyPromo: state.promo,
+    featured: state.destaques || undefined,
     search: state.busca,
     sort: state.ordem,
     page: state.pagina,
@@ -119,7 +120,11 @@ export async function Catalog({
 
   const totalPages = Math.max(1, Math.ceil(total / PRODUCTS_PER_PAGE));
   const page = Math.min(state.pagina, totalPages);
-  const activeCount = categorias.length + cores.length + (state.promo ? 1 : 0);
+  const activeCount =
+    categorias.length +
+    cores.length +
+    (state.promo ? 1 : 0) +
+    (state.destaques ? 1 : 0);
   const aquiHref = catalogHref(state);
 
   const heading =
@@ -130,7 +135,9 @@ export async function Catalog({
         ? DEPARTMENTS[state.department]
         : state.promo
           ? "Ofertas"
-          : "Produtos");
+          : state.destaques
+            ? "Destaques"
+            : "Produtos");
 
   const limpar =
     "text-xs text-muted underline underline-offset-4 hover:text-foreground";
@@ -300,6 +307,16 @@ export async function Catalog({
           className={chip}
         >
           Em promoção{chipX}
+        </Link>
+      )}
+      {state.destaques && (
+        <Link
+          prefetch={false}
+          scroll={false}
+          href={com({ destaques: false })}
+          className={chip}
+        >
+          Destaques{chipX}
         </Link>
       )}
       {categorias.map((s) => (

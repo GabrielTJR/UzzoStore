@@ -7,7 +7,7 @@ import { whatsappLink } from "@/lib/store-info";
 const WHATSAPP_URL = whatsappLink("Olá! Vim pelo site da Uzzo Store.");
 
 /** Páginas de vitrine onde o botão aparece. */
-const ONDE = new Set(["/", "/produtos", "/masculino", "/feminino", "/ofertas"]);
+const ONDE = new Set(["/", "/produtos", "/masculino", "/feminino", "/ofertas", "/destaques"]);
 
 /**
  * Já rolou a primeira tela? `useSyncExternalStore` (e não state + effect): é o

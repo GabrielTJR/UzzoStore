@@ -23,6 +23,8 @@ export type CatalogState = {
   /** Nomes canônicos de cor. */
   cores: string[];
   promo: boolean;
+  /** Só os destaques da home (marcados pela estrela no painel). */
+  destaques: boolean;
   busca: string;
   ordem: SortKey;
   pagina: number;
@@ -33,6 +35,7 @@ export const EMPTY_CATALOG: CatalogState = {
   categorias: [],
   cores: [],
   promo: false,
+  destaques: false,
   busca: "",
   ordem: "categoria",
   pagina: 1,
@@ -46,6 +49,7 @@ export function catalogHref(state: CatalogState): string {
     params.set("categorias", state.categorias.join(","));
   if (state.cores.length) params.set("cores", state.cores.join(","));
   if (state.promo) params.set("promo", "1");
+  if (state.destaques) params.set("destaques", "1");
   if (state.busca) params.set("busca", state.busca);
   if (state.ordem !== "categoria") params.set("ordem", state.ordem);
   if (state.pagina > 1) params.set("pagina", String(state.pagina));
@@ -84,6 +88,7 @@ export function parseCatalogParams(sp: Record<string, Param>): CatalogState {
     categorias: [...csv(sp.categorias), ...csv(sp.categoria)],
     cores: csv(sp.cores),
     promo,
+    destaques: first(sp.destaques) === "1",
     busca: first(sp.busca)?.trim() ?? "",
     ordem: isSortKey(ordem) ? ordem : "categoria",
     pagina: Number.isFinite(pagina) && pagina > 0 ? pagina : 1,

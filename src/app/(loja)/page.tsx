@@ -162,7 +162,7 @@ export default async function Home() {
       <CategoryStrip covers={aplicaAtalhos(covers, home.atalhos)} />
       <ProductRow
         title="Destaques"
-        href="/masculino"
+        href="/destaques"
         products={destaques.items}
       />
       <FabricBand />
