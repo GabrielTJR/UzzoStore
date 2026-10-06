@@ -37,10 +37,14 @@ export function useTurnstile() {
   const token = useRef<string | null>(null);
   const espera = useRef<((t: string | null) => void)[]>([]);
   const [carregado, setCarregado] = useState(false);
+  /** A Cloudflare mostrou a caixinha "Confirme que é humano" e espera o
+   * clique. Ref (lida no toque) — não precisa redesenhar nada. */
+  const pedeClique = useRef(false);
 
   const entrega = useCallback((t: string | null) => {
     token.current = t;
     if (t) {
+      pedeClique.current = false;
       for (const f of espera.current) f(t);
       espera.current = [];
     }
@@ -56,6 +60,12 @@ export function useTurnstile() {
       language: "pt-br",
       size: "flexible",
       callback: (t: string) => entrega(t),
+      "before-interactive-callback": () => {
+        pedeClique.current = true;
+      },
+      "after-interactive-callback": () => {
+        pedeClique.current = false;
+      },
       "expired-callback": () => entrega(null),
       "error-callback": () => entrega(null),
     });
@@ -74,6 +84,13 @@ export function useTurnstile() {
       setTimeout(() => resolve(token.current), 10_000);
     });
   }, []);
+
+  /** A caixinha está pedindo o clique e ainda não há token: enviar agora só
+   * daria erro depois de 10 s. Quem chama avisa o cliente para marcar. */
+  const precisaMarcar = useCallback(
+    () => !!SITE_KEY && pedeClique.current && !token.current,
+    [],
+  );
 
   /** Token gasto: pede outro para o próximo envio. */
   const reset = useCallback(() => {
@@ -94,5 +111,5 @@ export function useTurnstile() {
     </>
   ) : null;
 
-  return { widget, getToken, reset };
+  return { widget, getToken, reset, precisaMarcar };
 }

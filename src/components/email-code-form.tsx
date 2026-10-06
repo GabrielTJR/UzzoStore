@@ -203,6 +203,11 @@ function EmailCodeFormInner({
   }, []);
 
   async function enviar(alvo: string) {
+    // Reenviar com a caixinha pendente: mesmo aviso, sem gastar a tentativa.
+    if (turnstile.precisaMarcar()) {
+      setAviso("Marque “Confirme que é humano”, logo abaixo, para reenviar.");
+      return;
+    }
     setSending(true);
     try {
       const captcha = await turnstile.getToken();
@@ -244,6 +249,15 @@ function EmailCodeFormInner({
     if (!alvo) {
       setError("Digite um e-mail válido.");
       emailRef.current?.focus();
+      return;
+    }
+    // A Cloudflare pediu a caixinha "Confirme que é humano" (logo abaixo):
+    // sem ela marcada o envio só falharia depois de esperar. Avisa e fica no
+    // e-mail — marcou, toca de novo.
+    if (turnstile.precisaMarcar()) {
+      setError(
+        "Marque “Confirme que é humano”, logo abaixo, e toque em Receber código de novo.",
+      );
       return;
     }
     // Otimista: a tela já vai para o código e o foco entra no campo AINDA

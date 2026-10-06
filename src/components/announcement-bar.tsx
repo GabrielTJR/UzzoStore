@@ -17,6 +17,10 @@ import { mensagensDaFaixa, type AvisoConfig } from "@/lib/home-config";
  * apareceriam sobrepostas. Com uma só, ela fica parada.
  *
  * Com `prefers-reduced-motion` fica só a primeira mensagem, parada.
+ *
+ * Cores: preta no tema claro e INVERTIDA (branca, texto preto) no escuro, a
+ * pedido do dono (06/10/2026) — preta sobre o cabeçalho preto do tema escuro
+ * a faixa sumia.
  */
 export function AnnouncementBar({
   avisos,
@@ -31,7 +35,7 @@ export function AnnouncementBar({
 
   if (n === 1) {
     return (
-      <div className="bg-black text-white">
+      <div className="bg-black text-white dark:bg-white dark:text-black">
         <p className="mx-auto flex h-9 items-center justify-center px-4 text-center text-xs font-medium">
           {mensagens[0]}
         </p>
@@ -46,7 +50,7 @@ export function AnnouncementBar({
   const css = `@keyframes ${classe}{0%{opacity:0;transform:translateY(6px)}${(fatia * 0.08).toFixed(2)}%,${(fatia * 0.92).toFixed(2)}%{opacity:1;transform:none}${fatia.toFixed(2)}%,100%{opacity:0;transform:translateY(-6px)}}.${classe}>*{animation-name:${classe};animation-duration:${n * 4}s}@media (prefers-reduced-motion:reduce){.${classe}>*{animation:none}}`;
 
   return (
-    <div className="bg-black text-white">
+    <div className="bg-black text-white dark:bg-white dark:text-black">
       {proprio && <style>{css}</style>}
       <p
         className={`aviso-rodizio relative mx-auto h-9 text-center text-xs font-medium ${proprio ? classe : ""}`}

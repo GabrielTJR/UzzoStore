@@ -86,7 +86,7 @@ O site inteiro foi redesenhado em 05/10/2026 a pedido do dono (ele escolheu a di
 - **Branco e preto + cinza concreto (`--surface`) + UM acento: cobalto (`--accent`, `#1f45e0`)**. O acento é SINAL, não enfeite: etiquetas do hero, selo de desconto, contador da sacola, foco de teclado, barras dos gráficos do painel. **Botão principal é preto**, não cobalto.
 - **Cantos retos**: `rounded-xs` (2px) em botão, campo e chip; `rounded-sm` (4px) em caixa. `rounded-full` ficou só para o que é redondo de verdade (bolinha de cor, contador, botão de ícone). Não volte para botão em pílula.
 - **Sem rótulo em CAIXA ALTA espaçada**, sem "·" juntando informação, sem "→" em botão. Nome de produto todo em maiúsculas (como o ERP grava) é exibido com iniciais maiúsculas por `displayProductName` (`src/lib/product-name.ts`) — só exibição; nome com caixa mista fica como foi digitado.
-- Os dois temas (claro/escuro) continuam valendo; o rodapé, a faixa de avisos e a lateral do painel são pretos nos dois.
+- Os dois temas (claro/escuro) continuam valendo; o rodapé e a lateral do painel são pretos nos dois; a faixa de avisos é preta no claro e BRANCA (texto preto) no escuro, a pedido do dono (06/10).
 
 ### Largura inteira
 
