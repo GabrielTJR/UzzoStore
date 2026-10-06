@@ -98,14 +98,17 @@ variável no assunto, use `Seu código de acesso — Uzzo Store`.
 
 ### Magic Link — assunto: `{{ .Token }} é o seu código — Uzzo Store`
 
-Usado pelo código de quem JÁ tem conta. Sem link, de propósito: o link abriria
-fora do navegador do Instagram, onde a sacola não existe.
+Usado pelo código de quem JÁ tem conta — no login, no checkout E no "esqueci a
+senha" da loja (desde 06/10/2026), por isso o texto fala das duas coisas. Sem
+link, de propósito: o link abriria fora do navegador do Instagram, onde a
+sacola não existe.
 
 ```html
 <div style="font-family:Arial,Helvetica,sans-serif;max-width:480px;margin:0 auto;padding:32px 24px;color:#111">
-  <h1 style="font-size:22px;margin:0 0 16px">Seu código da Uzzo Store</h1>
+  <h1 style="font-size:22px;margin:0 0 16px">Seu código de acesso da Uzzo Store</h1>
   <p style="font-size:15px;line-height:1.6;margin:0 0 20px">
-    Digite este código na página da loja para entrar e continuar sua compra:
+    Digite este código na página da loja para entrar na sua conta. Se você
+    pediu para trocar a senha, depois de entrar é só escolher a nova.
   </p>
   <p style="font-size:34px;font-weight:700;letter-spacing:6px;text-align:center;margin:0 0 20px;padding:16px 0;background:#f2f2f3;border-radius:2px">
     {{ .Token }}
@@ -124,6 +127,9 @@ fora do navegador do Instagram, onde a sacola não existe.
 ```
 
 ### Reset password — assunto: `Recuperar sua senha — Uzzo Store`
+
+Hoje só o PAINEL usa este modelo (o "esqueci a senha" da loja é por código,
+com o modelo Magic Link acima).
 
 ```html
 <div style="font-family:Arial,Helvetica,sans-serif;max-width:480px;margin:0 auto;padding:32px 24px;color:#111">
