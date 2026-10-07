@@ -20,7 +20,7 @@ import { displayProductName } from "@/lib/product-name";
  *
  * Zero JS: tudo é CSS e roda uma vez; quem pede menos movimento no sistema vê
  * tudo parado e sem pano. A foto aparece desde o primeiro quadro (o pano só a
- * cobre por 0,6 s) — a "maior pintura" da página não espera animação.
+ * cobre por 1,6 s: 1 s parado com a marca, 0,6 s subindo) — a "maior pintura" da página não espera animação.
  *
  * Custo: UMA imagem por visita. Com foto própria para o computador, o
  * `<picture>` escolhe uma só pelo tamanho da tela — nunca baixa as duas.
@@ -45,8 +45,9 @@ export function HomeHero({
     "--t-pc": `min(5vw, calc(42vw / ${maior * 0.82}), 6rem)`,
   } as CSSProperties;
 
-  // Atrasos (s): pano 0,1→0,7; título; barra; texto; botões; etiquetas.
-  const tPalavra = (i: number) => 0.45 + i * 0.09;
+  // Atrasos (s): pano parado até 1,0 e subindo até 1,6; o título começa
+  // quando o pano está quase fora; depois barra, texto, botões, etiquetas.
+  const tPalavra = (i: number) => 1.35 + i * 0.09;
   const fimTitulo = tPalavra(palavras.length - 1) + 0.4;
   const atraso = (s: number) => ({ "--d": `${s}s` }) as CSSProperties;
 
