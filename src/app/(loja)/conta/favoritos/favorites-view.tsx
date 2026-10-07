@@ -1,6 +1,7 @@
 import type { ProductListItem } from "@/lib/products";
 import { ProductCard } from "@/components/product-card";
 import { AccountHeading } from "../account-shell";
+import { IconHeart } from "@/components/icons";
 import { EmptyState } from "../pedidos/order-ui";
 
 /** A mesma grade de cards da loja. `isLogged`/`isFavorite`/`backTo` sempre
@@ -18,6 +19,7 @@ export function FavoritesView({ items }: { items: ProductListItem[] }) {
       />
       {items.length === 0 ? (
         <EmptyState
+          Icon={IconHeart}
           title="Nenhuma peça salva"
           text="Toque no coração em cima da foto para guardar o que gostar e voltar depois."
         />

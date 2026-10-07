@@ -125,7 +125,16 @@ export function SiteHeader({
                 // Saiu com o mouse: o painel volta a abrir no próximo hover.
                 onMouseLeave={() => setMegaFechado(null)}
               >
-                <Link href={`/${dep}`} className={navLink}>
+                {/* Clicar no próprio departamento também fecha o painel (pedido
+                    do dono, 07/10/2026) — mesma regra das categorias abaixo. */}
+                <Link
+                  href={`/${dep}`}
+                  className={navLink}
+                  onClick={(e) => {
+                    setMegaFechado(dep);
+                    e.currentTarget.blur();
+                  }}
+                >
                   {DEPARTMENTS[dep]}
                 </Link>
                 {/* Painel de categorias: abre no hover E no foco de teclado.

@@ -3,6 +3,7 @@ import type { ComponentType } from "react";
 import { perfilCompleto } from "@/lib/customer-fields";
 import type { CustomerAddress, CustomerProfile } from "@/lib/customer";
 import {
+  IconBox,
   IconChevronRight,
   IconHeart,
   IconHome,
@@ -66,6 +67,7 @@ export function ResumoView({
           </div>
         ) : (
           <EmptyState
+            Icon={IconBox}
             title="Nenhum pedido ainda"
             text="Quando você comprar pelo site, acompanha tudo por aqui."
           />

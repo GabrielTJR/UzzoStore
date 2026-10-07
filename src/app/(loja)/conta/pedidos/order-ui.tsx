@@ -1,5 +1,6 @@
 import Image from "next/image";
 import Link from "next/link";
+import type { ComponentType } from "react";
 import { formatBRL } from "@/lib/format";
 import { displayProductName } from "@/lib/product-name";
 import {
@@ -7,7 +8,7 @@ import {
   fulfillmentSteps,
   situacaoCliente,
 } from "@/lib/admin-orders";
-import { IconChevronRight, IconShirt } from "@/components/icons";
+import { IconBag, IconChevronRight, IconShirt } from "@/components/icons";
 import type { AccountOrder, AccountOrderItem } from "../order-data";
 import { CancelOrderButton } from "./cancel-order-button";
 import { PayOrderButton } from "./pay-order-button";
@@ -364,29 +365,53 @@ export function OrderTimeline({ order }: { order: AccountOrder }) {
 
 /* ---------- estado vazio ---------- */
 
+/**
+ * Seção vazia da conta (sem pedido, sem favorito). Contorno em vez de bloco
+ * cinza (o cinza chapado parecia espaço quebrado), ícone da seção e DOIS
+ * caminhos para a loja — quem chega aqui sem pedido é quem ainda vai comprar.
+ */
 export function EmptyState({
   title,
   text,
-  href = "/produtos",
-  cta = "Ver produtos",
+  Icon = IconBag,
+  href = "/masculino",
+  cta = "Ver a coleção",
+  href2 = "/ofertas",
+  cta2 = "Ofertas",
 }: {
   title: string;
   text?: string;
+  Icon?: ComponentType<{ size?: number; className?: string }>;
   href?: string;
   cta?: string;
+  href2?: string | null;
+  cta2?: string;
 }) {
   return (
-    <div className="rounded-sm bg-surface px-6 py-10 text-center">
-      <p className="font-display text-lg font-bold">{title}</p>
+    <div className="flex flex-col items-center rounded-sm border border-border px-6 py-12 text-center md:py-16">
+      <span className="flex h-14 w-14 items-center justify-center rounded-full bg-surface">
+        <Icon size={24} className="text-foreground" />
+      </span>
+      <p className="mt-4 font-display text-lg font-bold">{title}</p>
       {text && (
         <p className="mx-auto mt-1 max-w-sm text-sm text-muted">{text}</p>
       )}
-      <Link
-        href={href}
-        className="mt-5 inline-flex h-11 items-center justify-center rounded-xs bg-foreground px-6 text-sm font-medium text-background transition-opacity hover:opacity-90"
-      >
-        {cta}
-      </Link>
+      <div className="mt-6 flex flex-wrap justify-center gap-2">
+        <Link
+          href={href}
+          className="inline-flex h-11 items-center justify-center rounded-xs bg-foreground px-6 text-sm font-medium text-background transition-opacity hover:opacity-90"
+        >
+          {cta}
+        </Link>
+        {href2 && (
+          <Link
+            href={href2}
+            className="inline-flex h-11 items-center justify-center rounded-xs border border-border px-6 text-sm font-medium transition-colors hover:border-foreground"
+          >
+            {cta2}
+          </Link>
+        )}
+      </div>
     </div>
   );
 }

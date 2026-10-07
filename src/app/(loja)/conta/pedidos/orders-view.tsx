@@ -1,5 +1,6 @@
 import type { AccountOrder } from "../order-data";
 import { AccountHeading } from "../account-shell";
+import { IconBox } from "@/components/icons";
 import { EmptyState, OrderCard } from "./order-ui";
 
 /** Pedido que ainda pede atenção (pagar, esperar, buscar) — sobe para o topo. */
@@ -27,6 +28,7 @@ export function OrdersView({ orders }: { orders: AccountOrder[] }) {
       />
       {orders.length === 0 ? (
         <EmptyState
+          Icon={IconBox}
           title="Nenhum pedido ainda"
           text="Quando você comprar pelo site, o pedido aparece aqui com a situação de cada etapa."
         />
