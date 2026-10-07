@@ -1,13 +1,20 @@
 "use client";
 
 import { usePathname } from "next/navigation";
-import { useSyncExternalStore } from "react";
+import { useEffect, useState, useSyncExternalStore } from "react";
 import { whatsappLink } from "@/lib/store-info";
 
 const WHATSAPP_URL = whatsappLink("Olá! Vim pelo site da Uzzo Store.");
 
 /** Páginas de vitrine onde o botão aparece. */
-const ONDE = new Set(["/", "/produtos", "/masculino", "/feminino", "/ofertas", "/destaques"]);
+const ONDE = new Set([
+  "/",
+  "/produtos",
+  "/masculino",
+  "/feminino",
+  "/ofertas",
+  "/destaques",
+]);
 
 /**
  * Já rolou a primeira tela? `useSyncExternalStore` (e não state + effect): é o
@@ -26,6 +33,24 @@ function useRolou(limite: number): boolean {
 }
 
 /**
+ * O rodapé está na tela? Lá já existe o WhatsApp (em Contato) — e o botão
+ * flutuante cobria os cartões da coluna da direita e o endereço da empresa
+ * no celular (o dono mandou as capturas, 07/10/2026). Um observador só, sem
+ * ouvir rolagem.
+ */
+function useRodapeNaTela(): boolean {
+  const [visivel, setVisivel] = useState(false);
+  useEffect(() => {
+    const rodape = document.querySelector("footer");
+    if (!rodape) return;
+    const obs = new IntersectionObserver(([e]) => setVisivel(e.isIntersecting));
+    obs.observe(rodape);
+    return () => obs.disconnect();
+  }, []);
+  return visivel;
+}
+
+/**
  * Botão flutuante de WhatsApp — o canal onde a loja de fato fecha venda.
  * Aparece só nas páginas de vitrine: na página do produto o rodapé do celular
  * pertence à barra de compra, e em conta/admin/checkout ele só atrapalha.
@@ -34,13 +59,17 @@ function useRolou(limite: number): boolean {
  * segundo botão do hero no celular. Quem acabou de chegar ainda não tem
  * dúvida para tirar; quem rolou e não comprou, talvez tenha.
  *
+ * Some de novo quando o rodapé aparece (ver `useRodapeNaTela`).
+ *
  * `z-30`: abaixo do cabeçalho (z-40), senão ficava por cima do fundo escuro da
  * gaveta do menu.
  */
 export function WhatsappFab() {
   const pathname = usePathname();
   const rolou = useRolou(360);
+  const rodape = useRodapeNaTela();
   if (!ONDE.has(pathname)) return null;
+  const mostra = rolou && !rodape;
 
   return (
     <a
@@ -48,12 +77,10 @@ export function WhatsappFab() {
       target="_blank"
       rel="noopener noreferrer"
       aria-label="Falar com a loja no WhatsApp"
-      tabIndex={rolou ? 0 : -1}
-      aria-hidden={!rolou}
+      tabIndex={mostra ? 0 : -1}
+      aria-hidden={!mostra}
       className={`fixed bottom-5 right-5 z-30 flex h-13 w-13 items-center justify-center rounded-full bg-[#25D366] text-white shadow-lg transition-[opacity,transform] duration-200 ${
-        rolou
-          ? "opacity-100"
-          : "pointer-events-none translate-y-3 opacity-0"
+        mostra ? "opacity-100" : "pointer-events-none translate-y-3 opacity-0"
       }`}
     >
       <svg

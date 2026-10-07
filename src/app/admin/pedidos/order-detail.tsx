@@ -602,6 +602,7 @@ export function OrderDetail({
                   labelUrl={o.labelUrl}
                   trackingCode={o.trackingCode}
                   temServico={!!o.shippingServiceId}
+                  fulfillmentStatus={o.fulfillmentStatus}
                 />
               </div>
             )}

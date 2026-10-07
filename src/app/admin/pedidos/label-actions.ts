@@ -7,6 +7,7 @@ import { logAudit } from "@/lib/audit";
 import { pesoDaPeca } from "@/lib/shipping";
 import { caixaParaPecas } from "@/lib/shipping-config";
 import {
+  cancelarEtiqueta,
   comprarEtiqueta,
   linkEtiqueta,
   prepararEtiqueta,
@@ -22,6 +23,8 @@ import {
  *  - `comprarEtiquetaAction`: paga com a carteira, gera o PDF, grava link e
  *    rastreio no pedido.
  *  - `atualizarEtiquetaAction`: gera de novo / busca o rastreio depois.
+ *  - `cancelarEtiquetaAction`: cancela antes da postagem (o valor volta para a
+ *    carteira) e limpa o pedido para preparar outra.
  *
  * `orders.label_url` guarda o estado: null (nada), "comprando" (trava contra
  * clique duplo), "paga" (paga, PDF ainda não gerado) ou o link https do PDF.
@@ -50,13 +53,20 @@ type Pedido = {
   label_url: string | null;
   tracking_code: string | null;
   discount: number | null;
-  customers: { full_name: string | null; phone: string | null; cpf: string | null } | null;
+  customers: {
+    full_name: string | null;
+    phone: string | null;
+    cpf: string | null;
+  } | null;
   order_items: {
     product_name: string;
     qty: number;
     unit_price: number;
     product_variants: {
-      products: { weight_grams: number | null; category_name: string | null } | null;
+      products: {
+        weight_grams: number | null;
+        category_name: string | null;
+      } | null;
     } | null;
   }[];
 };
@@ -88,7 +98,8 @@ export async function prepararEtiquetaAction(
   if (nfeKey.length !== 44)
     return {
       ok: false,
-      error: "A chave da NF-e tem 44 números (está no DANFE, abaixo do código de barras).",
+      error:
+        "A chave da NF-e tem 44 números (está no DANFE, abaixo do código de barras).",
     };
 
   const p = await lerPedido(String(orderId ?? ""));
@@ -133,7 +144,10 @@ export async function prepararEtiquetaAction(
           i.qty,
       0,
     ) / 1000;
-  const mercadoria = p.order_items.reduce((s, i) => s + i.unit_price * i.qty, 0);
+  const mercadoria = p.order_items.reduce(
+    (s, i) => s + i.unit_price * i.qty,
+    0,
+  );
   const box = caixaParaPecas(qtd);
 
   // Preparado antes e não comprado: tira o antigo do carrinho deles.
@@ -210,7 +224,10 @@ export async function comprarEtiquetaAction(orderId: string): Promise<Res> {
     .select("id, number, melhorenvio_id, tracking_code")
     .maybeSingle();
   if (!travado?.melhorenvio_id)
-    return { ok: false, error: "Prepare a etiqueta antes (ou ela já foi comprada)." };
+    return {
+      ok: false,
+      error: "Prepare a etiqueta antes (ou ela já foi comprada).",
+    };
 
   const r = await comprarEtiqueta(travado.melhorenvio_id);
   if (!r.ok) {
@@ -281,13 +298,69 @@ export async function atualizarEtiquetaAction(orderId: string): Promise<Res> {
     if (!t)
       return {
         ok: false,
-        error: "A transportadora ainda não informou o rastreio. Costuma sair depois da postagem.",
+        error:
+          "A transportadora ainda não informou o rastreio. Costuma sair depois da postagem.",
       };
     await admin
       .from("orders")
       .update({ tracking_code: t, updated_at: new Date().toISOString() })
       .eq("id", p.id);
   }
+  revalida();
+  return { ok: true };
+}
+
+/**
+ * Cancela a etiqueta (pedido cancelado, endereço errado, troca de serviço).
+ * Só antes do envio: pedido já marcado como enviado ou concluído foi postado,
+ * e o Melhor Envio recusaria de qualquer jeito. Cancelada, o pedido volta a
+ * ficar sem etiqueta — e sem o rastreio dela — para preparar outra.
+ */
+export async function cancelarEtiquetaAction(orderId: string): Promise<Res> {
+  const actor = await getAdminFor("pedidos");
+  if (!actor) return { ok: false, error: "Não autorizado." };
+  if (!process.env.SUPABASE_SERVICE_ROLE_KEY)
+    return { ok: false, error: "Falta SUPABASE_SERVICE_ROLE_KEY no servidor." };
+
+  const p = await lerPedido(String(orderId ?? ""));
+  if (!p?.melhorenvio_id || !p.label_url || p.label_url === "comprando")
+    return { ok: false, error: "Este pedido não tem etiqueta para cancelar." };
+  if (p.fulfillment_status === "shipped" || p.fulfillment_status === "done")
+    return {
+      ok: false,
+      error:
+        "O pedido já foi enviado. Etiqueta postada não pode ser cancelada por aqui.",
+    };
+
+  const r = await cancelarEtiqueta(
+    p.melhorenvio_id,
+    `Pedido ${p.number} cancelado pela loja`,
+  );
+  if (!r.ok) {
+    await logAudit(actor, {
+      action: "shipping.label_failed",
+      entityType: "order",
+      entityId: p.id,
+      metadata: { number: p.number, etapa: "cancelamento", error: r.error },
+    });
+    return { ok: false, error: r.error };
+  }
+
+  await createAdminClient()
+    .from("orders")
+    .update({
+      melhorenvio_id: null,
+      label_url: null,
+      tracking_code: null,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", p.id);
+  await logAudit(actor, {
+    action: "shipping.label_canceled",
+    entityType: "order",
+    entityId: p.id,
+    metadata: { number: p.number },
+  });
   revalida();
   return { ok: true };
 }

@@ -172,6 +172,11 @@ const ACOES: Record<string, Acao> = {
     rotulo: "Etiqueta comprada",
     frase: (c) => `${sujeito(c)} comprou a etiqueta de ${pedido(c)}`,
   },
+  "shipping.label_canceled": {
+    area: "vendas",
+    rotulo: "Etiqueta cancelada",
+    frase: (c) => `${sujeito(c)} cancelou a etiqueta de ${pedido(c)}`,
+  },
   "shipping.label_failed": {
     area: "vendas",
     rotulo: "Falha na etiqueta",

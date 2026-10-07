@@ -132,7 +132,9 @@ function mensagemDeErro(status: number, json: unknown): string {
         .join(" ")
     : "";
   const msg = [j.message ?? j.error, detalhes].filter(Boolean).join(" — ");
-  return msg ? `Melhor Envio: ${msg}` : `Melhor Envio recusou (HTTP ${status}).`;
+  return msg
+    ? `Melhor Envio: ${msg}`
+    : `Melhor Envio recusou (HTTP ${status}).`;
 }
 
 /** Passo 1: coloca no carrinho do Melhor Envio. Não cobra nada. */
@@ -231,7 +233,10 @@ export async function linkEtiqueta(
   if (!print.ok) return print;
   const labelUrl = print.data?.url;
   if (!labelUrl || !/^https:\/\//.test(labelUrl))
-    return { ok: false, error: "O Melhor Envio não devolveu o link da etiqueta." };
+    return {
+      ok: false,
+      error: "O Melhor Envio não devolveu o link da etiqueta.",
+    };
   return { ok: true, data: { labelUrl, tracking: await rastreioDe(meId) } };
 }
 
@@ -250,4 +255,36 @@ export async function rastreioDe(meId: string): Promise<string | null> {
 /** Tira do carrinho um envio preparado e não comprado (não cobra nada). */
 export async function removerDoCarrinho(meId: string): Promise<void> {
   await chamar("DELETE", `/api/v2/me/cart/${encodeURIComponent(meId)}`);
+}
+
+/**
+ * Cancela uma etiqueta paga — o valor volta para a carteira do Melhor Envio.
+ * Só funciona ANTES da postagem (a transportadora avisada ou o pacote
+ * entregue no balcão travam o cancelamento; não há como consultar antes).
+ * `reason_id` é sempre "2" para integrações, conforme a documentação deles.
+ */
+export async function cancelarEtiqueta(
+  meId: string,
+  motivo: string,
+): Promise<Resultado<true>> {
+  const r = await chamar<Record<string, { canceled?: boolean }>>(
+    "POST",
+    "/api/v2/me/shipment/cancel",
+    {
+      order: {
+        id: meId,
+        reason_id: "2",
+        description: motivo.slice(0, 200),
+      },
+    },
+  );
+  if (!r.ok) return r;
+  const item = r.data?.[meId];
+  if (item && item.canceled === false)
+    return {
+      ok: false,
+      error:
+        "O Melhor Envio não cancelou: a etiqueta provavelmente já foi postada ou a coleta já foi agendada.",
+    };
+  return { ok: true, data: true };
 }
