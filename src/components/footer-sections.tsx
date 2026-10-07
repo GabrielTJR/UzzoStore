@@ -22,12 +22,37 @@ export function FooterSections({ secoes }: { secoes: FooterSecao[] }) {
   const refs = useRef(new Map<string, HTMLButtonElement>());
   const antes = useRef(new Map<string, DOMRect>());
 
+  /** Posição da página no toque — devolvida depois da troca (ver abaixo). */
+  const rolagem = useRef<number | null>(null);
+
   function trocar(id: string | null) {
     antes.current = new Map(
       [...refs.current].map(([k, el]) => [k, el.getBoundingClientRect()]),
     );
+    rolagem.current = window.scrollY;
     setAberta(id);
   }
+
+  // A PÁGINA não pode rolar sozinha quando os cartões trocam de lugar — só
+  // eles se mexem. O Chrome rolava junto por dois motivos: a "âncora de
+  // rolagem" e o esforço de manter à vista o botão tocado (que acabou de
+  // mudar de lugar). O dono viu a tela pular (07/10/2026); `overflow-anchor`
+  // sozinho não resolveu. Então a posição do toque é devolvida antes da
+  // pintura e de novo no quadro seguinte (quando o Chrome faz o ajuste dele).
+  // Se a página encurtou e a posição não cabe mais, o navegador limita — é o
+  // único movimento que sobra, e é o mínimo possível.
+  useLayoutEffect(() => {
+    const y = rolagem.current;
+    if (y == null) return;
+    rolagem.current = null;
+    const volta = () => {
+      if (Math.abs(window.scrollY - y) > 1)
+        window.scrollTo({ top: y, behavior: "instant" });
+    };
+    volta();
+    const q = requestAnimationFrame(volta);
+    return () => cancelAnimationFrame(q);
+  }, [aberta]);
 
   useLayoutEffect(() => {
     const parado = window.matchMedia(
@@ -67,8 +92,10 @@ export function FooterSections({ secoes }: { secoes: FooterSecao[] }) {
   const atual = secoes.find((s) => s.id === aberta);
 
   return (
+    // Sem "âncora de rolagem" aqui nem no rodapé (ver site-footer.tsx): a
+    // página não pode rolar sozinha quando os cartões trocam de lugar.
     <div
-      className="grid items-start gap-2"
+      className="grid items-start gap-2 [overflow-anchor:none]"
       style={{ gridTemplateColumns: aberta ? "1fr auto" : "1fr 1fr" }}
     >
       {secoes.map((s, i) => {

@@ -302,7 +302,14 @@ export function SiteHeader({
             className="absolute inset-y-0 left-0 flex w-[86%] max-w-sm animate-drawer-in-left flex-col bg-background outline-none"
           >
             <div className="flex h-14 shrink-0 items-center justify-between border-b border-border px-4">
-              <Logo height={22} />
+              <Link
+                href="/"
+                onClick={closeMenu}
+                aria-label="Uzzo Store — início"
+                className="flex"
+              >
+                <Logo height={22} />
+              </Link>
               <button
                 type="button"
                 onClick={closeMenu}
