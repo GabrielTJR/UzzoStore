@@ -294,8 +294,11 @@ async function queryProducts(opts: ProductQuery): Promise<ProductPage> {
       query = query.in("products.category_id", opts.categoryIds);
     if (opts.onlyPromo) query = query.gt("products.promo_price", 0);
     if (opts.search) {
-      // `%` e `,` quebrariam o filtro do PostgREST; escapamos antes.
-      const termo = normalizeSearch(opts.search.replace(/[%,()]/g, " ").trim());
+      // `%` e `,` quebrariam o filtro do PostgREST; `_` e `*` são curingas
+      // (do LIKE e do PostgREST) e transformariam "_" em "qualquer coisa".
+      const termo = normalizeSearch(
+        opts.search.replace(/[%,()_*\\]/g, " ").trim(),
+      );
       // Compara com `name_search` (minúscula e sem acento, migração 0014) — o
       // cadastro do ERP mistura "CALÇA" e "SUETER", e no celular se digita sem
       // acento. Normalizar só um dos lados falharia no outro sentido.

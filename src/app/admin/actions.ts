@@ -105,6 +105,15 @@ async function resolveCategoryId(
 }
 
 /** Get-or-create de uma cor no cadastro GERAL (match case-insensitive por nome). */
+/**
+ * `ilike` compara SEM caixa, mas trata `%` e `_` como curinga: uma cor
+ * chamada "_____" casaria com qualquer nome de 5 letras ("Preto"). Escapar
+ * deixa a comparação exata (só sem diferenciar maiúscula).
+ */
+function semCuringa(v: string): string {
+  return v.replace(/[\\%_]/g, (c) => `\\${c}`);
+}
+
 async function resolveColorId(
   admin: AdminClient,
   name: string,
@@ -118,7 +127,7 @@ async function resolveColorId(
   const { data: existing } = await admin
     .from("colors")
     .select("id")
-    .ilike("name", clean)
+    .ilike("name", semCuringa(clean))
     .maybeSingle();
   if (existing) return existing.id;
   const { data: created } = await admin
@@ -852,7 +861,7 @@ export async function createColorAction(
   const { data: dup } = await admin
     .from("colors")
     .select("id")
-    .ilike("name", name)
+    .ilike("name", semCuringa(name))
     .maybeSingle();
   if (dup) return { ok: false, error: "Já existe uma cor com esse nome." };
 
@@ -888,7 +897,7 @@ export async function updateColorAction(
   const { data: dup } = await admin
     .from("colors")
     .select("id")
-    .ilike("name", name)
+    .ilike("name", semCuringa(name))
     .neq("id", id)
     .maybeSingle();
   if (dup) return { ok: false, error: "Já existe uma cor com esse nome." };
@@ -964,7 +973,7 @@ export async function createCategoryAction(
   const { data: dup } = await admin
     .from("categories")
     .select("id")
-    .ilike("name", name)
+    .ilike("name", semCuringa(name))
     .maybeSingle();
   if (dup)
     return { ok: false, error: "Já existe uma categoria com esse nome." };
@@ -1003,7 +1012,7 @@ export async function updateCategoryAction(
   const { data: dup } = await admin
     .from("categories")
     .select("id")
-    .ilike("name", name)
+    .ilike("name", semCuringa(name))
     .neq("id", id)
     .maybeSingle();
   if (dup)
@@ -1074,7 +1083,7 @@ export async function createMeasurementModelAction(
   const { data: dup } = await admin
     .from("measurement_models")
     .select("id")
-    .ilike("name", name)
+    .ilike("name", semCuringa(name))
     .maybeSingle();
   if (dup) return { ok: false, error: "Já existe um modelo com esse nome." };
 
@@ -1120,7 +1129,7 @@ export async function duplicateMeasurementModelAction(
   const { data: nomes } = await admin
     .from("measurement_models")
     .select("name")
-    .ilike("name", `${orig.name} (cópia%`);
+    .ilike("name", `${semCuringa(orig.name)} (cópia%`);
   const usados = new Set((nomes ?? []).map((n) => n.name.toLowerCase()));
   let name = `${orig.name} (cópia)`;
   for (let i = 2; usados.has(name.toLowerCase()); i++)
@@ -1199,7 +1208,7 @@ export async function saveMeasurementModelAction(
   const { data: dup } = await admin
     .from("measurement_models")
     .select("id")
-    .ilike("name", name)
+    .ilike("name", semCuringa(name))
     .neq("id", id)
     .maybeSingle();
   if (dup) return { ok: false, error: "Já existe um modelo com esse nome." };

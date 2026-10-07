@@ -1,5 +1,42 @@
 import type { NextConfig } from "next";
 
+/**
+ * Cabeçalhos de segurança — FIXOS de propósito. A CSP com "nonce" que a
+ * documentação do Next recomenda obriga toda página a ser montada por visita
+ * (o nonce muda a cada resposta): a vitrine deixaria de ser estática e o custo
+ * por visita voltaria. Por isso `'unsafe-inline'` nos scripts (o Next injeta
+ * scripts inline sem nonce); o ganho que fica é bloquear script/conexão de
+ * QUALQUER outro domínio, moldura de site alheio (clickjacking do /admin) e
+ * `<base>`/`<object>` injetados.
+ *
+ * Ao adicionar um serviço que roda NO NAVEGADOR (script, fetch, iframe),
+ * inclua o domínio aqui — senão ele é bloqueado em silêncio (só aparece no
+ * console). Hoje: Supabase (auth/storage), Turnstile, Google Analytics, ViaCEP.
+ */
+const SUPABASE = "https://anlbavcstwffnpisacax.supabase.co";
+const CSP = [
+  "default-src 'self'",
+  "script-src 'self' 'unsafe-inline' https://challenges.cloudflare.com https://www.googletagmanager.com",
+  "style-src 'self' 'unsafe-inline'",
+  `img-src 'self' data: blob: ${SUPABASE} https://*.google-analytics.com https://*.googletagmanager.com`,
+  "font-src 'self' data:",
+  `connect-src 'self' ${SUPABASE} wss://anlbavcstwffnpisacax.supabase.co https://challenges.cloudflare.com https://viacep.com.br https://*.google-analytics.com https://*.analytics.google.com https://*.googletagmanager.com`,
+  // 'self': a prévia do editor da página inicial abre a loja numa moldura.
+  "frame-src 'self' https://challenges.cloudflare.com",
+  "frame-ancestors 'self'",
+  "worker-src 'self' blob:",
+  "object-src 'none'",
+  "base-uri 'self'",
+  "form-action 'self'",
+].join("; ");
+
+const SECURITY_HEADERS = [
+  { key: "Content-Security-Policy", value: CSP },
+  { key: "X-Content-Type-Options", value: "nosniff" },
+  { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+  { key: "X-Frame-Options", value: "SAMEORIGIN" },
+];
+
 const nextConfig: NextConfig = {
   images: {
     remotePatterns: [
@@ -32,6 +69,9 @@ const nextConfig: NextConfig = {
    * página tem openGraph), e link compartilhado não volta atrás. 301 para o
    * Google entender que é mudança de endereço, não conteúdo novo.
    */
+  async headers() {
+    return [{ source: "/:path*", headers: SECURITY_HEADERS }];
+  },
   async redirects() {
     return [
       ["camiseta-tech-dry-preta", "calca-premium-poliamida"],
