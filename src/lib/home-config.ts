@@ -59,10 +59,10 @@ export type HeroConfig = {
  * Proporção (largura ÷ altura) da área da foto no pior caso de cada formato —
  * é com ela que o editor desenha a faixa que SEMPRE aparece. Celular: a área
  * é a tela menos cabeçalho e faixa de avisos; nos aparelhos mais altos fica
- * perto de 0,5. Computador: a metade direita da tela chega a ~1,05 em telas
- * baixas (1280 × 720).
+ * perto de 0,5. Computador: a foto cobre a tela toda (direção "B"); numa
+ * tela larga e baixa (1920 × 1080 menos o cabeçalho) passa de 1,9 — usamos 2.
  */
-export const PROPORCAO_AREA: Record<Formato, number> = { cel: 0.5, pc: 1.05 };
+export const PROPORCAO_AREA: Record<Formato, number> = { cel: 0.5, pc: 2 };
 
 /** Proporção da foto a usar num formato (o computador pode ter foto própria). */
 export function ratioDoFormato(h: HeroConfig, f: Formato): number {
@@ -152,7 +152,9 @@ export const DEFAULT_HOME_CONFIG: HomeConfig = {
     alt: HOME_HERO.alt,
     ratio: HOME_HERO.ratio,
     focoCel: { fx: 50, fy: 12 },
-    focoPc: { fx: 50, fy: 12 },
+    // Computador: a foto (vertical) corta em cima e embaixo — mostrar o alto
+    // mantém o rosto.
+    focoPc: { fx: 50, fy: 0 },
     fotoPc: null,
     title: HOME_HERO.title,
     text: HOME_HERO.text,
@@ -328,7 +330,7 @@ function normalizeHero(raw: unknown): HeroConfig {
     alt: texto(h.alt, LIMITES.alt) || (image && image !== d.image ? "" : d.alt),
     ratio,
     focoCel: normalizeFoco(h.focoCel, fb),
-    focoPc: normalizeFoco(h.focoPc, fb),
+    focoPc: normalizeFoco(h.focoPc, { fx: 50, fy: 0 }),
     fotoPc: normalizeFotoPc(h.fotoPc),
     title: texto(h.title, LIMITES.titulo) || d.title,
     text: texto(h.text, LIMITES.texto),

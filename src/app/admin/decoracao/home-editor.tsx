@@ -457,8 +457,8 @@ export function HomeEditor(props: HomeEditorProps) {
               </h2>
               <p className="mt-0.5 text-sm text-muted">
                 A primeira imagem da loja, em tela inteira. Celular e computador
-                têm enquadramento e etiquetas próprios: escolha o formato, toque
-                numa etiqueta da lista e clique (ou arraste) na foto para
+                têm enquadramento próprio; as etiquetas aparecem só no celular —
+                toque numa etiqueta da lista e clique (ou arraste) na foto para
                 colocá-la.
               </p>
 
@@ -502,19 +502,24 @@ export function HomeEditor(props: HomeEditorProps) {
                       fica por cima. */}
                   <div
                     onPointerDown={(e) => {
-                      if (sel == null || !hero.tags[sel]?.[formato]) return;
+                      if (
+                        formato !== "cel" ||
+                        sel == null ||
+                        !hero.tags[sel]?.cel
+                      )
+                        return;
                       e.currentTarget.setPointerCapture(e.pointerId);
                       const p = pontoDoEvento(e);
                       moverEtiqueta(sel, p.x, p.y);
                     }}
                     onPointerMove={(e) => {
                       if (sel == null || e.buttons !== 1) return;
-                      if (!hero.tags[sel]?.[formato]) return;
+                      if (formato !== "cel" || !hero.tags[sel]?.cel) return;
                       const p = pontoDoEvento(e);
                       moverEtiqueta(sel, p.x, p.y);
                     }}
                     className={`relative touch-none select-none overflow-hidden bg-surface ${
-                      sel != null && hero.tags[sel]?.[formato]
+                      formato === "cel" && sel != null && hero.tags[sel]?.cel
                         ? "cursor-crosshair"
                         : ""
                     }`}
@@ -544,39 +549,43 @@ export function HomeEditor(props: HomeEditorProps) {
                         clipPath: `polygon(evenodd, 0 0, 100% 0, 100% 100%, 0 100%, 0 0, ${faixa.x0}% ${faixa.y0}%, ${faixa.x0}% ${faixa.y1}%, ${faixa.x1}% ${faixa.y1}%, ${faixa.x1}% ${faixa.y0}%, ${faixa.x0}% ${faixa.y0}%)`,
                       }}
                     />
-                    {formato === "cel" && (
+                    {/* Onde o título fica por cima: a parte de baixo (no
+                        computador, só a metade esquerda). */}
+                    {
                       <div
                         aria-hidden
                         className="pointer-events-none absolute"
                         style={{
                           left: `${faixa.x0}%`,
-                          width: `${faixa.x1 - faixa.x0}%`,
-                          top: `${faixa.y0 + (faixa.y1 - faixa.y0) * 0.58}%`,
+                          width: `${(faixa.x1 - faixa.x0) * (formato === "cel" ? 1 : 0.6)}%`,
+                          top: `${faixa.y0 + (faixa.y1 - faixa.y0) * (formato === "cel" ? 0.58 : 0.5)}%`,
                           bottom: `${100 - faixa.y1}%`,
                           background:
                             "repeating-linear-gradient(135deg, rgba(0,0,0,.35) 0 6px, rgba(0,0,0,.15) 6px 12px)",
                         }}
                       />
-                    )}
-                    <EtiquetasDaFoto
-                      animar={false}
-                      ratio={ratioAtual}
-                      tags={hero.tags.flatMap((t) =>
-                        t[formato]
-                          ? [{ label: t.label, pos: t[formato]! }]
-                          : [],
-                      )}
-                    />
-                    {sel != null && hero.tags[sel]?.[formato] && (
-                      <span
-                        aria-hidden
-                        className="pointer-events-none absolute -ml-3 -mt-3 h-6 w-6 rounded-full ring-2 ring-accent ring-offset-1 ring-offset-white"
-                        style={{
-                          left: `${hero.tags[sel][formato]!.x}%`,
-                          top: `${hero.tags[sel][formato]!.y}%`,
-                        }}
+                    }
+                    {formato === "cel" && (
+                      <EtiquetasDaFoto
+                        animar={false}
+                        ratio={ratioAtual}
+                        tags={hero.tags.flatMap((t) =>
+                          t.cel ? [{ label: t.label, pos: t.cel }] : [],
+                        )}
                       />
                     )}
+                    {formato === "cel" &&
+                      sel != null &&
+                      hero.tags[sel]?.cel && (
+                        <span
+                          aria-hidden
+                          className="pointer-events-none absolute -ml-3 -mt-3 h-6 w-6 rounded-full ring-2 ring-accent ring-offset-1 ring-offset-white"
+                          style={{
+                            left: `${hero.tags[sel][formato]!.x}%`,
+                            top: `${hero.tags[sel][formato]!.y}%`,
+                          }}
+                        />
+                      )}
                   </div>
                   <p className="mt-2 text-xs leading-relaxed text-muted">
                     {formato === "cel"
@@ -689,118 +698,123 @@ export function HomeEditor(props: HomeEditorProps) {
                 </div>
 
                 <div className="min-w-0 space-y-5">
-                  <div>
-                    <p className="mb-2 text-sm font-medium">
-                      Etiquetas no{" "}
-                      {formato === "cel" ? "celular" : "computador"}
+                  {formato === "pc" ? (
+                    <p className="rounded-xs bg-surface px-3 py-2.5 text-sm text-muted">
+                      No computador a foto aparece limpa, sem etiquetas. Elas
+                      aparecem só no celular (aba Celular).
                     </p>
-                    <ul className="space-y-2">
-                      {hero.tags.map((t, i) => {
-                        const ativa = sel === i;
-                        const pos = t[formato];
-                        return (
-                          <li
-                            key={i}
-                            onClick={() => setSel(i)}
-                            className={`rounded-xs border px-3 py-2.5 ${
-                              ativa ? "border-foreground" : "border-border"
-                            } ${pos ? "" : "opacity-70"}`}
-                          >
-                            <div className="flex items-center gap-3">
-                              <button
-                                type="button"
-                                onClick={() => setSel(ativa ? null : i)}
-                                aria-pressed={ativa}
-                                aria-label={`Selecionar a etiqueta ${t.label} para mover`}
-                                className={`h-3.5 w-3.5 shrink-0 rounded-full ring-[3px] ${
-                                  pos ? "bg-accent" : "bg-border"
-                                } ${ativa ? "ring-accent/30" : "ring-transparent"}`}
-                              />
-                              <div className="min-w-0 flex-1">
-                                <input
-                                  value={t.label}
-                                  onChange={(e) =>
-                                    renomearEtiqueta(i, e.target.value)
-                                  }
-                                  onFocus={() => setSel(i)}
-                                  aria-label="Texto da etiqueta"
-                                  className="w-full bg-transparent text-sm font-medium outline-none"
+                  ) : (
+                    <div>
+                      <p className="mb-2 text-sm font-medium">
+                        Etiquetas no celular
+                      </p>
+                      <ul className="space-y-2">
+                        {hero.tags.map((t, i) => {
+                          const ativa = sel === i;
+                          const pos = t[formato];
+                          return (
+                            <li
+                              key={i}
+                              onClick={() => setSel(i)}
+                              className={`rounded-xs border px-3 py-2.5 ${
+                                ativa ? "border-foreground" : "border-border"
+                              } ${pos ? "" : "opacity-70"}`}
+                            >
+                              <div className="flex items-center gap-3">
+                                <button
+                                  type="button"
+                                  onClick={() => setSel(ativa ? null : i)}
+                                  aria-pressed={ativa}
+                                  aria-label={`Selecionar a etiqueta ${t.label} para mover`}
+                                  className={`h-3.5 w-3.5 shrink-0 rounded-full ring-[3px] ${
+                                    pos ? "bg-accent" : "bg-border"
+                                  } ${ativa ? "ring-accent/30" : "ring-transparent"}`}
                                 />
-                                <p className="text-xs text-muted">
-                                  {!pos
-                                    ? `não aparece no ${formato === "cel" ? "celular" : "computador"}`
-                                    : ativa
-                                      ? "selecionada: clique na foto para mover"
-                                      : "clique para selecionar e mover"}
-                                </p>
-                              </div>
-                            </div>
-                            {/* Controles numa linha própria: lado a lado com
-                                o texto, o nome da etiqueta ficava espremido. */}
-                            <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-2 pl-[1.625rem]">
-                              {pos && (
-                                <div
-                                  role="group"
-                                  aria-label="Lado do rótulo"
-                                  className="inline-flex overflow-hidden rounded-xs border border-border text-xs"
-                                >
-                                  {(["e", "d"] as const).map((l) => (
-                                    <button
-                                      key={l}
-                                      type="button"
-                                      onClick={() => trocarLado(i, l)}
-                                      aria-pressed={pos.lado === l}
-                                      className={`px-2 py-1 ${
-                                        pos.lado === l
-                                          ? "bg-foreground text-background"
-                                          : "hover:bg-surface"
-                                      }`}
-                                    >
-                                      {l === "e" ? "Esq." : "Dir."}
-                                    </button>
-                                  ))}
+                                <div className="min-w-0 flex-1">
+                                  <input
+                                    value={t.label}
+                                    onChange={(e) =>
+                                      renomearEtiqueta(i, e.target.value)
+                                    }
+                                    onFocus={() => setSel(i)}
+                                    aria-label="Texto da etiqueta"
+                                    className="w-full bg-transparent text-sm font-medium outline-none"
+                                  />
+                                  <p className="text-xs text-muted">
+                                    {!pos
+                                      ? `não aparece no ${formato === "cel" ? "celular" : "computador"}`
+                                      : ativa
+                                        ? "selecionada: clique na foto para mover"
+                                        : "clique para selecionar e mover"}
+                                  </p>
                                 </div>
-                              )}
-                              <button
-                                type="button"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  alternarNoFormato(i);
-                                }}
-                                className={linkAcao}
-                              >
-                                {pos ? "esconder aqui" : "mostrar aqui"}
-                              </button>
-                              <button
-                                type="button"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  removerEtiqueta(i);
-                                }}
-                                className={linkAcao}
-                              >
-                                remover
-                              </button>
-                            </div>
-                          </li>
-                        );
-                      })}
-                    </ul>
-                    {hero.tags.length < MAX_ETIQUETAS && (
-                      <button
-                        type="button"
-                        onClick={adicionarEtiqueta}
-                        className="mt-3 text-sm font-semibold underline underline-offset-4"
-                      >
-                        + Adicionar etiqueta
-                      </button>
-                    )}
-                    <p className="mt-1.5 text-xs text-muted">
-                      Até {MAX_ETIQUETAS} etiquetas. O texto é o mesmo nos dois
-                      formatos; a posição (e se aparece) é de cada um. Textos
-                      curtos funcionam melhor no celular.
-                    </p>
-                  </div>
+                              </div>
+                              {/* Controles numa linha própria: lado a lado com
+                                o texto, o nome da etiqueta ficava espremido. */}
+                              <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-2 pl-[1.625rem]">
+                                {pos && (
+                                  <div
+                                    role="group"
+                                    aria-label="Lado do rótulo"
+                                    className="inline-flex overflow-hidden rounded-xs border border-border text-xs"
+                                  >
+                                    {(["e", "d"] as const).map((l) => (
+                                      <button
+                                        key={l}
+                                        type="button"
+                                        onClick={() => trocarLado(i, l)}
+                                        aria-pressed={pos.lado === l}
+                                        className={`px-2 py-1 ${
+                                          pos.lado === l
+                                            ? "bg-foreground text-background"
+                                            : "hover:bg-surface"
+                                        }`}
+                                      >
+                                        {l === "e" ? "Esq." : "Dir."}
+                                      </button>
+                                    ))}
+                                  </div>
+                                )}
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    alternarNoFormato(i);
+                                  }}
+                                  className={linkAcao}
+                                >
+                                  {pos ? "esconder aqui" : "mostrar aqui"}
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    removerEtiqueta(i);
+                                  }}
+                                  className={linkAcao}
+                                >
+                                  remover
+                                </button>
+                              </div>
+                            </li>
+                          );
+                        })}
+                      </ul>
+                      {hero.tags.length < MAX_ETIQUETAS && (
+                        <button
+                          type="button"
+                          onClick={adicionarEtiqueta}
+                          className="mt-3 text-sm font-semibold underline underline-offset-4"
+                        >
+                          + Adicionar etiqueta
+                        </button>
+                      )}
+                      <p className="mt-1.5 text-xs text-muted">
+                        Até {MAX_ETIQUETAS} etiquetas, só no celular. Textos
+                        curtos funcionam melhor.
+                      </p>
+                    </div>
+                  )}
 
                   <label className="block text-sm font-medium">
                     Título
