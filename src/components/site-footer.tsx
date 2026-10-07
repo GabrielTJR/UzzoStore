@@ -25,12 +25,12 @@ export function SiteFooter() {
   return (
     <footer className="bg-black text-white">
       {/* Newsletter: bloco próprio, não mais uma coluna espremida. */}
-      <div className="px-page grid gap-6 border-b border-white/15 py-10 lg:grid-cols-2 lg:items-center lg:py-14">
+      <div className="px-page grid gap-6 border-b border-white/15 py-8 lg:grid-cols-2 lg:items-center lg:py-8">
         <div>
-          <h2 className="font-display text-2xl font-bold lg:text-3xl">
+          <h2 className="font-display text-xl font-bold lg:text-2xl">
             Novidades antes de todo mundo.
           </h2>
-          <p className="mt-2 text-sm text-white/60">
+          <p className="mt-1 text-sm text-white/60">
             Lançamentos e ofertas no seu e-mail. Sem spam.
           </p>
         </div>
@@ -39,16 +39,16 @@ export function SiteFooter() {
         </div>
       </div>
 
-      <div className="px-page grid grid-cols-2 gap-x-6 gap-y-9 py-10 text-sm text-white/60 lg:grid-cols-[1.4fr_repeat(4,1fr)] lg:py-14">
-        <div className="col-span-2 lg:col-span-1">
-          <Logo height={30} className="h-7 lg:h-[34px]" />
-          <p className="mt-4 hidden max-w-xs lg:block">
+      <div className="px-page grid grid-cols-2 gap-x-6 gap-y-8 py-8 text-sm text-white/60 lg:grid-cols-[1.4fr_repeat(4,1fr)] lg:py-10">
+        <div className="hidden lg:block">
+          <Logo height={30} className="h-7 lg:h-[30px]" />
+          <p className="mt-3 hidden max-w-xs lg:block">
             Tecnologia que veste bem. Loja em Balneário Camboriú, com envio
             para todo o Brasil.
           </p>
         </div>
 
-        <nav aria-label="Loja" className="space-y-2.5">
+        <nav aria-label="Loja" className="space-y-2">
           <h3 className={titulo}>Loja</h3>
           <p>
             <Link href="/masculino" className={link}>
@@ -72,7 +72,7 @@ export function SiteFooter() {
           </p>
         </nav>
 
-        <nav aria-label="Ajuda" className="space-y-2.5">
+        <nav aria-label="Ajuda" className="space-y-2">
           <h3 className={titulo}>Ajuda</h3>
           <p>
             <Link href="/trocas" className={link}>
@@ -101,7 +101,7 @@ export function SiteFooter() {
           </p>
         </nav>
 
-        <div className="space-y-2.5">
+        <div className="space-y-2">
           <h3 className={titulo}>Atendimento</h3>
           {/* O WhatsApp é o canal de venda da loja: ganha peso de texto. */}
           <p>
@@ -128,7 +128,7 @@ export function SiteFooter() {
           </p>
         </div>
 
-        <div className="space-y-2.5">
+        <div className="space-y-2">
           <h3 className={titulo}>Visite a loja</h3>
           <p>{STORE_ADDRESS_LINE}</p>
           <p>{STORE_CITY_LINE}</p>
@@ -145,7 +145,7 @@ export function SiteFooter() {
         </div>
       </div>
 
-      <div className="px-page flex flex-wrap items-end justify-between gap-x-8 gap-y-3 border-t border-white/15 py-5 text-xs text-white/50">
+      <div className="px-page flex flex-wrap items-end justify-between gap-x-8 gap-y-3 border-t border-white/15 py-4 text-xs text-white/50">
         {/* Identificação da empresa: o Decreto 7.962/2013 exige razão social,
             CNPJ e endereço físico em local de fácil visualização em qualquer
             site que venda. Não é enfeite de rodapé — não remova. */}

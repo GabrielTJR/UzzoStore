@@ -46,7 +46,7 @@ export function AccountShell({
       </header>
 
       <div className="md:grid md:grid-cols-[13rem_minmax(0,1fr)] md:gap-12 md:pt-8 lg:gap-16">
-        <aside className="mt-4 md:sticky md:top-24 md:mt-0 md:self-start">
+        <aside className="mt-4 md:mt-0 md:self-start">
           <AccountNav active={active} />
           <SignOutButton className="mt-6 hidden border-t border-border pt-4 md:block" />
         </aside>
