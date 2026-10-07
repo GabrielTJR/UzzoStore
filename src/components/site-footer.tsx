@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Logo } from "@/components/logo";
 import { NewsletterForm } from "@/components/newsletter-form";
+import { FooterSections, type FooterSecao } from "@/components/footer-sections";
 import {
   INSTAGRAM_HANDLE,
   INSTAGRAM_URL,
@@ -11,100 +12,92 @@ import {
   WHATSAPP_URL,
 } from "@/lib/store-info";
 
-const titulo = "mb-3 text-sm font-semibold text-white";
 const link = "transition-colors hover:text-white";
 
 /**
  * Rodapé da loja — faixa preta de largura inteira, sempre preta nos dois temas
  * (fecha a página com o mesmo preto da faixa de avisos do topo).
  *
- * No celular os blocos ficam em 2 colunas: empilhados um sob o outro o rodapé
- * passava de uma tela inteira.
+ * Discreto de propósito (pedido do dono, 07/10/2026): newsletter numa linha,
+ * sem título de vitrine. No CELULAR as quatro seções são cartões que abrem um
+ * de cada vez (`FooterSections` — o escolhido vai para a esquerda e os outros
+ * deslizam para a direita); no COMPUTADOR ficam as quatro colunas abertas,
+ * porque lá sobra espaço e ninguém precisa tocar para achar um link.
+ *
+ * A identificação da empresa (razão social, CNPJ, endereço) fica SEMPRE à
+ * vista, nos dois formatos — é exigência legal, não enfeite.
  */
 export function SiteFooter() {
-  return (
-    <footer className="bg-black text-white">
-      {/* Newsletter: bloco próprio, não mais uma coluna espremida. */}
-      <div className="px-page grid gap-6 border-b border-white/15 py-8 lg:grid-cols-2 lg:items-center lg:py-8">
-        <div>
-          <h2 className="font-display text-xl font-bold lg:text-2xl">
-            Novidades antes de todo mundo.
-          </h2>
-          <p className="mt-1 text-sm text-white/60">
-            Lançamentos e ofertas no seu e-mail. Sem spam.
-          </p>
-        </div>
-        <div className="lg:max-w-md lg:justify-self-end">
-          <NewsletterForm inverse />
-        </div>
-      </div>
-
-      <div className="px-page grid grid-cols-2 gap-x-6 gap-y-8 py-8 text-sm text-white/60 lg:grid-cols-[1.4fr_repeat(4,1fr)] lg:py-10">
-        <div className="hidden lg:block">
-          <Logo height={30} className="h-7 lg:h-[30px]" />
-          <p className="mt-3 hidden max-w-xs lg:block">
-            Tecnologia que veste bem. Loja em Balneário Camboriú, com envio
-            para todo o Brasil.
-          </p>
-        </div>
-
-        <nav aria-label="Loja" className="space-y-2">
-          <h3 className={titulo}>Loja</h3>
-          <p>
+  const lista = "space-y-2.5 lg:space-y-2";
+  const secoes: FooterSecao[] = [
+    {
+      id: "comprar",
+      titulo: "Comprar",
+      conteudo: (
+        <ul className={lista}>
+          <li>
             <Link href="/masculino" className={link}>
               Masculino
             </Link>
-          </p>
-          <p>
+          </li>
+          <li>
             <Link href="/feminino" className={link}>
               Feminino
             </Link>
-          </p>
-          <p>
+          </li>
+          <li>
             <Link href="/ofertas" className={link}>
               Ofertas
             </Link>
-          </p>
-          <p>
+          </li>
+          <li>
             <Link href="/produtos" className={link}>
               Todos os produtos
             </Link>
-          </p>
-        </nav>
-
-        <nav aria-label="Ajuda" className="space-y-2">
-          <h3 className={titulo}>Ajuda</h3>
-          <p>
+          </li>
+        </ul>
+      ),
+    },
+    {
+      id: "ajuda",
+      titulo: "Ajuda",
+      conteudo: (
+        <ul className={lista}>
+          <li>
             <Link href="/trocas" className={link}>
               Trocas e devoluções
             </Link>
-          </p>
-          <p>
+          </li>
+          <li>
             <Link href="/faq" className={link}>
               Perguntas frequentes
             </Link>
-          </p>
-          <p>
+          </li>
+          <li>
             <Link href="/conta/pedidos" className={link}>
               Meus pedidos
             </Link>
-          </p>
-          <p>
+          </li>
+          <li>
             <Link href="/sobre" className={link}>
               Sobre a loja
             </Link>
-          </p>
-          <p>
+          </li>
+          <li>
             <Link href="/privacidade" className={link}>
               Privacidade e cookies
             </Link>
-          </p>
-        </nav>
-
-        <div className="space-y-2">
-          <h3 className={titulo}>Atendimento</h3>
+          </li>
+        </ul>
+      ),
+    },
+    {
+      id: "contato",
+      titulo: "Contato",
+      conteudo: (
+        <ul className={lista}>
           {/* O WhatsApp é o canal de venda da loja: ganha peso de texto. */}
-          <p>
+          <li>
             <a
               href={WHATSAPP_URL}
               target="_blank"
@@ -113,10 +106,10 @@ export function SiteFooter() {
             >
               WhatsApp {WHATSAPP_NUMBER_DISPLAY}
             </a>
-          </p>
-          <p>Seg a sex, 10h às 19h</p>
-          <p>Sábado, 10h às 14h</p>
-          <p>
+          </li>
+          <li>Seg a sex, 10h às 19h</li>
+          <li>Sábado, 10h às 14h</li>
+          <li>
             <a
               href={INSTAGRAM_URL}
               target="_blank"
@@ -125,14 +118,18 @@ export function SiteFooter() {
             >
               Instagram {INSTAGRAM_HANDLE}
             </a>
-          </p>
-        </div>
-
-        <div className="space-y-2">
-          <h3 className={titulo}>Visite a loja</h3>
-          <p>{STORE_ADDRESS_LINE}</p>
-          <p>{STORE_CITY_LINE}</p>
-          <p>
+          </li>
+        </ul>
+      ),
+    },
+    {
+      id: "endereco",
+      titulo: "Endereço",
+      conteudo: (
+        <ul className={lista}>
+          <li>{STORE_ADDRESS_LINE}</li>
+          <li>{STORE_CITY_LINE}</li>
+          <li>
             <a
               href={MAPS_URL}
               target="_blank"
@@ -141,11 +138,53 @@ export function SiteFooter() {
             >
               Ver no mapa
             </a>
-          </p>
+          </li>
+        </ul>
+      ),
+    },
+  ];
+
+  return (
+    <footer className="bg-black text-white">
+      {/* Newsletter discreta: uma linha e o campo. */}
+      <div className="px-page flex flex-col gap-3 border-b border-white/15 py-6 lg:flex-row lg:items-center lg:justify-between lg:py-5">
+        <p className="text-sm font-semibold">
+          Receba lançamentos e ofertas
+          <span className="hidden font-normal text-white/50 lg:inline">
+            {" "}
+            — sem spam.
+          </span>
+        </p>
+        <div className="lg:w-[26rem]">
+          <NewsletterForm inverse compact />
         </div>
       </div>
 
-      <div className="px-page flex flex-wrap items-end justify-between gap-x-8 gap-y-3 border-t border-white/15 py-4 text-xs text-white/50">
+      {/* Celular: cartões que abrem um de cada vez. */}
+      <div className="px-page py-6 lg:hidden">
+        <FooterSections secoes={secoes} />
+      </div>
+
+      {/* Computador: as quatro colunas abertas, discretas. */}
+      <div className="px-page hidden grid-cols-[1.4fr_repeat(4,1fr)] gap-x-6 py-8 text-sm text-white/60 lg:grid">
+        <div>
+          <Logo height={26} className="h-[26px]" />
+          <p className="mt-3 max-w-xs text-[0.8rem]">
+            Tecnologia que veste bem. Loja em Balneário Camboriú, com envio para
+            todo o Brasil.
+          </p>
+        </div>
+        {secoes.map((s) => (
+          <nav key={s.id} aria-label={s.titulo}>
+            <h3 className="mb-2.5 text-[0.8rem] font-semibold text-white">
+              {s.titulo}
+            </h3>
+            {s.conteudo}
+          </nav>
+        ))}
+      </div>
+
+      <div className="px-page flex flex-wrap items-end justify-between gap-x-8 gap-y-2 border-t border-white/15 py-4 text-[0.7rem] leading-relaxed text-white/45 lg:text-xs">
         {/* Identificação da empresa: o Decreto 7.962/2013 exige razão social,
             CNPJ e endereço físico em local de fácil visualização em qualquer
             site que venda. Não é enfeite de rodapé — não remova. */}

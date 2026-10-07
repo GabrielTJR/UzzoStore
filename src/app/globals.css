@@ -374,6 +374,22 @@ body {
   animation-delay: var(--d, 0s);
 }
 
+/* Rodapé no celular: o conteúdo da seção aberta entra depois que os cartões
+   terminam de deslizar (footer-sections.tsx). */
+@keyframes rodape-abre {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.rodape-abre {
+  animation: rodape-abre 0.4s ease-out 0.35s both;
+}
+
 /* Faixa de avisos do topo: as mensagens se revezam no mesmo lugar. */
 @keyframes aviso-rodizio {
   0% {
@@ -413,7 +429,8 @@ body {
   }
   .hero-palavra,
   .hero-barra,
-  .hero-surge {
+  .hero-surge,
+  .rodape-abre {
     animation: none;
   }
   /* Sem rodízio: fica só a primeira mensagem, parada. */
