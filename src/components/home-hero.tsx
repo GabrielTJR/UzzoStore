@@ -1,30 +1,33 @@
-import Image from "next/image";
+import { getImageProps } from "next/image";
 import Link from "next/link";
-import type { HeroConfig } from "@/lib/home-config";
+import type { CSSProperties } from "react";
+import type { HeroConfig, PosEtiqueta } from "@/lib/home-config";
 import { displayProductName } from "@/lib/product-name";
 
 /**
- * Hero "Etiqueta": a foto mostra a roupa e as etiquetas dizem o que o tecido
- * faz — o diferencial da loja visto, não só escrito.
+ * Hero de TELA INTEIRA (out/2026, direção "D" aprovada pelo dono): um pano
+ * preto sobe e revela a foto, o título entra em caixa alta palavra por palavra,
+ * uma barra cobalto se desenha e as etiquetas apontam o que o tecido faz.
  *
- * - Celular: foto de borda a borda (4:5) e, logo abaixo, título e botões — os
- *   botões cabem na primeira tela de um aparelho de 812px de altura.
- * - Desktop: texto à esquerda, foto encostada na borda direita, do tamanho da
- *   altura visível.
+ * - Celular: a foto cobre a tela (menos cabeçalho e faixa de avisos) e o texto
+ *   fica por cima, na parte de baixo, sobre um degradê.
+ * - Computador: texto na metade esquerda (fundo preto), foto na direita, de
+ *   cima a baixo.
  *
- * A moldura da foto é 4:5 nos DOIS casos: as etiquetas são posicionadas em
- * porcentagem dela, e mudar a proporção por breakpoint tiraria os pontos de
- * cima da roupa.
+ * As etiquetas são posicionadas em % DA FOTO, e cada formato tem as suas
+ * (`home-hero.ts` explica). A foto é desenhada pelo `.hero-caixa` (globals.css)
+ * — um object-cover feito à mão, para as etiquetas andarem junto com ela.
  *
- * Zero JS: a entrada das etiquetas é CSS (`.etiqueta-*` em globals.css), roda
- * uma vez e respeita `prefers-reduced-motion`.
+ * Zero JS: tudo é CSS e roda uma vez; quem pede menos movimento no sistema vê
+ * tudo parado e sem pano. A foto aparece desde o primeiro quadro (o pano só a
+ * cobre por 0,6 s) — a "maior pintura" da página não espera animação.
  *
- * Custo: UMA imagem, com `priority` (é o LCP da home) e `sizes` casando com os
- * `deviceSizes` do next.config — o otimizador guarda cada variante por 31 dias.
+ * Custo: UMA imagem por visita. Com foto própria para o computador, o
+ * `<picture>` escolhe uma só pelo tamanho da tela — nunca baixa as duas.
  *
- * O conteúdo vem da configuração PUBLICADA da página inicial (editor do painel,
- * `lib/home-config.ts`); sem nada publicado, valem os de `lib/home-hero.ts`. O
- * mesmo componente roda na prévia do editor, alimentado pelo rascunho.
+ * O conteúdo vem da configuração PUBLICADA (editor do painel); sem nada
+ * publicado, valem os de `lib/home-hero.ts`. O editor usa este mesmo
+ * componente na prévia, alimentado pelo rascunho.
  */
 export function HomeHero({
   hero,
@@ -33,28 +36,106 @@ export function HomeHero({
   hero: HeroConfig;
   temFeminino: boolean;
 }) {
+  const palavras = hero.title.split(/\s+/).filter(Boolean);
+  // O título é em caixa alta e larga: a MAIOR palavra tem de caber numa
+  // linha. A letra encolhe com ela (≈ 0,82 em por caractere na Archivo larga).
+  const maior = Math.max(6, ...palavras.map((p) => p.length));
+  const tituloVars = {
+    "--t-cel": `min(10vw, calc(86vw / ${maior * 0.82}))`,
+    "--t-pc": `min(5vw, calc(42vw / ${maior * 0.82}), 6rem)`,
+  } as CSSProperties;
+
+  // Atrasos (s): pano 0,1→0,7; título; barra; texto; botões; etiquetas.
+  const tPalavra = (i: number) => 0.45 + i * 0.09;
+  const fimTitulo = tPalavra(palavras.length - 1) + 0.4;
+  const atraso = (s: number) => ({ "--d": `${s}s` }) as CSSProperties;
+
+  const tagsCel = hero.tags.flatMap((t) =>
+    t.cel ? [{ label: t.label, pos: t.cel }] : [],
+  );
+  const tagsPc = hero.tags.flatMap((t) =>
+    t.pc ? [{ label: t.label, pos: t.pc }] : [],
+  );
+  const ratioPc = hero.fotoPc?.ratio ?? hero.ratio;
+
   const botao =
-    "flex h-13 items-center justify-center rounded-xs border-[1.5px] border-foreground px-6 text-[0.95rem] font-semibold";
+    "flex h-12 items-center justify-center rounded-xs border-[1.5px] border-white px-6 text-[0.95rem] font-semibold";
 
   return (
-    <section className="lg:grid lg:h-[clamp(35rem,calc(100svh-var(--header-h)-2.25rem),54rem)] lg:grid-cols-[minmax(0,1fr)_auto]">
-      {/* Foto + etiquetas */}
-      <HeroPhoto hero={hero} className="lg:order-2 lg:h-full" />
+    <section className="relative h-[calc(100svh-var(--header-h)-2.25rem)] min-h-[32rem] overflow-hidden bg-black text-white lg:max-h-[62rem] lg:min-h-[36rem]">
+      {/* Foto: tela inteira no celular, metade direita no computador. */}
+      <div
+        className="absolute inset-0 lg:left-1/2"
+        style={{ containerType: "size" }}
+      >
+        <div
+          className="hero-caixa"
+          style={
+            {
+              "--r-cel": hero.ratio,
+              "--fx-cel": hero.focoCel.fx / 100,
+              "--fy-cel": hero.focoCel.fy / 100,
+              "--r-pc": ratioPc,
+              "--fx-pc": hero.focoPc.fx / 100,
+              "--fy-pc": hero.focoPc.fy / 100,
+            } as CSSProperties
+          }
+        >
+          <HeroImagem hero={hero} />
+          {tagsCel.length > 0 && (
+            <EtiquetasDaFoto
+              tags={tagsCel}
+              ratio={hero.ratio}
+              atraso={fimTitulo + 0.3}
+              className="lg:hidden"
+            />
+          )}
+          {tagsPc.length > 0 && (
+            <EtiquetasDaFoto
+              tags={tagsPc}
+              ratio={ratioPc}
+              atraso={fimTitulo + 0.3}
+              className="hidden lg:block"
+            />
+          )}
+        </div>
+        {/* Degradê só no celular: é onde o texto fica SOBRE a foto. */}
+        <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/10 to-transparent lg:hidden" />
+      </div>
 
       {/* Texto */}
-      <div className="px-page flex flex-col justify-end pb-8 pt-6 lg:order-1 lg:pb-14">
-        <h1 className="font-display max-w-[12ch] text-[2rem] font-extrabold leading-[1.02] sm:text-5xl lg:text-6xl lg:leading-[0.98] xl:text-7xl 2xl:text-[5.5rem]">
-          {hero.title}
+      <div className="px-page absolute inset-x-0 bottom-0 pb-8 lg:inset-y-0 lg:right-1/2 lg:flex lg:flex-col lg:justify-end lg:pb-14">
+        <h1
+          className="font-display text-[length:var(--t-cel)] font-extrabold uppercase leading-[0.92] tracking-tight lg:text-[length:var(--t-pc)]"
+          style={tituloVars}
+        >
+          {palavras.map((p, i) => (
+            <span key={i}>
+              <span className="hero-palavra" style={atraso(tPalavra(i))}>
+                {p}
+              </span>{" "}
+            </span>
+          ))}
         </h1>
+        <div
+          className="hero-barra mt-4 h-1 w-24 bg-accent lg:w-40"
+          style={atraso(fimTitulo)}
+        />
         {hero.text && (
-          <p className="mt-3 max-w-[34ch] text-[0.95rem] leading-snug text-muted lg:mt-6 lg:text-lg">
+          <p
+            className="hero-surge mt-4 max-w-[34ch] text-[0.95rem] leading-snug text-white/80 lg:text-lg"
+            style={atraso(fimTitulo + 0.1)}
+          >
             {hero.text}
           </p>
         )}
-        <div className="mt-5 grid grid-cols-2 gap-2 lg:mt-9 lg:flex lg:gap-3">
+        <div
+          className="hero-surge mt-5 grid grid-cols-2 gap-2 lg:mt-8 lg:flex lg:gap-3"
+          style={atraso(fimTitulo + 0.25)}
+        >
           <Link
             href="/masculino"
-            className={`${botao} bg-foreground text-background lg:min-w-48`}
+            className={`${botao} bg-white text-black lg:min-w-48`}
           >
             Ver masculino
           </Link>
@@ -69,101 +150,144 @@ export function HomeHero({
           )}
         </div>
         {hero.look && (
-          <p className="mt-4 text-xs text-muted lg:mt-6 lg:text-sm">
+          <p
+            className="hero-surge mt-4 text-xs text-white/70 lg:mt-6 lg:text-sm"
+            style={atraso(fimTitulo + 0.35)}
+          >
             Na foto:{" "}
             <Link
               href={`/produtos/${hero.look.slug}`}
-              className="text-foreground underline underline-offset-4"
+              className="text-white underline underline-offset-4"
             >
               {displayProductName(hero.look.name)}
             </Link>
           </p>
         )}
       </div>
+
+      {/* O pano: cobre só o primeiro instante e sai de cena. */}
+      <div
+        aria-hidden
+        className="hero-cortina pointer-events-none absolute inset-0 z-10 flex items-center justify-center bg-black"
+      >
+        <span className="font-display text-2xl font-extrabold tracking-[0.2em]">
+          UZZO
+        </span>
+      </div>
     </section>
   );
 }
 
 /**
- * A moldura 4:5 com a foto e as etiquetas. Exportada à parte porque o editor do
- * painel usa a MESMA moldura para o dono clicar e posicionar os pontos — uma
+ * A imagem do hero. Com foto própria para o computador, um `<picture>`
+ * escolhe UMA pelo tamanho da tela (o navegador não baixa a outra). A caixa
+ * pode ser mais larga que a tela no celular (a foto corta dos lados), por isso
+ * o `sizes` de 150vw.
+ */
+function HeroImagem({ hero }: { hero: HeroConfig }) {
+  const comum = {
+    fill: true,
+    fetchPriority: "high" as const,
+    loading: "eager" as const,
+    className: "object-cover",
+  };
+  const { props: cel } = getImageProps({
+    ...comum,
+    src: hero.image,
+    alt: hero.alt,
+    sizes: "(min-width: 1024px) 50vw, 150vw",
+  });
+  if (!hero.fotoPc) {
+    // eslint-disable-next-line jsx-a11y/alt-text -- o alt vem nas props
+    return <img {...cel} />;
+  }
+  const {
+    props: { srcSet: srcSetPc },
+  } = getImageProps({
+    ...comum,
+    src: hero.fotoPc.image,
+    alt: hero.fotoPc.alt || hero.alt,
+    sizes: "50vw",
+  });
+  return (
+    <picture>
+      <source media="(min-width: 1024px)" srcSet={srcSetPc} sizes="50vw" />
+      {/* eslint-disable-next-line jsx-a11y/alt-text -- o alt vem nas props */}
+      <img {...cel} />
+    </picture>
+  );
+}
+
+/**
+ * Pontos, linhas e rótulos sobre a foto — em % DA FOTO. Exportado porque o
+ * editor do painel desenha as MESMAS etiquetas na tela de posicionar: uma
  * cópia do desenho ali divergiria da loja no primeiro ajuste.
  */
-export function HeroPhoto({
-  hero,
+export function EtiquetasDaFoto({
+  tags,
+  ratio,
+  atraso = 0,
+  animar = true,
   className = "",
-  priority = true,
-  sizes = "(max-width: 1024px) 100vw, 50vw",
-  children,
 }: {
-  hero: HeroConfig;
-  /** Classes de encaixe conforme o lugar (na home: ordem e altura no desktop). */
+  tags: { label: string; pos: PosEtiqueta }[];
+  ratio: number;
+  atraso?: number;
+  animar?: boolean;
   className?: string;
-  priority?: boolean;
-  sizes?: string;
-  /** Camada extra por cima (o editor desenha o realce do ponto selecionado). */
-  children?: React.ReactNode;
 }) {
+  const alt = 100 / ratio;
+  const d = (i: number) =>
+    ({ "--d": `${atraso + i * 0.35}s` }) as CSSProperties;
   return (
-    <div className={`relative aspect-[4/5] overflow-hidden bg-surface ${className}`}>
-      <Image
-        src={hero.image}
-        alt={hero.alt}
-        fill
-        priority={priority}
-        sizes={sizes}
-        className="object-cover"
-        style={{ objectPosition: `50% ${hero.focoY}%` }}
-      />
-      {/* O viewBox tem a MESMA proporção da moldura (100×125 = 4:5), então
-          x é porcentagem direta e y é porcentagem × 1,25. Nada de
-          `preserveAspectRatio="none"` + `non-scaling-stroke`: nessa
-          combinação o Chrome ignora o `pathLength` e a linha sai tracejada
-          em vez de se desenhar. */}
+    <div className={`absolute inset-0 ${className}`}>
+      {/* viewBox com a MESMA proporção da foto: x é % direto; y vira % × (1/ratio).
+          Nada de `preserveAspectRatio="none"` + `non-scaling-stroke`: nessa
+          combinação o Chrome ignora o `pathLength` e a linha sai tracejada. */}
       <svg
-        viewBox="0 0 100 125"
+        viewBox={`0 0 100 ${alt}`}
         aria-hidden
         className="absolute inset-0 h-full w-full"
       >
-        {hero.tags.map((t, i) => (
+        {tags.map((t, i) => (
           <path
             key={`${i}-${t.label}`}
-            d={`M${t.x} ${t.y * 1.25} L${t.tx} ${t.ty * 1.25}`}
+            d={`M${t.pos.x} ${(t.pos.y / 100) * alt} L${t.pos.lx} ${(t.pos.ly / 100) * alt}`}
             pathLength={1}
             fill="none"
             stroke="#fff"
-            strokeWidth="0.4"
+            strokeWidth="0.35"
             strokeLinecap="round"
-            className="etiqueta-linha"
-            style={{ "--d": `${0.4 + i * 0.4}s` } as React.CSSProperties}
+            className={animar ? "etiqueta-linha" : undefined}
+            style={d(i)}
           />
         ))}
       </svg>
       {/* As etiquetas são conteúdo (lista), não enfeite: o leitor de tela
           anuncia as propriedades do tecido. */}
-      {hero.tags.length > 0 && (
-        <ul aria-label="O que o tecido faz">
-          {hero.tags.map((t, i) => {
-            const d = { "--d": `${0.4 + i * 0.4}s` } as React.CSSProperties;
-            return (
-              <li key={`${i}-${t.label}`}>
-                <span
-                  aria-hidden
-                  className="etiqueta-ponto absolute -ml-[5px] -mt-[5px] h-2.5 w-2.5 rounded-full bg-[#1f45e0] ring-[2.5px] ring-white"
-                  style={{ left: `${t.x}%`, top: `${t.y}%`, ...d }}
-                />
-                <span
-                  className="etiqueta-rotulo absolute whitespace-nowrap rounded-xs bg-white px-2.5 py-1.5 text-[0.72rem] font-semibold leading-none text-black lg:text-[0.8rem]"
-                  style={{ ...t.rotulo, ...d }}
-                >
-                  {t.label}
-                </span>
-              </li>
-            );
-          })}
-        </ul>
-      )}
-      {children}
+      <ul aria-label="O que o tecido faz">
+        {tags.map((t, i) => (
+          <li key={`${i}-${t.label}`}>
+            <span
+              aria-hidden
+              className={`${animar ? "etiqueta-ponto" : ""} absolute -ml-[5px] -mt-[5px] h-2.5 w-2.5 rounded-full bg-[#1f45e0] ring-[2.5px] ring-white`}
+              style={{ left: `${t.pos.x}%`, top: `${t.pos.y}%`, ...d(i) }}
+            />
+            <span
+              className={`${animar ? "etiqueta-rotulo" : ""} absolute -translate-y-1/2 whitespace-nowrap rounded-xs bg-white px-2.5 py-1.5 text-[0.72rem] font-semibold leading-none text-black lg:text-[0.8rem]`}
+              style={{
+                top: `${t.pos.ly}%`,
+                ...(t.pos.lado === "d"
+                  ? { left: `${t.pos.lx}%` }
+                  : { right: `${100 - t.pos.lx}%` }),
+                ...d(i),
+              }}
+            >
+              {t.label}
+            </span>
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }

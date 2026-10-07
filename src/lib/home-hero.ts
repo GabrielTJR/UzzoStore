@@ -1,42 +1,52 @@
 /**
- * Conteúdo do hero da home ("Etiqueta"): uma foto de corpo inteiro e as
- * etiquetas que apontam o que o tecido faz.
+ * Conteúdo do hero da home ("Etiqueta", versão de tela inteira — out/2026):
+ * uma foto que cobre a tela e etiquetas que apontam o que o tecido faz.
  *
  * Desde a migração 0023 a campanha é trocada pelo PAINEL (Vitrine → Página
- * inicial, `lib/home-config.ts`). Este arquivo virou o VALOR DE FÁBRICA: é o
- * que a loja mostra sem a migração, sem nada publicado ou se a leitura da
- * configuração falhar — e é por onde o editor começa na primeira vez.
+ * inicial, `lib/home-config.ts`). Este arquivo é o VALOR DE FÁBRICA: o que a
+ * loja mostra sem a migração, sem nada publicado ou se a leitura falhar — e é
+ * por onde o editor começa na primeira vez.
  *
- * O editor posiciona o rótulo sozinho quando o dono move um ponto
- * (`posicionaEtiqueta`); as posições abaixo foram afinadas à mão e valem até
- * alguém mexer nelas.
+ * COMO AS ETIQUETAS SE POSICIONAM — tudo é porcentagem DA FOTO (0–100 na
+ * largura e na altura da imagem), não da tela. A foto cobre a tela como um
+ * `object-cover`, mas desenhada como uma caixa com a proporção dela
+ * (`.hero-caixa` em globals.css); as etiquetas vivem dentro dessa caixa e
+ * andam junto com a foto. Por isso o ponto fica sobre a roupa em qualquer
+ * celular — o que muda de um aparelho para outro é só QUANTO da borda da foto
+ * aparece.
  *
- * COMO POSICIONAR UMA ETIQUETA — tudo é porcentagem da moldura da foto (que é
- * sempre 4:5, no celular e no desktop, justamente para os pontos não saírem do
- * lugar quando a tela muda):
- *   - `x`/`y`: onde fica o ponto, sobre a roupa;
- *   - `tx`/`ty`: onde a linha termina (encostando no rótulo);
- *   - `rotulo`: canto do rótulo — use `left` OU `right`, mais `top`.
+ * Cada etiqueta tem uma posição para o CELULAR e outra para o COMPUTADOR (ou
+ * `null` = não aparece naquele formato): no celular a foto é a tela inteira e
+ * o título cobre a parte de baixo; no computador a foto ocupa a metade direita
+ * e aparece quase inteira. Os campos:
+ *   - `x`/`y`: o ponto, sobre a roupa;
+ *   - `lx`/`ly`: onde a linha termina e o rótulo encosta;
+ *   - `lado`: "d" = o rótulo cresce para a direita a partir de `lx`; "e" = para
+ *     a esquerda (a borda direita dele fica em `lx`).
  *
  * A foto precisa ter fundo limpo ao redor do modelo: os rótulos ficam sobre o
- * fundo, não sobre a roupa. Os textos vêm das campanhas da própria loja
- * ("Tecnologia que veste bem"; respirável, não amassa, flexibilidade).
+ * fundo, não sobre a roupa.
  */
-export type HeroTag = {
-  label: string;
+export type PosEtiqueta = {
   x: number;
   y: number;
-  tx: number;
-  ty: number;
-  rotulo: { left?: string; right?: string; top: string };
+  lx: number;
+  ly: number;
+  lado: "e" | "d";
+};
+
+export type HeroTag = {
+  label: string;
+  cel: PosEtiqueta | null;
+  pc: PosEtiqueta | null;
 };
 
 export const HOME_HERO = {
   image:
     "https://anlbavcstwffnpisacax.supabase.co/storage/v1/object/public/product-images/11c5e91d-ebcc-4a2b-bfad-efe28444228e/9d837c36-b762-4062-b407-4cb7c382a9de.png",
   alt: "Modelo de corpo inteiro vestindo polo azul-marinho e calça de alfaiataria bege",
-  /** Enquadramento da foto dentro da moldura 4:5. */
-  objectPosition: "50% 12%",
+  /** Largura ÷ altura da foto (1086 × 1448). */
+  ratio: 0.75,
   title: "Tecnologia que veste bem.",
   text: "Peças com tecidos tecnológicos que acompanham você em todos os momentos.",
   /** Peça da foto, para quem quer exatamente o que viu. */
@@ -44,27 +54,19 @@ export const HOME_HERO = {
   tags: [
     {
       label: "Não amassa",
-      x: 56,
-      y: 33,
-      tx: 72,
-      ty: 20,
-      rotulo: { left: "66%", top: "14%" },
+      cel: { x: 57.4, y: 25, lx: 66, ly: 16, lado: "d" },
+      pc: { x: 57.4, y: 25, lx: 82, ly: 15, lado: "d" },
     },
     {
       label: "Respirável",
-      x: 36,
-      y: 31,
-      tx: 22,
-      ty: 44,
-      rotulo: { left: "4%", top: "43%" },
+      cel: { x: 43.8, y: 35.3, lx: 33, ly: 29, lado: "e" },
+      pc: { x: 43.8, y: 35.3, lx: 16, ly: 27, lado: "e" },
     },
     {
       label: "Flexibilidade inteligente",
-      x: 55,
-      y: 74,
-      tx: 72,
-      ty: 83,
-      rotulo: { right: "4%", top: "82%" },
+      // No celular cairia embaixo do título.
+      cel: null,
+      pc: { x: 55, y: 70, lx: 66, ly: 76, lado: "d" },
     },
   ] satisfies HeroTag[],
 };

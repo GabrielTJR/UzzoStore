@@ -295,6 +295,84 @@ body {
   animation-delay: calc(var(--d, 0s) + 0.5s);
 }
 
+/*
+ * Hero de tela inteira (out/2026). `.hero-caixa` é a foto "cobrindo" a área
+ * como um object-cover, mas desenhada como uma caixa com a PROPORÇÃO DA FOTO:
+ * as etiquetas (em % da foto) vivem dentro dela e ficam sobre a roupa em
+ * qualquer formato de tela. O pai precisa de `container-type: size`. As
+ * variáveis (proporção e enquadramento de cada formato) vêm do componente.
+ */
+.hero-caixa {
+  --r: var(--r-cel);
+  --fx: var(--fx-cel);
+  --fy: var(--fy-cel);
+  --w: max(100cqw, calc(100cqh * var(--r)));
+  position: absolute;
+  width: var(--w);
+  height: calc(var(--w) / var(--r));
+  left: calc((100cqw - var(--w)) * var(--fx));
+  top: calc((100cqh - var(--w) / var(--r)) * var(--fy));
+}
+@media (min-width: 64rem) {
+  .hero-caixa {
+    --r: var(--r-pc);
+    --fx: var(--fx-pc);
+    --fy: var(--fy-pc);
+  }
+}
+
+/* A entrada: um pano preto sobe (0,6 s), o título entra palavra por palavra
+   varrendo da esquerda, a barra cobalto se desenha, texto e botões surgem. A
+   foto está à vista desde o primeiro quadro, debaixo do pano. */
+@keyframes hero-cortina {
+  to {
+    transform: translateY(-101%);
+  }
+}
+@keyframes hero-varre {
+  from {
+    clip-path: inset(0 100% 0 0);
+  }
+  to {
+    clip-path: inset(0 0 0 0);
+  }
+}
+@keyframes hero-barra {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}
+@keyframes hero-surge {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.hero-cortina {
+  animation: hero-cortina 0.6s cubic-bezier(0.76, 0, 0.24, 1) 0.1s both;
+}
+.hero-palavra {
+  display: inline-block;
+  animation: hero-varre 0.6s cubic-bezier(0.65, 0, 0.35, 1) both;
+  animation-delay: var(--d, 0s);
+}
+.hero-barra {
+  transform-origin: left;
+  animation: hero-barra 0.6s cubic-bezier(0.65, 0, 0.35, 1) both;
+  animation-delay: var(--d, 0s);
+}
+.hero-surge {
+  animation: hero-surge 0.6s ease-out both;
+  animation-delay: var(--d, 0s);
+}
+
 /* Faixa de avisos do topo: as mensagens se revezam no mesmo lugar. */
 @keyframes aviso-rodizio {
   0% {
@@ -326,6 +404,15 @@ body {
   }
   .etiqueta-linha {
     stroke-dashoffset: 0;
+    animation: none;
+  }
+  /* Hero: tudo já no lugar, sem pano. */
+  .hero-cortina {
+    display: none;
+  }
+  .hero-palavra,
+  .hero-barra,
+  .hero-surge {
     animation: none;
   }
   /* Sem rodízio: fica só a primeira mensagem, parada. */

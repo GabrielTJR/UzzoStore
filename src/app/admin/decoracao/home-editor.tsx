@@ -4,22 +4,24 @@ import { useEffect, useMemo, useState, useTransition } from "react";
 import Image from "next/image";
 import { AnnouncementBar } from "@/components/announcement-bar";
 import { CategoryStrip } from "@/components/category-strip";
-import { HeroPhoto, HomeHero } from "@/components/home-hero";
+import { EtiquetasDaFoto, HomeHero } from "@/components/home-hero";
 import { ProductPlaceholder } from "@/components/product-placeholder";
 import { SiteHeader, type NavCategory } from "@/components/site-header";
 import { useToast } from "@/components/toast";
 import type { Department } from "@/lib/departments";
 import {
   aplicaAtalhos,
-  ladoDoRotulo,
+  faixaVisivel,
   LIMITES,
   MAX_AVISOS,
   MAX_ETIQUETAS,
-  posicionaEtiqueta,
+  posicionaRotulo,
+  PROPORCAO_AREA,
+  ratioDoFormato,
   textoAvisoFrete,
   type AvisoConfig,
+  type Formato,
   type HomeConfig,
-  type LadoRotulo,
   type ProductPhoto,
 } from "@/lib/home-config";
 import type { CategoryCover, CategoryCoversByDepartment } from "@/lib/products";
@@ -71,8 +73,15 @@ export function HomeEditor(props: HomeEditorProps) {
   const [salvo, setSalvo] = useState<HomeConfig>(props.inicial);
   const [pub, setPub] = useState<HomeConfig>(props.publicado);
   const [sel, setSel] = useState<number | null>(null);
+  /** Qual formato do destaque se está editando (etiquetas e enquadramento). */
+  const [formato, setFormato] = useState<Formato>("cel");
+  /** Qual formato a prévia mostra. */
+  const [previa, setPrevia] = useState<Formato>("cel");
   const [picker, setPicker] = useState<
-    null | { tipo: "hero" } | { tipo: "atalho"; id: string; nome: string }
+    | null
+    | { tipo: "hero" }
+    | { tipo: "heroPc" }
+    | { tipo: "atalho"; id: string; nome: string }
   >(null);
   const [pending, start] = useTransition();
 
@@ -154,24 +163,83 @@ export function HomeEditor(props: HomeEditorProps) {
   const setHero = (patch: Partial<HomeConfig["hero"]>) =>
     setCfg((c) => ({ ...c, hero: { ...c.hero, ...patch } }));
 
+  // A foto e o enquadramento do formato em edição.
+  const ratioAtual = ratioDoFormato(hero, formato);
+  const focoAtual = formato === "cel" ? hero.focoCel : hero.focoPc;
+  const fotoAtual =
+    formato === "pc" && hero.fotoPc ? hero.fotoPc.image : hero.image;
+  const faixa = faixaVisivel(ratioAtual, PROPORCAO_AREA[formato], focoAtual);
+  // A área corta dos lados (celular, foto vertical) ou em cima/embaixo?
+  const cortaLados = PROPORCAO_AREA[formato] < ratioAtual;
+
+  function setFoco(patch: Partial<HomeConfig["hero"]["focoCel"]>) {
+    setCfg((c) =>
+      formato === "cel"
+        ? {
+            ...c,
+            hero: { ...c.hero, focoCel: { ...c.hero.focoCel, ...patch } },
+          }
+        : { ...c, hero: { ...c.hero, focoPc: { ...c.hero.focoPc, ...patch } } },
+    );
+  }
+
+  /** Ao carregar, a foto informa a proporção real — é o que põe as etiquetas
+   * no lugar certo na loja. Só grava se mudou (senão marcaria "alterado"). */
+  function mediuFoto(qual: "cel" | "pc", w: number, h: number) {
+    if (!w || !h) return;
+    const r = Math.round((w / h) * 10000) / 10000;
+    setCfg((c) => {
+      if (qual === "pc") {
+        if (!c.hero.fotoPc || Math.abs(c.hero.fotoPc.ratio - r) < 0.005)
+          return c;
+        return {
+          ...c,
+          hero: { ...c.hero, fotoPc: { ...c.hero.fotoPc, ratio: r } },
+        };
+      }
+      if (Math.abs(c.hero.ratio - r) < 0.005) return c;
+      return { ...c, hero: { ...c.hero, ratio: r } };
+    });
+  }
+
   function moverEtiqueta(i: number, x: number, y: number) {
     setCfg((c) => {
       const tags = c.hero.tags.slice();
       const t = tags[i];
       if (!t) return c;
-      tags[i] = posicionaEtiqueta(t.label, x, y, ladoDoRotulo(t));
+      const lado = t[formato]?.lado ?? (x < 50 ? "e" : "d");
+      tags[i] = { ...t, [formato]: posicionaRotulo(x, y, lado, formato) };
       return { ...c, hero: { ...c.hero, tags } };
     });
   }
 
-  function trocarLado(i: number, lado: LadoRotulo) {
+  function trocarLado(i: number, lado: "e" | "d") {
     setCfg((c) => {
       const tags = c.hero.tags.slice();
       const t = tags[i];
-      if (!t || ladoDoRotulo(t) === lado) return c;
-      tags[i] = posicionaEtiqueta(t.label, t.x, t.y, lado);
+      const p = t?.[formato];
+      if (!t || !p || p.lado === lado) return c;
+      tags[i] = { ...t, [formato]: posicionaRotulo(p.x, p.y, lado, formato) };
       return { ...c, hero: { ...c.hero, tags } };
     });
+  }
+
+  /** Mostra/esconde a etiqueta neste formato. Ao mostrar, nasce no meio da
+   * parte da foto que aparece. */
+  function alternarNoFormato(i: number) {
+    setCfg((c) => {
+      const tags = c.hero.tags.slice();
+      const t = tags[i];
+      if (!t) return c;
+      const cx = (faixa.x0 + faixa.x1) / 2;
+      const cy = faixa.y0 + (faixa.y1 - faixa.y0) * 0.35;
+      tags[i] = {
+        ...t,
+        [formato]: t[formato] ? null : posicionaRotulo(cx, cy, "d", formato),
+      };
+      return { ...c, hero: { ...c.hero, tags } };
+    });
+    setSel(i);
   }
 
   function renomearEtiqueta(i: number, label: string) {
@@ -185,7 +253,11 @@ export function HomeEditor(props: HomeEditorProps) {
 
   function adicionarEtiqueta() {
     if (hero.tags.length >= MAX_ETIQUETAS) return;
-    const nova = posicionaEtiqueta("Nova etiqueta", 50, 50, "direita");
+    const nova = {
+      label: "Nova etiqueta",
+      cel: posicionaRotulo(50, 40, "d", "cel"),
+      pc: posicionaRotulo(50, 40, "d", "pc"),
+    };
     setHero({ tags: [...hero.tags, nova] });
     setSel(hero.tags.length);
   }
@@ -384,73 +456,229 @@ export function HomeEditor(props: HomeEditorProps) {
                 Destaque principal
               </h2>
               <p className="mt-0.5 text-sm text-muted">
-                A primeira imagem da loja. Escolha uma etiqueta na lista e
-                clique (ou arraste) na foto para colocá-la.
+                A primeira imagem da loja, em tela inteira. Celular e computador
+                têm enquadramento e etiquetas próprios: escolha o formato, toque
+                numa etiqueta da lista e clique (ou arraste) na foto para
+                colocá-la.
               </p>
+
+              {/* Formato em edição */}
+              <div
+                role="tablist"
+                aria-label="Formato"
+                className="mt-4 inline-flex overflow-hidden rounded-xs border border-border text-sm"
+              >
+                {(
+                  [
+                    ["cel", "Celular"],
+                    ["pc", "Computador"],
+                  ] as const
+                ).map(([f, rotulo]) => (
+                  <button
+                    key={f}
+                    type="button"
+                    role="tab"
+                    aria-selected={formato === f}
+                    onClick={() => {
+                      setFormato(f);
+                      setPrevia(f);
+                    }}
+                    className={`px-4 py-2 font-medium ${
+                      formato === f
+                        ? "bg-foreground text-background"
+                        : "hover:bg-surface"
+                    }`}
+                  >
+                    {rotulo}
+                  </button>
+                ))}
+              </div>
 
               <div className="mt-5 grid gap-6 lg:grid-cols-[minmax(0,17rem)_minmax(0,1fr)]">
                 <div>
+                  {/* A foto INTEIRA, na proporção dela. O que fica fora da
+                      faixa clara pode não aparecer na tela (depende do
+                      aparelho); no celular, a faixa listrada é onde o título
+                      fica por cima. */}
                   <div
                     onPointerDown={(e) => {
-                      if (sel == null) return;
+                      if (sel == null || !hero.tags[sel]?.[formato]) return;
                       e.currentTarget.setPointerCapture(e.pointerId);
                       const p = pontoDoEvento(e);
                       moverEtiqueta(sel, p.x, p.y);
                     }}
                     onPointerMove={(e) => {
                       if (sel == null || e.buttons !== 1) return;
+                      if (!hero.tags[sel]?.[formato]) return;
                       const p = pontoDoEvento(e);
                       moverEtiqueta(sel, p.x, p.y);
                     }}
-                    className={`touch-none select-none ${sel != null ? "cursor-crosshair" : ""}`}
+                    className={`relative touch-none select-none overflow-hidden bg-surface ${
+                      sel != null && hero.tags[sel]?.[formato]
+                        ? "cursor-crosshair"
+                        : ""
+                    }`}
+                    style={{ aspectRatio: `${ratioAtual}` }}
                   >
-                    <HeroPhoto hero={hero} priority={false} sizes="272px">
-                      {sel != null && hero.tags[sel] && (
-                        <span
-                          aria-hidden
-                          className="pointer-events-none absolute -ml-3 -mt-3 h-6 w-6 rounded-full ring-2 ring-accent ring-offset-1 ring-offset-white"
-                          style={{
-                            left: `${hero.tags[sel].x}%`,
-                            top: `${hero.tags[sel].y}%`,
-                          }}
-                        />
+                    <Image
+                      key={fotoAtual}
+                      src={fotoAtual}
+                      alt=""
+                      fill
+                      sizes="272px"
+                      className="object-cover"
+                      onLoad={(e) =>
+                        mediuFoto(
+                          formato === "pc" && hero.fotoPc ? "pc" : "cel",
+                          e.currentTarget.naturalWidth,
+                          e.currentTarget.naturalHeight,
+                        )
+                      }
+                    />
+                    {/* Fora da faixa que sempre aparece: escurecido. */}
+                    <div
+                      aria-hidden
+                      className="pointer-events-none absolute inset-0"
+                      style={{
+                        background: "rgba(0,0,0,.55)",
+                        clipPath: `polygon(evenodd, 0 0, 100% 0, 100% 100%, 0 100%, 0 0, ${faixa.x0}% ${faixa.y0}%, ${faixa.x0}% ${faixa.y1}%, ${faixa.x1}% ${faixa.y1}%, ${faixa.x1}% ${faixa.y0}%, ${faixa.x0}% ${faixa.y0}%)`,
+                      }}
+                    />
+                    {formato === "cel" && (
+                      <div
+                        aria-hidden
+                        className="pointer-events-none absolute"
+                        style={{
+                          left: `${faixa.x0}%`,
+                          width: `${faixa.x1 - faixa.x0}%`,
+                          top: `${faixa.y0 + (faixa.y1 - faixa.y0) * 0.58}%`,
+                          bottom: `${100 - faixa.y1}%`,
+                          background:
+                            "repeating-linear-gradient(135deg, rgba(0,0,0,.35) 0 6px, rgba(0,0,0,.15) 6px 12px)",
+                        }}
+                      />
+                    )}
+                    <EtiquetasDaFoto
+                      animar={false}
+                      ratio={ratioAtual}
+                      tags={hero.tags.flatMap((t) =>
+                        t[formato]
+                          ? [{ label: t.label, pos: t[formato]! }]
+                          : [],
                       )}
-                    </HeroPhoto>
+                    />
+                    {sel != null && hero.tags[sel]?.[formato] && (
+                      <span
+                        aria-hidden
+                        className="pointer-events-none absolute -ml-3 -mt-3 h-6 w-6 rounded-full ring-2 ring-accent ring-offset-1 ring-offset-white"
+                        style={{
+                          left: `${hero.tags[sel][formato]!.x}%`,
+                          top: `${hero.tags[sel][formato]!.y}%`,
+                        }}
+                      />
+                    )}
                   </div>
-                  <p className="mt-3 text-xs leading-relaxed text-muted">
-                    <button
-                      type="button"
-                      onClick={() => setPicker({ tipo: "hero" })}
-                      className="font-semibold text-foreground underline underline-offset-4"
-                    >
-                      Trocar foto
-                    </button>{" "}
-                    — escolha uma foto de produto ou envie uma nova. Use foto de
-                    corpo inteiro com fundo limpo em volta do modelo.
+                  <p className="mt-2 text-xs leading-relaxed text-muted">
+                    {formato === "cel"
+                      ? "A parte escura pode ficar fora da tela nos celulares mais estreitos; a listrada é onde o título fica por cima."
+                      : "A parte escura pode ficar fora da tela em monitores mais baixos."}
                   </p>
+
+                  {formato === "cel" ? (
+                    <p className="mt-3 text-xs leading-relaxed text-muted">
+                      <button
+                        type="button"
+                        onClick={() => setPicker({ tipo: "hero" })}
+                        className="font-semibold text-foreground underline underline-offset-4"
+                      >
+                        Trocar foto
+                      </button>{" "}
+                      — vale para o celular e, sem foto própria, para o
+                      computador. Use foto de corpo inteiro com fundo limpo em
+                      volta do modelo.
+                    </p>
+                  ) : (
+                    <p className="mt-3 text-xs leading-relaxed text-muted">
+                      {hero.fotoPc ? (
+                        <>
+                          <button
+                            type="button"
+                            onClick={() => setPicker({ tipo: "heroPc" })}
+                            className="font-semibold text-foreground underline underline-offset-4"
+                          >
+                            Trocar foto do computador
+                          </button>{" "}
+                          ou{" "}
+                          <button
+                            type="button"
+                            onClick={() => setHero({ fotoPc: null })}
+                            className="font-semibold text-foreground underline underline-offset-4"
+                          >
+                            usar a mesma do celular
+                          </button>
+                          .
+                        </>
+                      ) : (
+                        <>
+                          Usa a mesma foto do celular.{" "}
+                          <button
+                            type="button"
+                            onClick={() => setPicker({ tipo: "heroPc" })}
+                            className="font-semibold text-foreground underline underline-offset-4"
+                          >
+                            Usar outra foto no computador
+                          </button>
+                        </>
+                      )}
+                    </p>
+                  )}
+
                   <label className="mt-4 block text-sm font-medium">
                     Enquadramento
                     <input
                       type="range"
                       min={0}
                       max={100}
-                      value={hero.focoY}
+                      value={cortaLados ? focoAtual.fx : focoAtual.fy}
                       onChange={(e) =>
-                        setHero({ focoY: Number(e.target.value) })
+                        setFoco(
+                          cortaLados
+                            ? { fx: Number(e.target.value) }
+                            : { fy: Number(e.target.value) },
+                        )
                       }
                       className="mt-2 block w-full accent-[var(--accent)]"
                     />
                     <span className="flex justify-between text-xs font-normal text-muted">
-                      <span>mostrar o alto</span>
-                      <span>mostrar o pé</span>
+                      {cortaLados ? (
+                        <>
+                          <span>mostrar a esquerda</span>
+                          <span>mostrar a direita</span>
+                        </>
+                      ) : (
+                        <>
+                          <span>mostrar o alto</span>
+                          <span>mostrar o pé</span>
+                        </>
+                      )}
                     </span>
                   </label>
                   <label className="mt-4 block text-sm font-medium">
                     Descrição da foto
                     <input
-                      value={hero.alt}
+                      value={
+                        formato === "pc" && hero.fotoPc
+                          ? hero.fotoPc.alt
+                          : hero.alt
+                      }
                       maxLength={LIMITES.alt}
-                      onChange={(e) => setHero({ alt: e.target.value })}
+                      onChange={(e) =>
+                        formato === "pc" && hero.fotoPc
+                          ? setHero({
+                              fotoPc: { ...hero.fotoPc, alt: e.target.value },
+                            })
+                          : setHero({ alt: e.target.value })
+                      }
                       placeholder="Ex.: modelo de polo azul e calça bege"
                       className={`${campo} mt-1.5 font-normal`}
                     />
@@ -462,75 +690,98 @@ export function HomeEditor(props: HomeEditorProps) {
 
                 <div className="min-w-0 space-y-5">
                   <div>
-                    <p className="mb-2 text-sm font-medium">Etiquetas</p>
+                    <p className="mb-2 text-sm font-medium">
+                      Etiquetas no{" "}
+                      {formato === "cel" ? "celular" : "computador"}
+                    </p>
                     <ul className="space-y-2">
                       {hero.tags.map((t, i) => {
                         const ativa = sel === i;
-                        const lado = ladoDoRotulo(t);
+                        const pos = t[formato];
                         return (
                           <li
                             key={i}
                             onClick={() => setSel(i)}
-                            className={`flex flex-wrap items-center gap-3 rounded-xs border px-3 py-2.5 ${
+                            className={`rounded-xs border px-3 py-2.5 ${
                               ativa ? "border-foreground" : "border-border"
-                            }`}
+                            } ${pos ? "" : "opacity-70"}`}
                           >
-                            <button
-                              type="button"
-                              onClick={() => setSel(ativa ? null : i)}
-                              aria-pressed={ativa}
-                              aria-label={`Selecionar a etiqueta ${t.label} para mover`}
-                              className={`h-3.5 w-3.5 shrink-0 rounded-full bg-accent ring-[3px] ${
-                                ativa ? "ring-accent/30" : "ring-transparent"
-                              }`}
-                            />
-                            <div className="min-w-0 flex-1">
-                              <input
-                                value={t.label}
-                                onChange={(e) =>
-                                  renomearEtiqueta(i, e.target.value)
-                                }
-                                onFocus={() => setSel(i)}
-                                aria-label="Texto da etiqueta"
-                                className="w-full bg-transparent text-sm font-medium outline-none"
+                            <div className="flex items-center gap-3">
+                              <button
+                                type="button"
+                                onClick={() => setSel(ativa ? null : i)}
+                                aria-pressed={ativa}
+                                aria-label={`Selecionar a etiqueta ${t.label} para mover`}
+                                className={`h-3.5 w-3.5 shrink-0 rounded-full ring-[3px] ${
+                                  pos ? "bg-accent" : "bg-border"
+                                } ${ativa ? "ring-accent/30" : "ring-transparent"}`}
                               />
-                              <p className="text-xs text-muted">
-                                {ativa
-                                  ? "selecionada: clique na foto para mover"
-                                  : "clique para selecionar e mover"}
-                              </p>
+                              <div className="min-w-0 flex-1">
+                                <input
+                                  value={t.label}
+                                  onChange={(e) =>
+                                    renomearEtiqueta(i, e.target.value)
+                                  }
+                                  onFocus={() => setSel(i)}
+                                  aria-label="Texto da etiqueta"
+                                  className="w-full bg-transparent text-sm font-medium outline-none"
+                                />
+                                <p className="text-xs text-muted">
+                                  {!pos
+                                    ? `não aparece no ${formato === "cel" ? "celular" : "computador"}`
+                                    : ativa
+                                      ? "selecionada: clique na foto para mover"
+                                      : "clique para selecionar e mover"}
+                                </p>
+                              </div>
                             </div>
-                            <div
-                              role="group"
-                              aria-label="Lado do rótulo"
-                              className="inline-flex overflow-hidden rounded-xs border border-border text-xs"
-                            >
-                              {(["esquerda", "direita"] as const).map((l) => (
-                                <button
-                                  key={l}
-                                  type="button"
-                                  onClick={() => trocarLado(i, l)}
-                                  aria-pressed={lado === l}
-                                  className={`px-2 py-1 ${
-                                    lado === l
-                                      ? "bg-foreground text-background"
-                                      : "hover:bg-surface"
-                                  }`}
+                            {/* Controles numa linha própria: lado a lado com
+                                o texto, o nome da etiqueta ficava espremido. */}
+                            <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-2 pl-[1.625rem]">
+                              {pos && (
+                                <div
+                                  role="group"
+                                  aria-label="Lado do rótulo"
+                                  className="inline-flex overflow-hidden rounded-xs border border-border text-xs"
                                 >
-                                  {l === "esquerda" ? "Esq." : "Dir."}
-                                </button>
-                              ))}
+                                  {(["e", "d"] as const).map((l) => (
+                                    <button
+                                      key={l}
+                                      type="button"
+                                      onClick={() => trocarLado(i, l)}
+                                      aria-pressed={pos.lado === l}
+                                      className={`px-2 py-1 ${
+                                        pos.lado === l
+                                          ? "bg-foreground text-background"
+                                          : "hover:bg-surface"
+                                      }`}
+                                    >
+                                      {l === "e" ? "Esq." : "Dir."}
+                                    </button>
+                                  ))}
+                                </div>
+                              )}
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  alternarNoFormato(i);
+                                }}
+                                className={linkAcao}
+                              >
+                                {pos ? "esconder aqui" : "mostrar aqui"}
+                              </button>
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  removerEtiqueta(i);
+                                }}
+                                className={linkAcao}
+                              >
+                                remover
+                              </button>
                             </div>
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                removerEtiqueta(i);
-                              }}
-                              className={linkAcao}
-                            >
-                              remover
-                            </button>
                           </li>
                         );
                       })}
@@ -545,8 +796,9 @@ export function HomeEditor(props: HomeEditorProps) {
                       </button>
                     )}
                     <p className="mt-1.5 text-xs text-muted">
-                      Até {MAX_ETIQUETAS} etiquetas. Textos curtos funcionam
-                      melhor no celular.
+                      Até {MAX_ETIQUETAS} etiquetas. O texto é o mesmo nos dois
+                      formatos; a posição (e se aparece) é de cada um. Textos
+                      curtos funcionam melhor no celular.
                     </p>
                   </div>
 
@@ -830,11 +1082,36 @@ export function HomeEditor(props: HomeEditorProps) {
         {/* ---------------- Prévia ---------------- */}
         {/* No celular a moldura (395 px) pode passar da tela: rola dentro dela. */}
         <aside className="min-w-0 overflow-x-auto xl:sticky xl:top-6 xl:self-start">
-          <div className="mb-2 flex items-baseline justify-between gap-2">
-            <p className="text-sm font-semibold">Prévia no celular</p>
+          <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+            <div
+              role="group"
+              aria-label="Prévia"
+              className="inline-flex overflow-hidden rounded-xs border border-border text-xs"
+            >
+              {(
+                [
+                  ["cel", "Prévia no celular"],
+                  ["pc", "No computador"],
+                ] as const
+              ).map(([f, rotulo]) => (
+                <button
+                  key={f}
+                  type="button"
+                  onClick={() => setPrevia(f)}
+                  aria-pressed={previa === f}
+                  className={`px-3 py-1.5 font-medium ${
+                    previa === f
+                      ? "bg-foreground text-background"
+                      : "hover:bg-surface"
+                  }`}
+                >
+                  {rotulo}
+                </button>
+              ))}
+            </div>
             <p className="text-xs text-muted">atualiza enquanto você edita</p>
           </div>
-          <PhonePreview>
+          <PhonePreview key={previa} formato={previa}>
             <AnnouncementBar avisos={cfg.avisos} freteAtivo={freteAtivo} />
             <SiteHeader
               categories={props.menu}
@@ -869,6 +1146,29 @@ export function HomeEditor(props: HomeEditorProps) {
                 ? { look: { name: p.productName, slug: p.slug } }
                 : {}),
             });
+            setPicker(null);
+          }}
+        />
+      )}
+      {picker?.tipo === "heroPc" && (
+        <PhotoPicker
+          title="Foto do destaque no computador"
+          photos={photos}
+          selected={hero.fotoPc?.image ?? null}
+          permiteEnviar
+          onClose={() => setPicker(null)}
+          onPick={(url, p) => {
+            setHero({
+              fotoPc: {
+                image: url,
+                alt: p
+                  ? `${p.productName}${p.color ? `, ${p.color}` : ""}`
+                  : "",
+                // Provisória: a foto informa a proporção real ao carregar.
+                ratio: hero.fotoPc?.ratio ?? hero.ratio,
+              },
+            });
+            setFormato("pc");
             setPicker(null);
           }}
         />

@@ -19,26 +19,76 @@
  * versão antiga do editor, ou de alguém mexendo no SQL Editor. Cada campo
  * inválido cai no valor de fábrica, não derruba a home.
  */
-import { HOME_HERO, type HeroTag } from "@/lib/home-hero";
+import { HOME_HERO, type HeroTag, type PosEtiqueta } from "@/lib/home-hero";
 import { FRETE_GRATIS_MIN } from "@/lib/shipping-config";
 import { formatBRL } from "@/lib/format";
 import type { CategoryCoversByDepartment } from "@/lib/products";
 
-export type { HeroTag };
+export type { HeroTag, PosEtiqueta };
 
 export type HeroLook = { name: string; slug: string };
+
+/** Os dois formatos do hero: celular (foto = tela inteira) e computador (foto
+ * na metade direita). Cada um tem enquadramento e etiquetas próprios. */
+export type Formato = "cel" | "pc";
+
+/** Enquadramento: qual parte da foto fica à vista quando ela é cortada para
+ * cobrir a área — 0 = borda esquerda/topo, 100 = direita/pé. */
+export type Foco = { fx: number; fy: number };
+
+/** Foto própria do computador (opcional — sem ela, vale a do celular). */
+export type HeroFotoPc = { image: string; alt: string; ratio: number };
 
 export type HeroConfig = {
   image: string;
   alt: string;
-  /** Enquadramento vertical da foto na moldura 4:5, em % (0 = topo). */
-  focoY: number;
+  /** Largura ÷ altura da foto — o editor mede ao carregar. É o que faz as
+   * etiquetas (em % da foto) caírem no lugar certo. */
+  ratio: number;
+  focoCel: Foco;
+  focoPc: Foco;
+  fotoPc: HeroFotoPc | null;
   title: string;
   text: string;
   /** Peça da foto ("Na foto: …"). `null` esconde a linha. */
   look: HeroLook | null;
   tags: HeroTag[];
 };
+
+/**
+ * Proporção (largura ÷ altura) da área da foto no pior caso de cada formato —
+ * é com ela que o editor desenha a faixa que SEMPRE aparece. Celular: a área
+ * é a tela menos cabeçalho e faixa de avisos; nos aparelhos mais altos fica
+ * perto de 0,5. Computador: a metade direita da tela chega a ~1,05 em telas
+ * baixas (1280 × 720).
+ */
+export const PROPORCAO_AREA: Record<Formato, number> = { cel: 0.5, pc: 1.05 };
+
+/** Proporção da foto a usar num formato (o computador pode ter foto própria). */
+export function ratioDoFormato(h: HeroConfig, f: Formato): number {
+  return f === "pc" && h.fotoPc ? h.fotoPc.ratio : h.ratio;
+}
+
+/**
+ * A parte da foto que aparece numa área de proporção `area`, com o
+ * enquadramento `foco` — em % da foto. Espelha a conta do `.hero-caixa`.
+ */
+export function faixaVisivel(
+  ratio: number,
+  area: number,
+  foco: Foco,
+): { x0: number; x1: number; y0: number; y1: number } {
+  if (area < ratio) {
+    // Área mais estreita que a foto: corta dos lados.
+    const w = (area / ratio) * 100;
+    const x0 = (100 - w) * (foco.fx / 100);
+    return { x0, x1: x0 + w, y0: 0, y1: 100 };
+  }
+  // Área mais larga: corta em cima/embaixo.
+  const h = (ratio / area) * 100;
+  const y0 = (100 - h) * (foco.fy / 100);
+  return { x0: 0, x1: 100, y0, y1: y0 + h };
+}
 
 /**
  * Mensagem da faixa. `auto: "frete"` é a mensagem de frete, que o EDITOR não
@@ -92,12 +142,6 @@ export const LIMITES = {
   aviso: 70,
 } as const;
 
-/** "50% 12%" de `home-hero.ts` → 12. */
-function focoDe(objectPosition: string): number {
-  const m = /(\d+(?:\.\d+)?)%\s*$/.exec(objectPosition);
-  return m ? Number(m[1]) : 50;
-}
-
 /**
  * A home de antes do editor. É o que a loja mostra sem a migração 0023, sem
  * nada publicado, ou quando a leitura falha — a loja nunca fica sem home.
@@ -106,7 +150,10 @@ export const DEFAULT_HOME_CONFIG: HomeConfig = {
   hero: {
     image: HOME_HERO.image,
     alt: HOME_HERO.alt,
-    focoY: focoDe(HOME_HERO.objectPosition),
+    ratio: HOME_HERO.ratio,
+    focoCel: { fx: 50, fy: 12 },
+    focoPc: { fx: 50, fy: 12 },
+    fotoPc: null,
     title: HOME_HERO.title,
     text: HOME_HERO.text,
     look: HOME_HERO.look,
@@ -116,7 +163,11 @@ export const DEFAULT_HOME_CONFIG: HomeConfig = {
     { id: "frete", text: "", active: true, auto: "frete" },
     { id: "parcelas", text: "3x sem juros no cartão", active: true },
     { id: "troca", text: "Troca em até 30 dias", active: true },
-    { id: "retirada", text: "Retire na loja em Balneário Camboriú", active: true },
+    {
+      id: "retirada",
+      text: "Retire na loja em Balneário Camboriú",
+      active: true,
+    },
   ],
   atalhos: { ordem: [], ocultas: [], fotos: {} },
 };
@@ -149,7 +200,9 @@ export function urlDoCaminho(caminho: string): string {
 }
 
 function texto(v: unknown, max: number): string {
-  return typeof v === "string" ? v.replace(/\s+/g, " ").trim().slice(0, max) : "";
+  return typeof v === "string"
+    ? v.replace(/\s+/g, " ").trim().slice(0, max)
+    : "";
 }
 
 function pct(v: unknown): number | null {
@@ -158,32 +211,91 @@ function pct(v: unknown): number | null {
   return Math.round(Math.min(100, Math.max(0, n)) * 10) / 10;
 }
 
-const PCT_CSS = /^\d{1,3}(?:\.\d{1,2})?%$/;
+/** Proporção de foto plausível (de panorâmica 3:1 a retrato 1:3). */
+function ratioOk(v: unknown): number | null {
+  const n = typeof v === "number" ? v : Number(v);
+  if (!Number.isFinite(n) || n < 0.33 || n > 3) return null;
+  return Math.round(n * 10000) / 10000;
+}
 
-function normalizeTag(raw: unknown): HeroTag | null {
+function normalizeFoco(raw: unknown, fallback: Foco): Foco {
+  if (!raw || typeof raw !== "object") return fallback;
+  const f = raw as Record<string, unknown>;
+  return { fx: pct(f.fx) ?? fallback.fx, fy: pct(f.fy) ?? fallback.fy };
+}
+
+function normalizePos(raw: unknown): PosEtiqueta | null {
+  if (!raw || typeof raw !== "object") return null;
+  const p = raw as Record<string, unknown>;
+  const x = pct(p.x);
+  const y = pct(p.y);
+  const lx = pct(p.lx);
+  const ly = pct(p.ly);
+  if (x == null || y == null || lx == null || ly == null) return null;
+  return { x, y, lx, ly, lado: p.lado === "e" ? "e" : "d" };
+}
+
+/**
+ * Etiqueta gravada ANTES da tela inteira (out/2026): posições em % de uma
+ * moldura 4:5 recortada da foto (`object-position: 50% focoY%`). Converte o
+ * ponto para % da foto e recoloca o rótulo com a regra nova. No celular, a de
+ * baixo some (cairia sob o título) — o dono revê no editor.
+ */
+function tagAntiga(
+  t: Record<string, unknown>,
+  ratio: number,
+  focoY: number,
+): Pick<HeroTag, "cel" | "pc"> | null {
+  const x = pct(t.x);
+  const y = pct(t.y);
+  if (x == null || y == null) return null;
+  const MOLDURA = 0.8;
+  let px = x;
+  let py = y;
+  if (ratio <= MOLDURA) {
+    const hMoldura = 1 / MOLDURA; // alturas em unidades da largura
+    const hFoto = 1 / ratio;
+    const desloca = (hFoto - hMoldura) * (focoY / 100);
+    py = ((desloca + (y / 100) * hMoldura) / hFoto) * 100;
+  } else {
+    const wMoldura = MOLDURA / ratio; // larguras em unidades da largura da foto
+    px = ((1 - wMoldura) / 2 + (x / 100) * wMoldura) * 100;
+  }
+  const r = (t.rotulo ?? {}) as Record<string, unknown>;
+  const direita =
+    typeof r.right === "string" || parseFloat(String(r.left ?? "0")) >= 50;
+  const lado = direita ? "d" : "e";
+  return {
+    cel: py > 58 ? null : posicionaRotulo(px, py, lado, "cel"),
+    pc: posicionaRotulo(px, py, lado, "pc"),
+  };
+}
+
+function normalizeTag(
+  raw: unknown,
+  ratio: number,
+  focoY: number,
+): HeroTag | null {
   if (!raw || typeof raw !== "object") return null;
   const t = raw as Record<string, unknown>;
   const label = texto(t.label, LIMITES.etiqueta);
-  const x = pct(t.x);
-  const y = pct(t.y);
-  const tx = pct(t.tx);
-  const ty = pct(t.ty);
-  const r = (t.rotulo ?? {}) as Record<string, unknown>;
-  const top = typeof r.top === "string" && PCT_CSS.test(r.top) ? r.top : null;
-  const left = typeof r.left === "string" && PCT_CSS.test(r.left) ? r.left : null;
-  const right =
-    typeof r.right === "string" && PCT_CSS.test(r.right) ? r.right : null;
-  if (!label || x == null || y == null || tx == null || ty == null || !top)
-    return null;
-  if (!left && !right) return null;
-  return {
-    label,
-    x,
-    y,
-    tx,
-    ty,
-    rotulo: right ? { right, top } : { left: left!, top },
-  };
+  if (!label) return null;
+  if ("cel" in t || "pc" in t) {
+    const cel = normalizePos(t.cel);
+    const pc = normalizePos(t.pc);
+    return { label, cel, pc };
+  }
+  const antiga = tagAntiga(t, ratio, focoY);
+  return antiga ? { label, ...antiga } : null;
+}
+
+function normalizeFotoPc(raw: unknown): HeroFotoPc | null {
+  if (!raw || typeof raw !== "object") return null;
+  const f = raw as Record<string, unknown>;
+  const image = imagemDaLoja(f.image);
+  const ratio = ratioOk(f.ratio);
+  if (!image || !ratio) return null;
+  return { image, ratio, alt: texto(f.alt, LIMITES.alt) };
 }
 
 function normalizeHero(raw: unknown): HeroConfig {
@@ -193,20 +305,31 @@ function normalizeHero(raw: unknown): HeroConfig {
   const look = (h.look ?? null) as Record<string, unknown> | null;
   const lookName = look ? texto(look.name, 120) : "";
   const lookSlug =
-    look && typeof look.slug === "string" && /^[a-z0-9-]{1,120}$/.test(look.slug)
+    look &&
+    typeof look.slug === "string" &&
+    /^[a-z0-9-]{1,120}$/.test(look.slug)
       ? look.slug
       : "";
+  const image = imagemDaLoja(h.image);
+  // Configuração antiga não tem proporção: a foto de fábrica é 3:4, e o
+  // editor mede a real assim que a foto carrega.
+  const ratio =
+    ratioOk(h.ratio) ?? (image === d.image || !image ? d.ratio : 0.75);
+  // Antes era um número só (`focoY`, vertical na moldura 4:5).
+  const focoAntigo = pct(h.focoY);
+  const fb: Foco = { fx: 50, fy: focoAntigo ?? 12 };
   const tags = (Array.isArray(h.tags) ? h.tags : [])
-    .map(normalizeTag)
+    .map((t) => normalizeTag(t, ratio, focoAntigo ?? 12))
     .filter((t): t is HeroTag => !!t)
     .slice(0, MAX_ETIQUETAS);
-  const image = imagemDaLoja(h.image);
-  const focoY = pct(h.focoY);
   return {
     image: image ?? d.image,
     // Foto trocada sem descrição não herda o texto da foto de fábrica.
     alt: texto(h.alt, LIMITES.alt) || (image && image !== d.image ? "" : d.alt),
-    focoY: focoY ?? d.focoY,
+    ratio,
+    focoCel: normalizeFoco(h.focoCel, fb),
+    focoPc: normalizeFoco(h.focoPc, fb),
+    fotoPc: normalizeFotoPc(h.fotoPc),
     title: texto(h.title, LIMITES.titulo) || d.title,
     text: texto(h.text, LIMITES.texto),
     look: lookName && lookSlug ? { name: lookName, slug: lookSlug } : null,
@@ -223,7 +346,9 @@ function normalizeAvisos(raw: unknown): AvisoConfig[] {
     if (!item || typeof item !== "object") continue;
     const a = item as Record<string, unknown>;
     const id =
-      typeof a.id === "string" && /^[A-Za-z0-9_-]{1,40}$/.test(a.id) ? a.id : "";
+      typeof a.id === "string" && /^[A-Za-z0-9_-]{1,40}$/.test(a.id)
+        ? a.id
+        : "";
     if (!id || vistos.has(id)) continue;
     const auto = a.auto === "frete" ? ("frete" as const) : undefined;
     // Só pode existir UMA mensagem automática de frete.
@@ -231,7 +356,12 @@ function normalizeAvisos(raw: unknown): AvisoConfig[] {
     const text = auto ? "" : texto(a.text, LIMITES.aviso);
     if (!auto && !text) continue;
     vistos.add(id);
-    out.push({ id, text, active: a.active !== false, ...(auto ? { auto } : {}) });
+    out.push({
+      id,
+      text,
+      active: a.active !== false,
+      ...(auto ? { auto } : {}),
+    });
     if (out.length >= MAX_AVISOS) break;
   }
   return out;
@@ -254,7 +384,9 @@ function normalizeAtalhos(raw: unknown): AtalhosConfig {
   const a = raw as Record<string, unknown>;
   const fotos: Record<string, string> = {};
   if (a.fotos && typeof a.fotos === "object") {
-    for (const [id, url] of Object.entries(a.fotos as Record<string, unknown>)) {
+    for (const [id, url] of Object.entries(
+      a.fotos as Record<string, unknown>,
+    )) {
       const ok = imagemDaLoja(url);
       if (ok && /^[A-Za-z0-9_-]{1,64}$/.test(id)) fotos[id] = ok;
     }
@@ -320,51 +452,41 @@ export function aplicaAtalhos(
         return a.i - b.i;
       })
       .map(({ c }) => ({ ...c, image: atalhos.fotos[c.id] ?? c.image }));
-  return { masculino: arruma(covers.masculino), feminino: arruma(covers.feminino) };
+  return {
+    masculino: arruma(covers.masculino),
+    feminino: arruma(covers.feminino),
+  };
 }
 
 /* ------------------------------------------------------------------ */
 /* Etiquetas: posição automática do rótulo                             */
 /* ------------------------------------------------------------------ */
 
-export type LadoRotulo = "esquerda" | "direita";
-
-export function ladoDoRotulo(t: HeroTag): LadoRotulo {
-  if (t.rotulo.right) return "direita";
-  return parseFloat(t.rotulo.left ?? "0") >= 50 ? "direita" : "esquerda";
-}
-
 /**
- * Quando o dono move o ponto (ou troca o lado), o rótulo e a linha se
- * recalculam. O rótulo encosta na BORDA da moldura do lado escolhido (4%) — o
- * editor não sabe a largura do texto em cada tela, mas sabe que a linha que
- * termina a 8% da borda acaba DENTRO do rótulo, seja ele curto ou comprido, e
- * o rótulo (desenhado por cima) cobre a ponta. Na vertical, o rótulo fica um
- * pouco acima do ponto na metade de cima da foto e um pouco abaixo na metade
- * de baixo, para a linha sair inclinada e não cruzar o texto.
+ * Quando o dono move o ponto (ou troca o lado), o rótulo se recoloca sozinho:
+ * a linha sai inclinada do ponto — para cima na metade de cima da foto, para
+ * baixo na de baixo, para não cruzar o próprio texto — e o rótulo encosta na
+ * ponta da linha, crescendo para o lado escolhido.
  *
- * As etiquetas de fábrica (posições afinadas à mão em `home-hero.ts`) só
- * passam por aqui se forem mexidas.
+ * O afastamento é MENOR no celular: lá aparece só a faixa do meio da foto
+ * (ver `faixaVisivel`), e um rótulo longe do ponto sairia da tela.
  */
-export function posicionaEtiqueta(
-  label: string,
+export function posicionaRotulo(
   x: number,
   y: number,
-  lado: LadoRotulo,
-): HeroTag {
+  lado: "e" | "d",
+  formato: Formato,
+): PosEtiqueta {
   const px = pct(x) ?? 50;
   const py = pct(y) ?? 50;
-  const top = Math.round(Math.min(92, Math.max(2, py < 50 ? py - 12 : py + 7)));
-  const ty = top + 2.5;
+  const dx = formato === "cel" ? 9 : 14;
+  const lx = Math.min(96, Math.max(4, lado === "d" ? px + dx : px - dx));
+  const ly = Math.min(96, Math.max(4, py < 50 ? py - 8 : py + 6));
   return {
-    label,
     x: px,
     y: py,
-    tx: lado === "direita" ? 92 : 8,
-    ty,
-    rotulo:
-      lado === "direita"
-        ? { right: "4%", top: `${top}%` }
-        : { left: "4%", top: `${top}%` },
+    lx: Math.round(lx * 10) / 10,
+    ly: Math.round(ly * 10) / 10,
+    lado,
   };
 }

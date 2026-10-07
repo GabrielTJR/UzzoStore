@@ -3,18 +3,27 @@
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
-/** Largura do "aparelho" — a de um celular comum (iPhone mini/SE: 375 px). */
-const LARGURA = 375;
-const ALTURA = 660;
+/**
+ * Tamanho da "tela" de cada prévia. Celular: um aparelho comum (iPhone
+ * mini/SE, 375 px). Computador: uma tela de notebook (1280 × 760), mostrada
+ * REDUZIDA para caber na coluna — o layout é o de 1280 de verdade, só a
+ * imagem encolhe.
+ */
+const TELAS = {
+  cel: { largura: 375, altura: 660, escala: 1 },
+  pc: { largura: 1280, altura: 760, escala: 375 / 1280 },
+} as const;
 
 /**
- * Moldura de celular que renderiza os componentes REAIS da loja.
+ * Moldura que renderiza os componentes REAIS da loja, como celular ou como
+ * computador.
  *
  * Por que um iframe: os componentes da loja decidem o layout por media query
  * (`lg:`, `sm:`), que olha a largura da JANELA — no painel, a 1440 px, o hero
  * sairia no desenho de desktop mesmo dentro de uma caixa estreita. Dentro de
  * um iframe de 375 px, a "janela" é o iframe, e o Tailwind escolhe o desenho
- * de celular sozinho, sem uma linha de CSS paralelo.
+ * de celular sozinho, sem uma linha de CSS paralelo (e no de 1280, o de
+ * computador).
  *
  * Os componentes não são carregados por URL: o React renderiza DENTRO do
  * documento do iframe por portal (mesma árvore, mesmo estado), então a prévia
@@ -23,9 +32,16 @@ const ALTURA = 660;
  *
  * É só para ver: cliques são engolidos (um link levaria o iframe para a loja).
  */
-export function PhonePreview({ children }: { children: React.ReactNode }) {
+export function PhonePreview({
+  children,
+  formato = "cel",
+}: {
+  children: React.ReactNode;
+  formato?: "cel" | "pc";
+}) {
   const ref = useRef<HTMLIFrameElement>(null);
   const [alvo, setAlvo] = useState<HTMLElement | null>(null);
+  const tela = TELAS[formato];
 
   useEffect(() => {
     const iframe = ref.current;
@@ -76,18 +92,43 @@ export function PhonePreview({ children }: { children: React.ReactNode }) {
     };
   }, []);
 
-  return (
+  const iframe = (
+    <iframe
+      ref={ref}
+      title={`Prévia da página inicial no ${formato === "cel" ? "celular" : "computador"}`}
+      srcDoc='<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head><body></body></html>'
+      className="block bg-background"
+      style={{
+        width: tela.largura,
+        height: tela.altura,
+        transform: tela.escala !== 1 ? `scale(${tela.escala})` : undefined,
+        transformOrigin: "top left",
+      }}
+    />
+  );
+
+  return formato === "cel" ? (
     <div
       className="mx-auto overflow-hidden rounded-[2.4rem] border-[10px] border-black bg-black shadow-sm"
-      style={{ width: LARGURA + 20 }}
+      style={{ width: tela.largura + 20 }}
     >
-      <iframe
-        ref={ref}
-        title="Prévia da página inicial no celular"
-        srcDoc='<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head><body></body></html>'
-        className="block rounded-[1.7rem] bg-background"
-        style={{ width: LARGURA, height: ALTURA }}
-      />
+      <div className="overflow-hidden rounded-[1.7rem]">{iframe}</div>
+      {alvo && createPortal(children, alvo)}
+    </div>
+  ) : (
+    <div
+      className="mx-auto overflow-hidden rounded-md border-[10px] border-black bg-black shadow-sm"
+      style={{ width: tela.largura * tela.escala + 20 }}
+    >
+      <div
+        className="overflow-hidden"
+        style={{
+          width: tela.largura * tela.escala,
+          height: tela.altura * tela.escala,
+        }}
+      >
+        {iframe}
+      </div>
       {alvo && createPortal(children, alvo)}
     </div>
   );

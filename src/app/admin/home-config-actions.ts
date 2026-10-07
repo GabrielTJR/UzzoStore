@@ -87,6 +87,8 @@ async function validar(
     return admin.storage.from(BUCKET).getPublicUrl(caminho).data.publicUrl;
   };
   config.hero.image = remonta(config.hero.image);
+  if (config.hero.fotoPc)
+    config.hero.fotoPc.image = remonta(config.hero.fotoPc.image);
   for (const id of Object.keys(config.atalhos.fotos))
     config.atalhos.fotos[id] = remonta(config.atalhos.fotos[id]);
 
