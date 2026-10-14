@@ -57,6 +57,11 @@ export function FilterBar({
   total: number;
 }) {
   const [aberto, setAberto] = useState<string | null>(null);
+  // Reaberto vindo da página anterior: aparece JÁ no lugar. Refazer a subida
+  // da folha (e o escurecer do fundo) a cada filtro era o "piscar" que o dono
+  // viu ao marcar a primeira cor — de /masculino para /produtos?… a barra
+  // remonta.
+  const [reaberto, setReaberto] = useState(false);
   const [desktop, setDesktop] = useState(false);
   const barra = useRef<HTMLDivElement>(null);
   const botoes = useRef(new Map<string, HTMLButtonElement>());
@@ -112,11 +117,13 @@ export function FilterBar({
       sessionStorage.removeItem(REABRIR);
       if (!raw) return;
       const { id, t } = JSON.parse(raw) as { id: string; t: number };
-      if (Date.now() - t < REABRIR_JANELA_MS && groups.some((g) => g.id === id))
+      if (Date.now() - t < REABRIR_JANELA_MS && groups.some((g) => g.id === id)) {
         // Estado vindo do navegador na montagem — não há como ler no render
         // sem divergir do HTML do servidor.
         // eslint-disable-next-line react-hooks/set-state-in-effect
+        setReaberto(true);
         setAberto(id);
+      }
     } catch {}
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -160,7 +167,7 @@ export function FilterBar({
   };
 
   const botao = (ativo: boolean) =>
-    `inline-flex h-10 shrink-0 items-center gap-2 rounded-xs border px-3.5 text-sm font-medium transition-colors ${
+    `inline-flex h-10 shrink-0 items-center gap-1.5 rounded-xs border px-3 text-sm lg:gap-2 lg:px-3.5 font-medium transition-colors ${
       ativo ? "border-foreground" : "border-border hover:border-foreground"
     }`;
 
@@ -191,7 +198,11 @@ export function FilterBar({
                   if (el) botoes.current.set(g.id, el);
                 }}
                 type="button"
-                onClick={() => (on ? fechar() : setAberto(g.id))}
+                onClick={() => {
+                  setReaberto(false);
+                  if (on) fechar();
+                  else setAberto(g.id);
+                }}
                 aria-expanded={on}
                 aria-haspopup={desktop ? "true" : "dialog"}
                 className={botao(on || g.count > 0)}
@@ -204,7 +215,9 @@ export function FilterBar({
                 )}
                 <IconChevronDown
                   size={16}
-                  className={`text-muted transition-transform duration-200 ${on ? "rotate-180" : ""}`}
+                  // No celular a setinha sai: com ela o último botão (Cor) não
+                  // cabia e aparecia cortado na borda.
+                  className={`hidden text-muted transition-transform duration-200 lg:block ${on ? "rotate-180" : ""}`}
                 />
               </button>
             );
@@ -219,7 +232,7 @@ export function FilterBar({
       {grupo && desktop && (
         <div
           onClickCapture={lembra}
-          className="rodape-abre absolute top-full z-30 mt-2 w-80 rounded-sm border border-border bg-background p-4 shadow-lg"
+          className={`${reaberto ? "" : "rodape-abre "}absolute top-full z-30 mt-2 w-80 rounded-sm border border-border bg-background p-4 shadow-lg`}
           style={{ left: Math.max(0, esquerda) }}
         >
           <div className="mb-3 flex items-center justify-between">
@@ -237,7 +250,7 @@ export function FilterBar({
             type="button"
             aria-label="Fechar"
             onClick={fechar}
-            className="absolute inset-0 animate-fade-in bg-black/40"
+            className={`absolute inset-0 bg-black/40 ${reaberto ? "" : "animate-fade-in"}`}
           />
           <div
             ref={folha}
@@ -246,7 +259,7 @@ export function FilterBar({
             aria-modal="true"
             aria-label={grupo.rotulo}
             onClickCapture={lembra}
-            className="folha-sobe absolute inset-x-0 bottom-0 flex max-h-[80svh] flex-col rounded-t-md bg-background outline-none"
+            className={`${reaberto ? "" : "folha-sobe "}absolute inset-x-0 bottom-0 flex max-h-[80svh] flex-col rounded-t-md bg-background outline-none`}
           >
             <div className="flex h-14 shrink-0 items-center justify-between border-b border-border px-4">
               <div className="flex items-baseline gap-3">

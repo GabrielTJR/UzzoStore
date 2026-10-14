@@ -268,7 +268,7 @@ export async function Catalog({
         scroll={false}
         href={com({ promo: !state.promo })}
         aria-pressed={state.promo}
-        className={`inline-flex h-10 shrink-0 items-center rounded-xs border px-3.5 text-sm font-medium transition-colors ${
+        className={`inline-flex h-10 shrink-0 items-center rounded-xs border px-3 text-sm lg:px-3.5 font-medium transition-colors ${
           state.promo
             ? "border-foreground bg-foreground text-background"
             : "border-border hover:border-foreground"
@@ -295,12 +295,13 @@ export async function Catalog({
       ✕
     </span>
   );
-  // Chips dos filtros ativos: mostram o que está aplicado e removem com um
-  // toque — no celular os filtros ficam numa folha fechada, então sem os chips
-  // o cliente não vê o que está filtrando.
+  // Chips dos filtros ativos (só no computador): mostram o que está aplicado
+  // e removem com um toque. No celular saíram (14/10/2026, a pedido do dono):
+  // empilhavam três linhas antes da primeira peça. Lá o número no botão do
+  // grupo diz o que está marcado, e "Limpar filtros" fica na linha da contagem.
   const hasChips = activeCount > 0 || !!state.busca;
   const chips = hasChips && (
-    <div className="mb-5 flex flex-wrap items-center gap-2">
+    <div className="mb-5 hidden flex-wrap items-center gap-2 lg:flex">
       {state.busca && (
         <Link
           prefetch={false}
@@ -402,7 +403,20 @@ export async function Catalog({
               {total} {total === 1 ? "peça" : "peças"}
               {totalPages > 1 && `, página ${page} de ${totalPages}`}
             </p>
-            <div className="lg:hidden">{sortCompacto}</div>
+            <div className="flex items-center gap-4 lg:hidden">
+              {hasChips && (
+                <Link
+                  scroll={false}
+                  href={homePath}
+                  transitionTypes={FILTRO}
+                  data-filtro
+                  className={limpar}
+                >
+                  Limpar filtros
+                </Link>
+              )}
+              {sortCompacto}
+            </div>
           </div>
         </div>
       </header>
