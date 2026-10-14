@@ -447,10 +447,13 @@ body {
   /* foto do card aproxima devagar ao passar o mouse (só onde há mouse; a
      FOTO não troca — decisão do dono de 20/08 segue valendo). */
   @media (hover: hover) {
-    .card-foto img {
+    /* O zoom vai no QUADRO da foto (o filho do link, que corta o que passa
+       da borda), não em cada <img>: ampliando cada foto da faixa, a VIZINHA
+       também crescia e uma lasca dela aparecia na borda (o dono viu). */
+    .card-foto > * {
       transition: transform 0.7s cubic-bezier(0.2, 0.8, 0.2, 1);
     }
-    .group:hover .card-foto img {
+    .group:hover .card-foto > * {
       transform: scale(1.045);
     }
   }
