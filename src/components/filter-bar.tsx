@@ -232,7 +232,7 @@ export function FilterBar({
       {grupo && desktop && (
         <div
           onClickCapture={lembra}
-          className={`${reaberto ? "" : "rodape-abre "}absolute top-full z-30 mt-2 w-80 rounded-sm border border-border bg-background p-4 shadow-lg`}
+          className={`${reaberto ? "" : "filtro-abre "}absolute top-full z-30 mt-2 w-80 rounded-sm border border-border bg-background p-4 shadow-lg`}
           style={{ left: Math.max(0, esquerda) }}
         >
           <div className="mb-3 flex items-center justify-between">

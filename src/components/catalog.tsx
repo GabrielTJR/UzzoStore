@@ -20,7 +20,7 @@ import {
 } from "@/lib/products";
 
 /**
- * Tipo da navegação dos filtros, chips, limpar e páginas: nela a foto do
+ * Tipo da navegação dos filtros, limpar e páginas: nela a foto do
  * card NÃO voa e a página não esmaece (ver `share`/`default` nos
  * `<ViewTransition>` e o CSS de `filtro`). Sem isso, cada toque num filtro
  * virava uma transição de página — as fotos subiam por cima da folha de
@@ -288,97 +288,10 @@ export async function Catalog({
     <SortSelect value={state.ordem} options={ordens} compacto />
   );
 
-  const chip =
-    "inline-flex min-h-9 items-center gap-2 rounded-xs bg-surface py-1.5 pl-3 pr-2.5 text-xs font-medium transition-colors hover:bg-border";
-  const chipX = (
-    <span aria-hidden className="text-muted">
-      ✕
-    </span>
-  );
-  // Chips dos filtros ativos (só no computador): mostram o que está aplicado
-  // e removem com um toque. No celular saíram (14/10/2026, a pedido do dono):
-  // empilhavam três linhas antes da primeira peça. Lá o número no botão do
-  // grupo diz o que está marcado, e "Limpar filtros" fica na linha da contagem.
-  const hasChips = activeCount > 0 || !!state.busca;
-  const chips = hasChips && (
-    <div className="mb-5 hidden flex-wrap items-center gap-2 lg:flex">
-      {state.busca && (
-        <Link
-          prefetch={false}
-          transitionTypes={FILTRO}
-          data-filtro
-          scroll={false}
-          href={com({ busca: "" })}
-          className={chip}
-        >
-          “{state.busca}”{chipX}
-        </Link>
-      )}
-      {state.promo && (
-        <Link
-          prefetch={false}
-          transitionTypes={FILTRO}
-          data-filtro
-          scroll={false}
-          href={com({ promo: false })}
-          className={chip}
-        >
-          Em promoção{chipX}
-        </Link>
-      )}
-      {state.destaques && (
-        <Link
-          prefetch={false}
-          transitionTypes={FILTRO}
-          data-filtro
-          scroll={false}
-          href={com({ destaques: false })}
-          className={chip}
-        >
-          Destaques{chipX}
-        </Link>
-      )}
-      {categorias.map((s) => (
-        <Link
-          key={s}
-          prefetch={false}
-          transitionTypes={FILTRO}
-          data-filtro
-          scroll={false}
-          href={com({ categorias: categorias.filter((x) => x !== s) })}
-          className={chip}
-        >
-          {bySlug.get(s)?.name ?? s}
-          {chipX}
-        </Link>
-      ))}
-      {cores.map((c) => (
-        <Link
-          key={c}
-          prefetch={false}
-          transitionTypes={FILTRO}
-          data-filtro
-          scroll={false}
-          href={com({
-            cores: cores.filter((x) => x.toLowerCase() !== c.toLowerCase()),
-          })}
-          className={chip}
-        >
-          {displayColor(c)}
-          {chipX}
-        </Link>
-      ))}
-      <Link
-        scroll={false}
-        href={homePath}
-        transitionTypes={FILTRO}
-        data-filtro
-        className={limpar}
-      >
-        limpar tudo
-      </Link>
-    </div>
-  );
+  // Sem chips de filtros ativos (saíram em 14/10/2026, a pedido do dono:
+  // empilhavam linhas antes da primeira peça). O número no botão do grupo diz
+  // o que está marcado; "Limpar filtros" fica na linha da contagem.
+  const temFiltro = activeCount > 0 || !!state.busca;
 
   const pageLink =
     "flex h-10 min-w-10 items-center justify-center rounded-xs border px-3 text-sm transition-colors";
@@ -403,8 +316,8 @@ export async function Catalog({
               {total} {total === 1 ? "peça" : "peças"}
               {totalPages > 1 && `, página ${page} de ${totalPages}`}
             </p>
-            <div className="flex items-center gap-4 lg:hidden">
-              {hasChips && (
+            <div className="flex items-center gap-4">
+              {temFiltro && (
                 <Link
                   scroll={false}
                   href={homePath}
@@ -415,7 +328,7 @@ export async function Catalog({
                   Limpar filtros
                 </Link>
               )}
-              {sortCompacto}
+              <div className="lg:hidden">{sortCompacto}</div>
             </div>
           </div>
         </div>
@@ -424,8 +337,6 @@ export async function Catalog({
       <FilterBar promo={promoBotao} groups={groups} sort={sort} total={total} />
 
       <div>
-        {chips}
-
         {products.length === 0 ? (
           <div className="py-10">
             <p className="font-display text-xl font-bold">

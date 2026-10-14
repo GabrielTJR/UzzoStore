@@ -546,6 +546,14 @@ body {
   animation: rodape-abre 0.4s ease-out 0.35s both;
 }
 
+/* Caixinha de filtro do computador (filter-bar.tsx): aparece NA HORA, com um
+   esmaecido curto. Usava a do rodapé, que espera 0,35 s — parecia travado. */
+@media (prefers-reduced-motion: no-preference) {
+  .filtro-abre {
+    animation: rodape-abre 0.15s ease-out both;
+  }
+}
+
 /* Faixa de avisos do topo: as mensagens se revezam no mesmo lugar. */
 @keyframes aviso-rodizio {
   0% {
