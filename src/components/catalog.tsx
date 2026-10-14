@@ -1,9 +1,8 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { whatsappLink } from "@/lib/store-info";
-import { FilterCheckItem as CheckItem } from "@/components/filter-check-item";
-import { FilterPanel } from "@/components/filter-panel";
-import { FilterSection } from "@/components/filter-section";
+import { FilterBar, type FilterGroup } from "@/components/filter-bar";
+import { FilterOption } from "@/components/filter-option";
 import { ProductCard } from "@/components/product-card";
 import { SortSelect } from "@/components/sort-select";
 import { catalogHref, type CatalogState } from "@/lib/catalog-url";
@@ -34,8 +33,9 @@ function pageWindow(current: number, total: number): (number | "…")[] {
 }
 
 /**
- * O CATÁLOGO: título, filtros na lateral, grade e paginação — em largura
- * inteira. É o mesmo componente em `/produtos` (lê a query) e nas páginas de
+ * O CATÁLOGO: título, barra de filtros (sob o título, grudada ao rolar), grade
+ * e paginação — em largura inteira. A lateral de filtros saiu em 14/10/2026
+ * (o dono escolheu a "barra no topo": a grade ganha a largura toda). É o mesmo componente em `/produtos` (lê a query) e nas páginas de
  * endereço limpo (`/masculino`, `/feminino`, `/ofertas`), que só passam um
  * `state` pré-preenchido.
  *
@@ -147,58 +147,53 @@ export async function Catalog({
     (d) => d !== "feminino" || temFeminino,
   );
 
-  const filters = (
-    <div>
-      {departamentos.length > 1 && (
-        <FilterSection title="Departamento">
-          <CheckItem
-            radio
+  // Grupos da barra de filtros. Cada um é um botão; as opções abrem numa
+  // caixinha (computador) ou numa folha que sobe de baixo (celular).
+  const limparLink = (href: string) => (
+    <Link prefetch={false} href={href} scroll={false} className={limpar}>
+      limpar
+    </Link>
+  );
+  const groups: FilterGroup[] = [];
+  if (departamentos.length > 1)
+    groups.push({
+      id: "departamento",
+      rotulo: state.department ? DEPARTMENTS[state.department] : "Seção",
+      count: 0,
+      conteudo: (
+        <div className="grid grid-cols-2 gap-1">
+          <FilterOption
             href={com({ department: null })}
             checked={!state.department}
           >
             Todos
-          </CheckItem>
+          </FilterOption>
           {departamentos.map((d) => (
-            <CheckItem
+            <FilterOption
               key={d}
-              radio
               href={com({ department: d })}
               checked={state.department === d}
             >
               {DEPARTMENTS[d]}
-            </CheckItem>
+            </FilterOption>
           ))}
-        </FilterSection>
-      )}
-
-      <FilterSection title="Ofertas" selectedCount={state.promo ? 1 : 0}>
-        <CheckItem href={com({ promo: !state.promo })} checked={state.promo}>
-          Em promoção
-        </CheckItem>
-      </FilterSection>
-
-      {categoriasDoFiltro.length > 0 && (
-        <FilterSection
-          title="Categoria"
-          selectedCount={categorias.length}
-          action={
-            categorias.length > 0 ? (
-              <Link
-                prefetch={false}
-                href={com({ categorias: [] })}
-                scroll={false}
-                className={limpar}
-              >
-                limpar
-              </Link>
-            ) : null
-          }
-        >
+        </div>
+      ),
+    });
+  if (categoriasDoFiltro.length > 0)
+    groups.push({
+      id: "categoria",
+      rotulo: "Categoria",
+      count: categorias.length,
+      limpar:
+        categorias.length > 0 ? limparLink(com({ categorias: [] })) : undefined,
+      conteudo: (
+        <div className="grid grid-cols-2 gap-1">
           {categoriasDoFiltro.map((c) => {
             const slug = categorySlug(c.name);
             const checked = categorias.includes(slug);
             return (
-              <CheckItem
+              <FilterOption
                 key={c.id}
                 href={com({
                   categorias: checked
@@ -208,33 +203,25 @@ export async function Catalog({
                 checked={checked}
               >
                 {c.name}
-              </CheckItem>
+              </FilterOption>
             );
           })}
-        </FilterSection>
-      )}
-
-      {storeColors.length >= 2 && (
-        <FilterSection
-          title="Cor"
-          selectedCount={cores.length}
-          action={
-            cores.length > 0 ? (
-              <Link
-                prefetch={false}
-                href={com({ cores: [] })}
-                scroll={false}
-                className={limpar}
-              >
-                limpar
-              </Link>
-            ) : null
-          }
-        >
+        </div>
+      ),
+    });
+  if (storeColors.length >= 2)
+    groups.push({
+      id: "cor",
+      rotulo: "Cor",
+      count: cores.length,
+      limpar: cores.length > 0 ? limparLink(com({ cores: [] })) : undefined,
+      conteudo: (
+        // Cor se escolhe pela COR: bolinhas com o nome embaixo.
+        <div className="grid grid-cols-4 gap-x-2 gap-y-3 sm:grid-cols-5 lg:grid-cols-4">
           {storeColors.map((c) => {
             const checked = coresSet.has(c.name.toLowerCase());
             return (
-              <CheckItem
+              <FilterOption
                 key={c.name}
                 swatch={c.hex}
                 href={com({
@@ -247,23 +234,31 @@ export async function Catalog({
                 checked={checked}
               >
                 {displayColor(c.name)}
-              </CheckItem>
+              </FilterOption>
             );
           })}
-        </FilterSection>
-      )}
+        </div>
+      ),
+    });
 
-      {activeCount > 0 && (
-        <Link
-          href={homePath}
-          scroll={false}
-          className="mt-5 inline-block text-sm underline underline-offset-4"
-        >
-          Limpar todos os filtros
-        </Link>
-      )}
-    </div>
-  );
+  // "Em promoção": um botão de liga/desliga direto na barra — uma opção só
+  // não precisa de caixinha. Some em /ofertas, que já é só promoção.
+  const promoBotao =
+    homePath === "/ofertas" ? null : (
+      <Link
+        prefetch={false}
+        scroll={false}
+        href={com({ promo: !state.promo })}
+        aria-pressed={state.promo}
+        className={`inline-flex h-10 shrink-0 items-center rounded-xs border px-3.5 text-sm font-medium transition-colors ${
+          state.promo
+            ? "border-foreground bg-foreground text-background"
+            : "border-border hover:border-foreground"
+        }`}
+      >
+        Em promoção
+      </Link>
+    );
 
   const sort = (
     <SortSelect
@@ -358,7 +353,7 @@ export async function Catalog({
 
   return (
     <section className="px-page pb-16 pt-6 lg:pb-24 lg:pt-10">
-      <header className="mb-5 flex items-end justify-between gap-6 lg:mb-8">
+      <header className="mb-5 lg:mb-7">
         <div>
           <h1 className="titulo-entra font-display text-3xl font-extrabold lg:text-5xl">
             {heading}
@@ -372,123 +367,118 @@ export async function Catalog({
             {totalPages > 1 && `, página ${page} de ${totalPages}`}
           </p>
         </div>
-        <div className="hidden lg:block">{sort}</div>
       </header>
 
-      <div className="lg:grid lg:grid-cols-[15rem_minmax(0,1fr)] lg:gap-10 xl:grid-cols-[17rem_minmax(0,1fr)] xl:gap-12">
-        <FilterPanel activeCount={activeCount} total={total} sort={sort}>
-          {filters}
-        </FilterPanel>
+      <FilterBar promo={promoBotao} groups={groups} sort={sort} total={total} />
 
-        <div>
-          {chips}
+      <div>
+        {chips}
 
-          {products.length === 0 ? (
-            <div className="py-10">
-              <p className="font-display text-xl font-bold">
-                {state.busca
-                  ? `Nada encontrado para “${state.busca}”.`
-                  : "Nenhuma peça com esses filtros."}
-              </p>
-              <p className="mt-2 text-sm text-muted">
-                {state.busca ? (
-                  <>
-                    Tente outra palavra (camisa, bermuda, polo…) ou{" "}
-                    <a
-                      href={whatsappLink(
-                        `Olá! Procurei por "${state.busca}" no site e não achei.`,
-                      )}
-                      className="underline underline-offset-4"
-                    >
-                      pergunte no WhatsApp
-                    </a>
-                    .
-                  </>
-                ) : (
-                  "Tire um filtro ou veja a seção inteira."
-                )}
-              </p>
-              <Link
-                href={homePath}
-                className="mt-5 inline-flex h-12 items-center rounded-xs bg-foreground px-6 text-sm font-semibold text-background"
-              >
-                Limpar filtros
-              </Link>
-            </div>
-          ) : (
-            <>
-              {/* Âncora da paginação: `scroll-mt` desconta o que fica grudado
-                  no topo (cabeçalho + barra de filtros do celular). */}
-              <div
-                id="lista"
-                className="grid scroll-mt-32 grid-cols-2 gap-x-3 gap-y-8 md:grid-cols-3 lg:gap-x-5 lg:gap-y-10 xl:grid-cols-4 2xl:grid-cols-5"
-              >
-                {products.map((p, i) => (
-                  <ProductCard
-                    key={p.slug}
-                    product={p}
-                    backTo={aquiHref}
-                    indice={i}
-                  />
-                ))}
-              </div>
-
-              {totalPages > 1 && (
-                <nav
-                  aria-label="Paginação"
-                  className="mt-12 flex flex-wrap items-center justify-center gap-2"
-                >
-                  {page > 1 && (
-                    <Link
-                      prefetch={false}
-                      href={pageHref(page - 1)}
-                      aria-label="Página anterior"
-                      className={`${pageLink} border-border hover:border-foreground`}
-                    >
-                      ‹
-                    </Link>
-                  )}
-                  {pageWindow(page, totalPages).map((p, i) =>
-                    p === "…" ? (
-                      <span
-                        key={`gap-${i}`}
-                        aria-hidden
-                        className="px-1 text-sm text-muted"
-                      >
-                        …
-                      </span>
-                    ) : (
-                      <Link
-                        prefetch={false}
-                        key={p}
-                        href={pageHref(p)}
-                        aria-label={`Página ${p}`}
-                        aria-current={p === page ? "page" : undefined}
-                        className={`${pageLink} ${
-                          p === page
-                            ? "border-foreground bg-foreground font-semibold text-background"
-                            : "border-border hover:border-foreground"
-                        }`}
-                      >
-                        {p}
-                      </Link>
-                    ),
-                  )}
-                  {page < totalPages && (
-                    <Link
-                      prefetch={false}
-                      href={pageHref(page + 1)}
-                      aria-label="Próxima página"
-                      className={`${pageLink} border-border hover:border-foreground`}
-                    >
-                      ›
-                    </Link>
-                  )}
-                </nav>
+        {products.length === 0 ? (
+          <div className="py-10">
+            <p className="font-display text-xl font-bold">
+              {state.busca
+                ? `Nada encontrado para “${state.busca}”.`
+                : "Nenhuma peça com esses filtros."}
+            </p>
+            <p className="mt-2 text-sm text-muted">
+              {state.busca ? (
+                <>
+                  Tente outra palavra (camisa, bermuda, polo…) ou{" "}
+                  <a
+                    href={whatsappLink(
+                      `Olá! Procurei por "${state.busca}" no site e não achei.`,
+                    )}
+                    className="underline underline-offset-4"
+                  >
+                    pergunte no WhatsApp
+                  </a>
+                  .
+                </>
+              ) : (
+                "Tire um filtro ou veja a seção inteira."
               )}
-            </>
-          )}
-        </div>
+            </p>
+            <Link
+              href={homePath}
+              className="mt-5 inline-flex h-12 items-center rounded-xs bg-foreground px-6 text-sm font-semibold text-background"
+            >
+              Limpar filtros
+            </Link>
+          </div>
+        ) : (
+          <>
+            {/* Âncora da paginação: `scroll-mt` desconta o que fica grudado
+                  no topo (cabeçalho + barra de filtros do celular). */}
+            <div
+              id="lista"
+              className="grid scroll-mt-36 grid-cols-2 gap-x-3 gap-y-8 md:grid-cols-3 lg:grid-cols-4 lg:gap-x-5 lg:gap-y-10 2xl:grid-cols-5"
+            >
+              {products.map((p, i) => (
+                <ProductCard
+                  key={p.slug}
+                  product={p}
+                  backTo={aquiHref}
+                  indice={i}
+                />
+              ))}
+            </div>
+
+            {totalPages > 1 && (
+              <nav
+                aria-label="Paginação"
+                className="mt-12 flex flex-wrap items-center justify-center gap-2"
+              >
+                {page > 1 && (
+                  <Link
+                    prefetch={false}
+                    href={pageHref(page - 1)}
+                    aria-label="Página anterior"
+                    className={`${pageLink} border-border hover:border-foreground`}
+                  >
+                    ‹
+                  </Link>
+                )}
+                {pageWindow(page, totalPages).map((p, i) =>
+                  p === "…" ? (
+                    <span
+                      key={`gap-${i}`}
+                      aria-hidden
+                      className="px-1 text-sm text-muted"
+                    >
+                      …
+                    </span>
+                  ) : (
+                    <Link
+                      prefetch={false}
+                      key={p}
+                      href={pageHref(p)}
+                      aria-label={`Página ${p}`}
+                      aria-current={p === page ? "page" : undefined}
+                      className={`${pageLink} ${
+                        p === page
+                          ? "border-foreground bg-foreground font-semibold text-background"
+                          : "border-border hover:border-foreground"
+                      }`}
+                    >
+                      {p}
+                    </Link>
+                  ),
+                )}
+                {page < totalPages && (
+                  <Link
+                    prefetch={false}
+                    href={pageHref(page + 1)}
+                    aria-label="Próxima página"
+                    className={`${pageLink} border-border hover:border-foreground`}
+                  >
+                    ›
+                  </Link>
+                )}
+              </nav>
+            )}
+          </>
+        )}
       </div>
     </section>
   );

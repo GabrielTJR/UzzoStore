@@ -499,6 +499,21 @@ body {
   }
 }
 
+/* Folha que sobe de baixo (filtros do catálogo no celular). */
+@keyframes folha-sobe {
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: none;
+  }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .folha-sobe {
+    animation: folha-sobe 0.3s cubic-bezier(0.2, 0.8, 0.2, 1);
+  }
+}
+
 /* Rodapé no celular: o conteúdo da seção aberta entra depois que os cartões
    terminam de deslizar (footer-sections.tsx). */
 @keyframes rodape-abre {
