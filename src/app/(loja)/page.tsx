@@ -45,14 +45,18 @@ function ProductRow({
   title,
   href,
   products,
+  semVoo,
 }: {
   title: string;
   href: string;
   products: ProductListItem[];
+  /** Peças que já aparecem noutra fileira: sem a foto que voa (nome
+   * repetido na mesma tela faz o navegador desistir da transição). */
+  semVoo?: Set<string>;
 }) {
   if (products.length === 0) return null;
   return (
-    <section className="px-page py-8 lg:py-12">
+    <section className="surge px-page py-8 lg:py-12">
       <div className="mb-5 flex items-baseline justify-between gap-4 lg:mb-7">
         <h2 className="font-display text-xl font-bold lg:text-3xl">{title}</h2>
         <Link href={href} className="text-sm underline underline-offset-4">
@@ -67,7 +71,12 @@ function ProductRow({
               i >= 5 ? "lg:hidden" : i === 4 ? "lg:hidden 2xl:block" : ""
             }`}
           >
-            <ProductCard product={p} backTo="/" />
+            <ProductCard
+              product={p}
+              backTo="/"
+              morph={!semVoo?.has(p.slug)}
+              indice={i}
+            />
           </div>
         ))}
       </div>
@@ -166,7 +175,12 @@ export default async function Home() {
         products={destaques.items}
       />
       <FabricBand />
-      <ProductRow title="Ofertas" href="/ofertas" products={ofertas.items} />
+      <ProductRow
+        title="Ofertas"
+        href="/ofertas"
+        products={ofertas.items}
+        semVoo={new Set(destaques.items.map((p) => p.slug))}
+      />
       {!temFeminino && <FemininoTeaser />}
       <BenefitsStrip freteAtivo={freteAtivo} />
     </>

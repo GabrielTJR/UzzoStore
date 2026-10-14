@@ -1,7 +1,7 @@
 "use client";
 
 import { track } from "@/lib/track";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, ViewTransition } from "react";
 import Image from "next/image";
 import { useCart } from "@/lib/cart-store";
 import { useCartUi } from "@/lib/cart-ui";
@@ -256,24 +256,26 @@ export function ProductView({
           rola. */}
       <div className="md:sticky md:top-[calc(var(--header-h)+1.5rem)] lg:flex lg:flex-row-reverse lg:gap-3">
         <div className="group relative -mx-[var(--page-px)] md:mx-0 lg:w-[clamp(20rem,calc((100svh-var(--header-h)-7rem)*2/3),38rem)]">
-          <SlideTrack
-            key={selectedColorId ?? "none"}
-            images={gallery}
-            index={imageIndex}
-            alt={color ? `${name} — ${color.name}` : name}
-            // Casando com o layout: borda a borda no celular, coluna de 24rem
-            // no tablet e no máximo 38rem no desktop. "50vw" baixava a variante
-            // de 1080/1920 numa foto que mede 608px.
-            sizes="(max-width: 767px) 100vw, (max-width: 1023px) 24rem, 38rem"
-            priority
-            // No celular a foto passa com o dedo. As setas continuam para quem
-            // está no desktop, onde não há gesto.
-            onArrastar={(passo) =>
-              setImageIndex(
-                (i) => (i + passo + gallery.length) % gallery.length,
-              )
-            }
-          />
+          <ViewTransition name={`foto-${slug}`} share="foto-peca">
+            <SlideTrack
+              key={selectedColorId ?? "none"}
+              images={gallery}
+              index={imageIndex}
+              alt={color ? `${name} — ${color.name}` : name}
+              // Casando com o layout: borda a borda no celular, coluna de 24rem
+              // no tablet e no máximo 38rem no desktop. "50vw" baixava a variante
+              // de 1080/1920 numa foto que mede 608px.
+              sizes="(max-width: 767px) 100vw, (max-width: 1023px) 24rem, 38rem"
+              priority
+              // No celular a foto passa com o dedo. As setas continuam para quem
+              // está no desktop, onde não há gesto.
+              onArrastar={(passo) =>
+                setImageIndex(
+                  (i) => (i + passo + gallery.length) % gallery.length,
+                )
+              }
+            />
+          </ViewTransition>
           {gallery.length > 1 && (
             <CarouselArrows
               onPrev={() =>
@@ -312,8 +314,8 @@ export function ProductView({
         )}
       </div>
 
-      {/* Info + seleção */}
-      <div className="max-w-xl">
+      {/* Info + seleção — os blocos sobem em cascata ao abrir. */}
+      <div className="entra-coluna max-w-xl">
         <div className="flex items-start justify-between gap-4">
           <h1 className="font-display text-2xl font-bold leading-tight lg:text-4xl">
             {name}

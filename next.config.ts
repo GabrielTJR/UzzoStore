@@ -38,6 +38,9 @@ const SECURITY_HEADERS = [
 ];
 
 const nextConfig: NextConfig = {
+  // Transição de página nativa do navegador (a foto do card voa até a página
+  // do produto). Só animação no cliente — nenhum custo de servidor.
+  experimental: { viewTransition: true },
   images: {
     remotePatterns: [
       {

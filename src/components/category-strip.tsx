@@ -38,7 +38,7 @@ export function CategoryStrip({
   return (
     <section
       aria-label="Categorias"
-      className="px-page space-y-8 py-8 lg:space-y-10 lg:py-12"
+      className="surge px-page space-y-8 py-8 lg:space-y-10 lg:py-12"
     >
       {grupos.map((dep) => (
         <div key={dep}>

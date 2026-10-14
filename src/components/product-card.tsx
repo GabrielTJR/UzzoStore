@@ -27,16 +27,28 @@ function discountPercent(product: ProductListItem): number | null {
 export function ProductCard({
   product,
   backTo = "/produtos",
+  morph = true,
+  indice = 0,
 }: {
   product: ProductListItem;
   backTo?: string;
+  /** A foto "voa" até a página do produto. Desligue quando a MESMA peça
+   * aparece duas vezes na tela (Destaques e Ofertas na home): nome repetido
+   * faz o navegador desistir da transição. */
+  morph?: boolean;
+  /** Posição na grade: dá a cascata de entrada dos cards (globals.css). */
+  indice?: number;
 }) {
   const off = discountPercent(product);
   const parcelas = installmentsFor(product.price);
 
   return (
-    <div className="group relative">
+    <div
+      className="card-surge group relative"
+      style={{ "--i": indice } as React.CSSProperties}
+    >
       <CardColorMedia
+        morph={morph}
         product={product}
         badge={
           product.esgotado ? (

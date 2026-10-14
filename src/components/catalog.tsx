@@ -360,9 +360,13 @@ export async function Catalog({
     <section className="px-page pb-16 pt-6 lg:pb-24 lg:pt-10">
       <header className="mb-5 flex items-end justify-between gap-6 lg:mb-8">
         <div>
-          <h1 className="font-display text-3xl font-extrabold lg:text-5xl">
+          <h1 className="titulo-entra font-display text-3xl font-extrabold lg:text-5xl">
             {heading}
           </h1>
+          <div
+            aria-hidden
+            className="titulo-barra mt-3 h-1 w-14 bg-accent lg:w-20"
+          />
           <p className="mt-2 text-sm text-muted">
             {total} {total === 1 ? "peça" : "peças"}
             {totalPages > 1 && `, página ${page} de ${totalPages}`}
@@ -419,8 +423,13 @@ export async function Catalog({
                 id="lista"
                 className="grid scroll-mt-32 grid-cols-2 gap-x-3 gap-y-8 md:grid-cols-3 lg:gap-x-5 lg:gap-y-10 xl:grid-cols-4 2xl:grid-cols-5"
               >
-                {products.map((p) => (
-                  <ProductCard key={p.slug} product={p} backTo={aquiHref} />
+                {products.map((p, i) => (
+                  <ProductCard
+                    key={p.slug}
+                    product={p}
+                    backTo={aquiHref}
+                    indice={i}
+                  />
                 ))}
               </div>
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, ViewTransition } from "react";
 import Link from "next/link";
 import { SlideTrack } from "./slide-track";
 import { CarouselArrows } from "./carousel-arrows";
@@ -10,9 +10,11 @@ import { displayColor } from "@/lib/color-name";
 export function CardColorMedia({
   product,
   badge,
+  morph = true,
 }: {
   product: ProductListItem;
   badge?: React.ReactNode;
+  morph?: boolean;
 }) {
   const colors = product.colors;
   // Começa na 1ª cor que tem foto (para o anel bater com a imagem exibida).
@@ -41,15 +43,25 @@ export function CardColorMedia({
   return (
     <>
       <div className="relative">
-        <Link href={`/produtos/${product.slug}`} className="block">
-          <SlideTrack
-            key={colorIdx}
-            images={gallery}
-            index={photoIdx}
-            alt={active ? `${product.name} — ${active.name}` : product.name}
-            // 5 colunas + a lateral de filtros a partir de 1536px: ~18vw.
-            sizes="(min-width: 1536px) 18vw, (max-width: 768px) 50vw, (max-width: 1280px) 33vw, 25vw"
-          />
+        <Link
+          href={`/produtos/${product.slug}`}
+          className="card-foto block overflow-hidden"
+        >
+          {/* Mesmo nome da galeria da página do produto: ao clicar, a foto
+              voa de um lugar para o outro (transição de página). */}
+          <ViewTransition
+            name={morph ? `foto-${product.slug}` : undefined}
+            share="foto-peca"
+          >
+            <SlideTrack
+              key={colorIdx}
+              images={gallery}
+              index={photoIdx}
+              alt={active ? `${product.name} — ${active.name}` : product.name}
+              // 5 colunas + a lateral de filtros a partir de 1536px: ~18vw.
+              sizes="(min-width: 1536px) 18vw, (max-width: 768px) 50vw, (max-width: 1280px) 33vw, 25vw"
+            />
+          </ViewTransition>
         </Link>
         {badge}
         {multi && (

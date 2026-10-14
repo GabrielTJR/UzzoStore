@@ -154,21 +154,21 @@ body {
      iPhone o `:active` só funciona com um ouvinte de toque na página — é o
      `TouchActive` do layout raiz. */
   :where(
-      button:not(:disabled),
-      [role="button"]:not([aria-disabled="true"]),
-      summary,
-      a[class*="rounded"]
-    ) {
+    button:not(:disabled),
+    [role="button"]:not([aria-disabled="true"]),
+    summary,
+    a[class*="rounded"]
+  ) {
     -webkit-tap-highlight-color: transparent;
     transition-property: transform;
     transition-duration: 80ms;
   }
   :where(
-      button:not(:disabled),
-      [role="button"]:not([aria-disabled="true"]),
-      summary,
-      a[class*="rounded"]
-    ):active {
+    button:not(:disabled),
+    [role="button"]:not([aria-disabled="true"]),
+    summary,
+    a[class*="rounded"]
+  ):active {
     transform: scale(0.97);
   }
   :where(a:not([class*="rounded"])):active {
@@ -176,11 +176,11 @@ body {
   }
   @media (prefers-reduced-motion: reduce) {
     :where(
-        button:not(:disabled),
-        [role="button"],
-        summary,
-        a[class*="rounded"]
-      ):active {
+      button:not(:disabled),
+      [role="button"],
+      summary,
+      a[class*="rounded"]
+    ):active {
       transform: none;
       opacity: 0.7;
     }
@@ -372,6 +372,128 @@ body {
 .hero-surge {
   animation: hero-surge 0.6s ease-out both;
   animation-delay: var(--d, 0s);
+}
+
+/*
+ * MOTION DA LOJA (fora da home) — 14/10/2026. O dono testou três níveis numa
+ * prévia e escolheu os três juntos: títulos e cards SURGEM, a foto do card
+ * aproxima no mouse e a sacola pula, e a foto do card VOA até a página do
+ * produto. Só CSS + transição de página nativa: nada roda por visita no
+ * servidor, e quem pede menos movimento no sistema vê tudo parado (tudo
+ * abaixo está dentro de `no-preference`).
+ */
+@media (prefers-reduced-motion: no-preference) {
+  /* título de página entra varrendo, com a barra cobalto (o mesmo gesto
+     do hero, em escala menor). */
+  .titulo-entra {
+    animation: hero-varre 0.7s cubic-bezier(0.65, 0, 0.35, 1) 0.05s both;
+  }
+  .titulo-barra {
+    transform-origin: left;
+    animation: hero-barra 0.6s cubic-bezier(0.65, 0, 0.35, 1) 0.45s both;
+  }
+  /* coluna de compra da página do produto: os blocos sobem em cascata. */
+  .entra-coluna > * {
+    animation: hero-surge 0.6s ease-out both;
+  }
+  .entra-coluna > :nth-child(1) {
+    animation-delay: 0.05s;
+  }
+  .entra-coluna > :nth-child(2) {
+    animation-delay: 0.12s;
+  }
+  .entra-coluna > :nth-child(3) {
+    animation-delay: 0.19s;
+  }
+  .entra-coluna > :nth-child(4) {
+    animation-delay: 0.26s;
+  }
+  .entra-coluna > :nth-child(n + 5) {
+    animation-delay: 0.33s;
+  }
+
+  /* Os cards que JÁ ESTÃO na tela ao abrir sobem em cascata junto com o
+     título (pedido do dono: "surgir juntamente com o título"). A ordem vem
+     de `--i` (índice na grade); depois do 8º o atraso para de crescer — esses
+     estão fora da tela e entram pela rolagem (abaixo). A animação de tempo é
+     nos FILHOS do card e a de rolagem no próprio card, para uma não apagar a
+     outra. */
+  .card-surge > * {
+    animation: hero-surge 0.6s ease-out both;
+    animation-delay: calc(0.2s + min(var(--i, 0), 7) * 0.07s);
+  }
+
+  /* cards e seções sobem quando ENTRAM na tela pela rolagem (linha do
+     tempo de rolagem nativa; navegador sem suporte mostra tudo parado). */
+  @supports (animation-timeline: view()) {
+    @keyframes surge-rolagem {
+      from {
+        opacity: 0;
+        transform: translateY(28px);
+      }
+      to {
+        opacity: 1;
+        transform: none;
+      }
+    }
+    .card-surge,
+    .surge {
+      animation: surge-rolagem linear both;
+      animation-timeline: view();
+      animation-range: entry 0% entry 55%;
+    }
+  }
+
+  /* foto do card aproxima devagar ao passar o mouse (só onde há mouse; a
+     FOTO não troca — decisão do dono de 20/08 segue valendo). */
+  @media (hover: hover) {
+    .card-foto img {
+      transition: transform 0.7s cubic-bezier(0.2, 0.8, 0.2, 1);
+    }
+    .group:hover .card-foto img {
+      transform: scale(1.045);
+    }
+  }
+  /* sacola "pula" quando entra uma peça. */
+  @keyframes sacola-pula {
+    0% {
+      transform: none;
+    }
+    30% {
+      transform: translateY(-4px) scale(1.12);
+    }
+    55% {
+      transform: translateY(0) scale(0.96);
+    }
+    75% {
+      transform: translateY(-1px) scale(1.03);
+    }
+    100% {
+      transform: none;
+    }
+  }
+  .sacola-pula {
+    animation: sacola-pula 0.6s cubic-bezier(0.3, 0.7, 0.4, 1);
+  }
+
+  /* troca de página: a foto do card voa até a página do produto (o nome
+     compartilhado está no card e na galeria); o resto cruza rápido. */
+  ::view-transition-group(.foto-peca) {
+    animation-duration: 0.45s;
+    animation-timing-function: cubic-bezier(0.65, 0, 0.35, 1);
+  }
+  ::view-transition-old(root),
+  ::view-transition-new(root) {
+    animation-duration: 0.25s;
+  }
+}
+/* Menos movimento: a troca de página é instantânea, como sempre foi. */
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-group(*),
+  ::view-transition-old(*),
+  ::view-transition-new(*) {
+    animation: none !important;
+  }
 }
 
 /* Rodapé no celular: o conteúdo da seção aberta entra depois que os cartões
