@@ -20,7 +20,7 @@ const FAQS: { q: string; a: React.ReactNode }[] = [
     q: "Comprei e não serviu. E agora?",
     a: (
       <>
-        Troca de tamanho em até 30 dias, sem drama. Veja como funciona em{" "}
+        Troca de tamanho em até 7 dias, sem drama. Veja como funciona em{" "}
         <Link href="/trocas" className="underline underline-offset-4">
           Trocas e devoluções
         </Link>

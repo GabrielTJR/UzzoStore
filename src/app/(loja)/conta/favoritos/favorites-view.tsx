@@ -4,8 +4,10 @@ import { AccountHeading } from "../account-shell";
 import { IconHeart } from "@/components/icons";
 import { EmptyState } from "../pedidos/order-ui";
 
-/** A mesma grade de cards da loja. `isLogged`/`isFavorite`/`backTo` sempre
- * repassados — sem eles o coração mandaria o cliente logado para /conta. */
+/** A mesma grade de cards da loja, mas COM o coração (`showWishlist`): é a
+ * única tela onde o card o mostra, porque aqui ele é o jeito de tirar a peça da
+ * lista. `backTo` sempre repassado — sem ele o coração mandaria o cliente
+ * logado para /conta. */
 export function FavoritesView({ items }: { items: ProductListItem[] }) {
   return (
     <>
@@ -21,12 +23,17 @@ export function FavoritesView({ items }: { items: ProductListItem[] }) {
         <EmptyState
           Icon={IconHeart}
           title="Nenhuma peça salva"
-          text="Toque no coração em cima da foto para guardar o que gostar e voltar depois."
+          text="Abra uma peça e toque no coração ao lado do nome para guardar o que gostar e voltar depois."
         />
       ) : (
         <div className="grid grid-cols-2 gap-x-3 gap-y-8 sm:gap-x-5 lg:grid-cols-3 xl:grid-cols-4">
           {items.map((p) => (
-            <ProductCard key={p.slug} product={p} backTo="/conta/favoritos" />
+            <ProductCard
+              key={p.slug}
+              product={p}
+              backTo="/conta/favoritos"
+              showWishlist
+            />
           ))}
         </div>
       )}

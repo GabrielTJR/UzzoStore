@@ -29,6 +29,7 @@ export function ProductCard({
   backTo = "/produtos",
   morph = true,
   indice = 0,
+  showWishlist = false,
 }: {
   product: ProductListItem;
   backTo?: string;
@@ -38,6 +39,16 @@ export function ProductCard({
   morph?: boolean;
   /** Posição na grade: dá a cascata de entrada dos cards (globals.css). */
   indice?: number;
+  /**
+   * Coração de favorito sobre a foto. Desligado por padrão desde 05/09/2026:
+   * na home e no catálogo ele poluía a grade, e o dono pediu a vitrine limpa.
+   * Favoritar continua na PÁGINA DO PRODUTO, ao lado do nome, que é onde a
+   * pessoa já parou para decidir.
+   *
+   * Fica ligado em /conta/favoritos de propósito — ali o coração é o único
+   * jeito de tirar uma peça da lista; sem ele a página vira um beco sem saída.
+   */
+  showWishlist?: boolean;
 }) {
   const off = discountPercent(product);
   const parcelas = installmentsFor(product.price);
@@ -64,9 +75,11 @@ export function ProductCard({
       />
 
       {/* Favorito à esquerda; os atalhos de admin ficam à direita. */}
-      <div className="absolute left-2 top-2 z-10">
-        <WishlistHeart productId={product.id} backTo={backTo} />
-      </div>
+      {showWishlist && (
+        <div className="absolute left-2 top-2 z-10">
+          <WishlistHeart productId={product.id} backTo={backTo} />
+        </div>
+      )}
 
       <Link href={`/produtos/${product.slug}`} className="mt-2.5 block">
         <h3 className="text-sm font-medium leading-snug">{product.name}</h3>

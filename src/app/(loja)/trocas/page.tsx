@@ -9,9 +9,16 @@ export const metadata: Metadata = {
 
 /**
  * Política de troca — em roupa, o medo nº 1 é "e se não servir?". Página
- * estática (zero consulta). ⚠️ Os PRAZOS de troca por tamanho são prática
- * padrão do varejo, mas a palavra final é do dono — ajuste se a regra da
- * loja for outra. O direito de arrependimento de 7 dias é lei (CDC art. 49).
+ * estática (zero consulta).
+ *
+ * ⚠️ O prazo de troca por tamanho/cor é 7 DIAS, confirmado pelo dono em
+ * 05/09/2026 (antes o texto dizia 30, que era chute de "prática de mercado").
+ * O mesmo número aparece na faixa de benefícios, no FAQ e no aviso padrão da
+ * home (`lib/home-config.ts`) — mudou aqui, mude lá.
+ *
+ * Não confunda com o direito de arrependimento, que é lei (CDC art. 49) e
+ * coincidentemente também dá 7 dias: aquele é para DEVOLVER com dinheiro de
+ * volta, este é para TROCAR. Os 90 dias de defeito são o CDC art. 26.
  */
 export default function TrocasPage() {
   return (
@@ -28,7 +35,7 @@ export default function TrocasPage() {
         <section>
           <h2 className="text-lg font-medium">Troca por tamanho ou cor</h2>
           <p className="mt-2 text-muted">
-            Você tem <strong className="text-foreground">30 dias</strong> a
+            Você tem <strong className="text-foreground">7 dias</strong> a
             partir do recebimento para trocar por outro tamanho ou cor, desde
             que a peça esteja sem uso, sem lavagem e com a etiqueta. É só chamar
             no{" "}

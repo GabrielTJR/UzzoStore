@@ -36,7 +36,7 @@ export function BenefitsStrip({ freteAtivo }: { freteAtivo: boolean }) {
     },
     {
       icone: <IconSwap size={26} />,
-      titulo: "Troca em até 30 dias",
+      titulo: "Troca em até 7 dias",
       detalhe: "veja como funciona em Trocas",
     },
     {

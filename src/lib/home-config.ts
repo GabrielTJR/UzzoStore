@@ -164,7 +164,7 @@ export const DEFAULT_HOME_CONFIG: HomeConfig = {
   avisos: [
     { id: "frete", text: "", active: true, auto: "frete" },
     { id: "parcelas", text: "3x sem juros no cartão", active: true },
-    { id: "troca", text: "Troca em até 30 dias", active: true },
+    { id: "troca", text: "Troca em até 7 dias", active: true },
     {
       id: "retirada",
       text: "Retire na loja em Balneário Camboriú",
