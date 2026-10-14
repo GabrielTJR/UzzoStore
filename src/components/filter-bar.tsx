@@ -60,6 +60,19 @@ export function FilterBar({
   const barra = useRef<HTMLDivElement>(null);
   const botoes = useRef(new Map<string, HTMLButtonElement>());
   const [esquerda, setEsquerda] = useState(0);
+  const fila = useRef<HTMLDivElement>(null);
+  const [transborda, setTransborda] = useState(false);
+
+  // A fileira de botões passa da largura? (só aí ela rola e esmaece)
+  useEffect(() => {
+    const el = fila.current;
+    if (!el) return;
+    const mede = () => setTransborda(el.scrollWidth > el.clientWidth + 1);
+    mede();
+    const ro = new ResizeObserver(mede);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
 
   const fechar = useCallback(() => {
     setAberto(null);
@@ -142,7 +155,17 @@ export function FilterBar({
       className="sticky top-[var(--header-h)] z-30 -mx-[var(--page-px)] mb-5 border-y border-border bg-background lg:mb-8"
     >
       <div className="px-page flex items-center gap-3 py-2.5">
-        <div className="scrollbar-hide -my-1 flex min-w-0 flex-1 items-center gap-2 overflow-x-auto py-1">
+        {/* No celular, se os botões não couberem, a fileira desliza com o
+            dedo — e só então ganha o esmaecido na borda direita, avisando
+            que tem mais (esmaecer sempre apagaria o último botão à toa). */}
+        <div
+          ref={fila}
+          className={`scrollbar-hide -my-1 flex min-w-0 flex-1 items-center gap-2 overflow-x-auto py-1 ${
+            transborda
+              ? "[mask-image:linear-gradient(to_right,black_calc(100%-2rem),transparent)]"
+              : ""
+          }`}
+        >
           {promo}
           {groups.map((g) => {
             const on = aberto === g.id;
@@ -172,7 +195,9 @@ export function FilterBar({
             );
           })}
         </div>
-        <div className="shrink-0 border-l border-border pl-3">{sort}</div>
+        <div className="hidden shrink-0 border-l border-border pl-3 lg:block">
+          {sort}
+        </div>
       </div>
 
       {/* Computador: caixinha sob o botão do grupo. */}

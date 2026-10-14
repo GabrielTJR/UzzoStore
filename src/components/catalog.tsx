@@ -260,15 +260,14 @@ export async function Catalog({
       </Link>
     );
 
-  const sort = (
-    <SortSelect
-      value={state.ordem}
-      options={(Object.keys(SORT_OPTIONS) as SortKey[]).map((k) => ({
-        key: k,
-        label: SORT_OPTIONS[k],
-        href: com({ ordem: k }),
-      }))}
-    />
+  const ordens = (Object.keys(SORT_OPTIONS) as SortKey[]).map((k) => ({
+    key: k,
+    label: SORT_OPTIONS[k],
+    href: com({ ordem: k }),
+  }));
+  const sort = <SortSelect value={state.ordem} options={ordens} />;
+  const sortCompacto = (
+    <SortSelect value={state.ordem} options={ordens} compacto />
   );
 
   const chip =
@@ -362,10 +361,15 @@ export async function Catalog({
             aria-hidden
             className="titulo-barra mt-3 h-1 w-14 bg-accent lg:w-20"
           />
-          <p className="mt-2 text-sm text-muted">
-            {total} {total === 1 ? "peça" : "peças"}
-            {totalPages > 1 && `, página ${page} de ${totalPages}`}
-          </p>
+          {/* No celular a ordenação mora aqui, ao lado da contagem: na barra
+              ela espremia os filtros (no computador fica na própria barra). */}
+          <div className="mt-2 flex items-center justify-between gap-3">
+            <p className="text-sm text-muted">
+              {total} {total === 1 ? "peça" : "peças"}
+              {totalPages > 1 && `, página ${page} de ${totalPages}`}
+            </p>
+            <div className="lg:hidden">{sortCompacto}</div>
+          </div>
         </div>
       </header>
 
