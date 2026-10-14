@@ -256,7 +256,11 @@ export function ProductView({
           rola. */}
       <div className="md:sticky md:top-[calc(var(--header-h)+1.5rem)] lg:flex lg:flex-row-reverse lg:gap-3">
         <div className="group relative -mx-[var(--page-px)] md:mx-0 lg:w-[clamp(20rem,calc((100svh-var(--header-h)-7rem)*2/3),38rem)]">
-          <ViewTransition name={`foto-${slug}`} share="foto-peca">
+          <ViewTransition
+            name={`foto-${slug}`}
+            share={{ filtro: "none", default: "foto-peca" }}
+            default={{ filtro: "none", default: "auto" }}
+          >
             <SlideTrack
               key={selectedColorId ?? "none"}
               images={gallery}

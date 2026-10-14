@@ -51,7 +51,8 @@ export function CardColorMedia({
               voa de um lugar para o outro (transição de página). */}
           <ViewTransition
             name={morph ? `foto-${product.slug}` : undefined}
-            share="foto-peca"
+            share={{ filtro: "none", default: "foto-peca" }}
+            default={{ filtro: "none", default: "auto" }}
           >
             <SlideTrack
               key={colorIdx}

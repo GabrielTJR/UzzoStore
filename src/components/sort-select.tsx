@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import type { SortKey } from "@/lib/product-sort";
+import { marcaFiltrando } from "@/lib/filtrando";
 
 /**
  * Ordenação da vitrine. Vive na URL (junto de filtros e busca), então o
@@ -28,7 +29,9 @@ export function SortSelect({
   const router = useRouter();
   const ir = (key: string) => {
     const next = options.find((o) => o.key === key);
-    if (next) router.push(next.href, { scroll: false });
+    if (!next) return;
+    marcaFiltrando();
+    router.push(next.href, { scroll: false, transitionTypes: ["filtro"] });
   };
 
   if (compacto)

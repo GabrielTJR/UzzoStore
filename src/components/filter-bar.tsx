@@ -10,6 +10,7 @@ import {
 } from "react";
 import { IconChevronDown, IconClose } from "@/components/icons";
 import { useModal } from "@/lib/use-modal";
+import { marcaFiltrando, soltaFiltrando } from "@/lib/filtrando";
 
 export type FilterGroup = {
   id: string;
@@ -79,6 +80,20 @@ export function FilterBar({
     try {
       sessionStorage.removeItem(REABRIR);
     } catch {}
+  }, []);
+
+  // Toque num link de filtro (aqui, nos chips ou na paginação): a próxima
+  // tela não refaz a entrada dos cards (ver lib/filtrando.ts).
+  useEffect(() => {
+    const clique = (e: MouseEvent) => {
+      if ((e.target as HTMLElement).closest("a[data-filtro]")) marcaFiltrando();
+    };
+    document.addEventListener("click", clique, true);
+    return () => {
+      document.removeEventListener("click", clique, true);
+      // Saiu do catálogo (ex.: abriu uma peça): a próxima chegada anima.
+      soltaFiltrando();
+    };
   }, []);
 
   // Computador ou celular (decide caixinha × folha).

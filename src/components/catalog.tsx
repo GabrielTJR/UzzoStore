@@ -19,6 +19,15 @@ import {
   PRODUCTS_PER_PAGE,
 } from "@/lib/products";
 
+/**
+ * Tipo da navegação dos filtros, chips, limpar e páginas: nela a foto do
+ * card NÃO voa e a página não esmaece (ver `share`/`default` nos
+ * `<ViewTransition>` e o CSS de `filtro`). Sem isso, cada toque num filtro
+ * virava uma transição de página — as fotos subiam por cima da folha de
+ * filtros do celular e a tela piscava.
+ */
+const FILTRO = ["filtro"];
+
 /** Números de página com reticências: 1 … 4 [5] 6 … 12 */
 function pageWindow(current: number, total: number): (number | "…")[] {
   if (total <= 7) return Array.from({ length: total }, (_, i) => i + 1);
@@ -150,7 +159,14 @@ export async function Catalog({
   // Grupos da barra de filtros. Cada um é um botão; as opções abrem numa
   // caixinha (computador) ou numa folha que sobe de baixo (celular).
   const limparLink = (href: string) => (
-    <Link prefetch={false} href={href} scroll={false} className={limpar}>
+    <Link
+      prefetch={false}
+      transitionTypes={FILTRO}
+      data-filtro
+      href={href}
+      scroll={false}
+      className={limpar}
+    >
       limpar
     </Link>
   );
@@ -247,6 +263,8 @@ export async function Catalog({
     homePath === "/ofertas" ? null : (
       <Link
         prefetch={false}
+        transitionTypes={FILTRO}
+        data-filtro
         scroll={false}
         href={com({ promo: !state.promo })}
         aria-pressed={state.promo}
@@ -286,6 +304,8 @@ export async function Catalog({
       {state.busca && (
         <Link
           prefetch={false}
+          transitionTypes={FILTRO}
+          data-filtro
           scroll={false}
           href={com({ busca: "" })}
           className={chip}
@@ -296,6 +316,8 @@ export async function Catalog({
       {state.promo && (
         <Link
           prefetch={false}
+          transitionTypes={FILTRO}
+          data-filtro
           scroll={false}
           href={com({ promo: false })}
           className={chip}
@@ -306,6 +328,8 @@ export async function Catalog({
       {state.destaques && (
         <Link
           prefetch={false}
+          transitionTypes={FILTRO}
+          data-filtro
           scroll={false}
           href={com({ destaques: false })}
           className={chip}
@@ -317,6 +341,8 @@ export async function Catalog({
         <Link
           key={s}
           prefetch={false}
+          transitionTypes={FILTRO}
+          data-filtro
           scroll={false}
           href={com({ categorias: categorias.filter((x) => x !== s) })}
           className={chip}
@@ -329,6 +355,8 @@ export async function Catalog({
         <Link
           key={c}
           prefetch={false}
+          transitionTypes={FILTRO}
+          data-filtro
           scroll={false}
           href={com({
             cores: cores.filter((x) => x.toLowerCase() !== c.toLowerCase()),
@@ -339,7 +367,13 @@ export async function Catalog({
           {chipX}
         </Link>
       ))}
-      <Link scroll={false} href={homePath} className={limpar}>
+      <Link
+        scroll={false}
+        href={homePath}
+        transitionTypes={FILTRO}
+        data-filtro
+        className={limpar}
+      >
         limpar tudo
       </Link>
     </div>
@@ -436,6 +470,8 @@ export async function Catalog({
                 {page > 1 && (
                   <Link
                     prefetch={false}
+                    transitionTypes={FILTRO}
+                    data-filtro
                     href={pageHref(page - 1)}
                     aria-label="Página anterior"
                     className={`${pageLink} border-border hover:border-foreground`}
@@ -455,6 +491,8 @@ export async function Catalog({
                   ) : (
                     <Link
                       prefetch={false}
+                      transitionTypes={FILTRO}
+                      data-filtro
                       key={p}
                       href={pageHref(p)}
                       aria-label={`Página ${p}`}
@@ -472,6 +510,8 @@ export async function Catalog({
                 {page < totalPages && (
                   <Link
                     prefetch={false}
+                    transitionTypes={FILTRO}
+                    data-filtro
                     href={pageHref(page + 1)}
                     aria-label="Próxima página"
                     className={`${pageLink} border-border hover:border-foreground`}

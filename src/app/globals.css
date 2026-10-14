@@ -392,6 +392,13 @@ body {
     transform-origin: left;
     animation: hero-barra 0.6s cubic-bezier(0.65, 0, 0.35, 1) 0.45s both;
   }
+  /* Filtrando (lib/filtrando.ts): nada de refazer a entrada — piscava. */
+  [data-filtrando] .card-surge > *,
+  [data-filtrando] .titulo-entra,
+  [data-filtrando] .titulo-barra {
+    animation: none !important;
+  }
+
   /* coluna de compra da página do produto: os blocos sobem em cascata. */
   .entra-coluna > * {
     animation: hero-surge 0.6s ease-out both;
@@ -489,6 +496,14 @@ body {
   ::view-transition-new(root) {
     animation-duration: 0.25s;
   }
+}
+/* Filtro, ordenação e paginação do catálogo (tipo "filtro"): troca
+   instantânea. A foto voando e o esmaecido são para ir de UMA peça à página
+   dela — a cada toque num filtro, piscavam a tela e subiam por cima da folha. */
+:root:active-view-transition-type(filtro)::view-transition-group(*),
+:root:active-view-transition-type(filtro)::view-transition-old(*),
+:root:active-view-transition-type(filtro)::view-transition-new(*) {
+  animation: none !important;
 }
 /* Menos movimento: a troca de página é instantânea, como sempre foi. */
 @media (prefers-reduced-motion: reduce) {

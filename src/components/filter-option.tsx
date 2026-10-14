@@ -16,8 +16,9 @@ function Carregando({ children }: { children: ReactNode }) {
 
 /**
  * Opção de filtro da barra do catálogo. É um LINK (o filtro mora na URL), com
- * `prefetch={false}` (o espaço de combinações é enorme; ver catalog-url.ts) e
- * `scroll={false}` (marcar não pula a página).
+ * `prefetch={false}` (o espaço de combinações é enorme; ver catalog-url.ts),
+ * `scroll={false}` (marcar não pula a página) e o tipo de transição "filtro"
+ * (a troca é instantânea — sem a foto voando nem esmaecido).
  *
  * - `texto`: retângulo com o nome; marcado = preto, como o botão principal.
  * - `cor`: bolinha da cor com o nome embaixo; marcada = anel.
@@ -39,6 +40,8 @@ export function FilterOption({
       <Link
         href={href}
         prefetch={false}
+        transitionTypes={["filtro"]}
+        data-filtro
         scroll={false}
         aria-pressed={checked}
         className="flex flex-col items-center gap-1.5 rounded-xs py-1"
@@ -66,6 +69,8 @@ export function FilterOption({
     <Link
       href={href}
       prefetch={false}
+      transitionTypes={["filtro"]}
+      data-filtro
       scroll={false}
       aria-pressed={checked}
       className={`flex min-h-10 items-center rounded-xs px-3 text-sm transition-colors ${
