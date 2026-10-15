@@ -23,6 +23,7 @@ import {
   type Formato,
   type HomeConfig,
   type ProductPhoto,
+  mensagensDaFaixa,
 } from "@/lib/home-config";
 import type { CategoryCover, CategoryCoversByDepartment } from "@/lib/products";
 import { PageHeader, Panel, primaryButton, secondaryButton } from "../admin-ui";
@@ -1133,7 +1134,11 @@ export function HomeEditor(props: HomeEditorProps) {
               whatsappUrl={props.whatsappUrl}
             />
             <main className="flex-1">
-              <HomeHero hero={hero} temFeminino={temFeminino} />
+              <HomeHero
+                hero={hero}
+                temFeminino={temFeminino}
+                comFaixa={mensagensDaFaixa(cfg.avisos, freteAtivo).length > 0}
+              />
               <CategoryStrip covers={aplicaAtalhos(covers, cfg.atalhos)} />
             </main>
           </PhonePreview>

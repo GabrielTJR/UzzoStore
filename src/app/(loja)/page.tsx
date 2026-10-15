@@ -3,7 +3,7 @@ import { BenefitsStrip } from "@/components/benefits-strip";
 import { CategoryStrip } from "@/components/category-strip";
 import { HomeHero } from "@/components/home-hero";
 import { ProductCard } from "@/components/product-card";
-import { aplicaAtalhos } from "@/lib/home-config";
+import { aplicaAtalhos, mensagensDaFaixa } from "@/lib/home-config";
 import { getHomeConfig } from "@/lib/home-config-server";
 import { FABRIC_CLAIMS } from "@/lib/home-hero";
 import {
@@ -167,7 +167,11 @@ export default async function Home() {
 
   return (
     <>
-      <HomeHero hero={home.hero} temFeminino={temFeminino} />
+      <HomeHero
+        hero={home.hero}
+        temFeminino={temFeminino}
+        comFaixa={mensagensDaFaixa(home.avisos, freteAtivo).length > 0}
+      />
       <CategoryStrip covers={aplicaAtalhos(covers, home.atalhos)} />
       <ProductRow
         title="Destaques"

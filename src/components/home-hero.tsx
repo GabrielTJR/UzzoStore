@@ -33,9 +33,14 @@ import { displayProductName } from "@/lib/product-name";
 export function HomeHero({
   hero,
   temFeminino,
+  comFaixa = true,
 }: {
   hero: HeroConfig;
   temFeminino: boolean;
+  /** A faixa de avisos está aparecendo? Ela mede 2.25rem e sai da altura do
+   * destaque; desligada, o destaque não pode descontá-la — sobraria um vão
+   * mostrando o começo da seção seguinte na primeira dobra. */
+  comFaixa?: boolean;
 }) {
   const palavras = hero.title.split(/\s+/).filter(Boolean);
   // O título é em caixa alta e larga: a MAIOR palavra tem de caber numa
@@ -60,7 +65,9 @@ export function HomeHero({
     "flex h-12 items-center justify-center rounded-xs border-[1.5px] border-white px-6 text-[0.95rem] font-semibold";
 
   return (
-    <section className="relative h-[calc(100svh-var(--header-h)-2.25rem)] min-h-[32rem] overflow-hidden bg-black text-white lg:max-h-[62rem] lg:min-h-[36rem]">
+    <section
+      className={`relative ${comFaixa ? "h-[calc(100svh-var(--header-h)-2.25rem)]" : "h-[calc(100svh-var(--header-h))]"} min-h-[32rem] overflow-hidden bg-black text-white lg:max-h-[62rem] lg:min-h-[36rem]`}
+    >
       <div className="absolute inset-0" style={{ containerType: "size" }}>
         <div
           className="hero-caixa"
