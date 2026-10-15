@@ -1,6 +1,12 @@
 "use client";
 
-import { useLayoutEffect, useRef, useState, type ReactNode } from "react";
+import {
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 
 export type FooterSecao = { id: string; titulo: string; conteudo: ReactNode };
 
@@ -20,6 +26,7 @@ export type FooterSecao = { id: string; titulo: string; conteudo: ReactNode };
 export function FooterSections({ secoes }: { secoes: FooterSecao[] }) {
   const [aberta, setAberta] = useState<string | null>(null);
   const refs = useRef(new Map<string, HTMLButtonElement>());
+  const grade = useRef<HTMLDivElement>(null);
   const antes = useRef(new Map<string, DOMRect>());
 
   /** Posição da página no toque — devolvida depois da troca (ver abaixo). */
@@ -30,28 +37,60 @@ export function FooterSections({ secoes }: { secoes: FooterSecao[] }) {
       [...refs.current].map(([k, el]) => [k, el.getBoundingClientRect()]),
     );
     rolagem.current = window.scrollY;
+    // O rodapé NÃO encolhe enquanto está na tela. Ele é o fim da página: se a
+    // seção nova é mais curta (ou ao fechar), a página encurta e o navegador é
+    // OBRIGADO a subir a tela — nenhuma devolução de posição desfaz isso. A
+    // altura mínima só cresce aqui e é solta quando o rodapé sai de vista (o
+    // efeito abaixo), quando encolher já não mexe em nada que se vê.
+    const g = grade.current;
+    if (g) g.style.minHeight = `${g.offsetHeight}px`;
     setAberta(id);
   }
+
+  useEffect(() => {
+    const g = grade.current;
+    if (!g) return;
+    const io = new IntersectionObserver(([e]) => {
+      if (!e.isIntersecting) g.style.minHeight = "";
+    });
+    io.observe(g);
+    return () => io.disconnect();
+  }, []);
 
   // A PÁGINA não pode rolar sozinha quando os cartões trocam de lugar — só
   // eles se mexem. O Chrome rolava junto por dois motivos: a "âncora de
   // rolagem" e o esforço de manter à vista o botão tocado (que acabou de
   // mudar de lugar). O dono viu a tela pular (07/10/2026); `overflow-anchor`
   // sozinho não resolveu. Então a posição do toque é devolvida antes da
-  // pintura e de novo no quadro seguinte (quando o Chrome faz o ajuste dele).
-  // Se a página encurtou e a posição não cabe mais, o navegador limita — é o
-  // único movimento que sobra, e é o mínimo possível.
+  // pintura, no quadro seguinte e a cada rolagem durante a troca (o dono viu
+  // a tela pular de novo no celular em 15/10/2026: o navegador do aparelho
+  // ajusta DEPOIS do primeiro quadro). A trava dura o deslize dos cartões e
+  // cai no primeiro toque/roda/tecla — rolar de propósito nunca é desfeito.
+  // `scrollTop` direto, sem `behavior: "instant"`, que Safari antigo recusa.
   useLayoutEffect(() => {
     const y = rolagem.current;
     if (y == null) return;
     rolagem.current = null;
+    const pagina = document.scrollingElement ?? document.documentElement;
     const volta = () => {
-      if (Math.abs(window.scrollY - y) > 1)
-        window.scrollTo({ top: y, behavior: "instant" });
+      if (Math.abs(pagina.scrollTop - y) > 1) pagina.scrollTop = y;
     };
     volta();
     const q = requestAnimationFrame(volta);
-    return () => cancelAnimationFrame(q);
+    const solta = () => {
+      clearTimeout(fim);
+      removeEventListener("scroll", volta);
+      for (const ev of ["touchstart", "wheel", "keydown"] as const)
+        removeEventListener(ev, solta);
+    };
+    addEventListener("scroll", volta, { passive: true });
+    for (const ev of ["touchstart", "wheel", "keydown"] as const)
+      addEventListener(ev, solta, { passive: true });
+    const fim = setTimeout(solta, 700);
+    return () => {
+      cancelAnimationFrame(q);
+      solta();
+    };
   }, [aberta]);
 
   useLayoutEffect(() => {
@@ -95,6 +134,7 @@ export function FooterSections({ secoes }: { secoes: FooterSecao[] }) {
     // Sem "âncora de rolagem" aqui nem no rodapé (ver site-footer.tsx): a
     // página não pode rolar sozinha quando os cartões trocam de lugar.
     <div
+      ref={grade}
       className="grid items-start gap-2 [overflow-anchor:none]"
       style={{ gridTemplateColumns: aberta ? "1fr auto" : "1fr 1fr" }}
     >
