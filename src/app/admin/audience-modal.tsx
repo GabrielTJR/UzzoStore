@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useId, useState, useTransition } from "react";
 import { IconClose } from "@/components/icons";
+import { RotuloLink } from "./rotulo-link";
 import { useModal } from "@/lib/use-modal";
 
 /**
@@ -83,7 +84,7 @@ export function AudienceModal({
                       : "text-muted hover:text-foreground"
                   }`}
                 >
-                  {p.rotulo}
+                  <RotuloLink pendente="…">{p.rotulo}</RotuloLink>
                 </Link>
               ))}
             </nav>

@@ -183,7 +183,10 @@ async function fetchAudience(): Promise<AudienceData> {
   if (!cfg) throw new Error("Google Analytics não configurado");
 
   const ultimos7 = [{ startDate: "6daysAgo", endDate: "today" }];
-  const { reports = [] } = await gaPost<{ reports?: GaReport[] }>(
+  // O batch e o funil são independentes: saem JUNTOS. Antes o funil só
+  // partia depois de o batch voltar — duas idas ao Google em fila na primeira
+  // abertura da Visão geral a cada 15 min.
+  const lote = gaPost<{ reports?: GaReport[] }>(
     cfg,
     "batchRunReports",
     {
@@ -232,12 +235,10 @@ async function fetchAudience(): Promise<AudienceData> {
     },
   );
 
-  const [totais, porDia, paginas, canais, aparelhos] = reports;
-
   // Funil: o batch acima já está no máximo de 5 relatórios, então este vai
   // numa chamada própria. Falhar aqui não derruba a audiência: o card de
   // funil só aparece vazio.
-  const eventos = await gaPost<GaReport>(cfg, "runReport", {
+  const funil = gaPost<GaReport>(cfg, "runReport", {
     dateRanges: [{ startDate: "27daysAgo", endDate: "today" }],
     dimensions: [{ name: "eventName" }],
     metrics: [{ name: "totalUsers" }],
@@ -250,6 +251,9 @@ async function fetchAudience(): Promise<AudienceData> {
       },
     },
   }).catch(() => ({ rows: [] }) as GaReport);
+
+  const [{ reports = [] }, eventos] = await Promise.all([lote, funil]);
+  const [totais, porDia, paginas, canais, aparelhos] = reports;
   const porEvento = new Map(
     (eventos.rows ?? []).map((r) => [dim(r), num(r)] as const),
   );

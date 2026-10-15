@@ -117,3 +117,32 @@ export function AudienceDetailView({ result }: { result: AudienceDetailResult })
     </>
   );
 }
+
+/**
+ * O que o modal mostra enquanto o Google responde.
+ *
+ * O detalhe é streamado (Suspense no `page.tsx`): o modal abre assim que o
+ * resto da tela está pronto, e isto ocupa o lugar das tabelas. Antes a página
+ * inteira esperava o Google — clique, nada na tela por segundos, e aí tudo de
+ * uma vez. Mesmo desenho das seções reais, para não pular quando elas chegam.
+ */
+export function DetalheCarregando() {
+  return (
+    <div aria-busy="true" aria-label="Carregando detalhes">
+      <p className="sr-only">Buscando no Google Analytics…</p>
+      {[0, 1, 2].map((s) => (
+        <section key={s} className="mb-8 last:mb-0 animate-pulse">
+          <div className="h-4 w-40 rounded-xs bg-surface" />
+          <div className="mt-3 divide-y divide-border border-t border-border">
+            {[0, 1, 2, 3].map((l) => (
+              <div key={l} className="flex justify-between gap-4 py-2.5">
+                <div className="h-3.5 w-1/2 rounded-xs bg-surface" />
+                <div className="h-3.5 w-10 rounded-xs bg-surface" />
+              </div>
+            ))}
+          </div>
+        </section>
+      ))}
+    </div>
+  );
+}

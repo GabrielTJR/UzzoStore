@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { Suspense } from "react";
 import { requireAdmin } from "@/lib/admin";
 import { getAdminOverview } from "@/lib/admin-overview";
 import {
@@ -7,11 +8,13 @@ import {
   getAudience,
   getAudienceDetail,
   isDetalheKind,
+  type DetalheKind,
+  type PeriodoDetalhe,
   toPeriodoDetalhe,
 } from "@/lib/analytics";
 import { OverviewView } from "./overview-view";
 import { AudienceModal } from "./audience-modal";
-import { AudienceDetailView } from "./audience-detail";
+import { AudienceDetailView, DetalheCarregando } from "./audience-detail";
 import { detalheHref } from "./audience";
 
 export const metadata: Metadata = { title: "Visão geral" };
@@ -38,10 +41,12 @@ export default async function AdminOverviewPage({
   const detalhe = isDetalheKind(sp.detalhe) ? sp.detalhe : null;
   const periodo = toPeriodoDetalhe(sp.periodo);
 
-  const [overview, audience, detail] = await Promise.all([
+  // O detalhe NÃO entra aqui: ele é a parte lenta (ida ao Google, cache de só
+  // 1 min no "agora") e segurava a tela inteira até voltar. Agora é streamado
+  // dentro do modal — ver `DetalheConteudo`.
+  const [overview, audience] = await Promise.all([
     serviceRoleMissing ? null : getAdminOverview(),
     getAudience(),
-    detalhe ? getAudienceDetail(detalhe, periodo) : null,
   ]);
 
   return (
@@ -52,7 +57,7 @@ export default async function AdminOverviewPage({
         serviceRoleMissing={serviceRoleMissing}
         semAcesso={sp["sem-acesso"] === "1"}
       />
-      {detalhe && detail && (
+      {detalhe && (
         // `key`: trocar de card troca a instância (foco e rolagem do início).
         <AudienceModal
           key={detalhe}
@@ -67,9 +72,26 @@ export default async function AdminOverviewPage({
                 }))
           }
         >
-          <AudienceDetailView result={detail} />
+          {/* `key` por tipo+período: trocar a aba de período monta uma
+              fronteira nova, que mostra o esqueleto em vez de deixar a tabela
+              do período anterior na tela fingindo ser a nova. */}
+          <Suspense key={`${detalhe}-${periodo}`} fallback={<DetalheCarregando />}>
+            <DetalheConteudo kind={detalhe} periodo={periodo} />
+          </Suspense>
         </AudienceModal>
       )}
     </>
   );
+}
+
+/** Busca e desenha o detalhe — fica atrás de um Suspense, então o modal já
+ * está na tela (com o esqueleto) enquanto isto espera o Google. */
+async function DetalheConteudo({
+  kind,
+  periodo,
+}: {
+  kind: DetalheKind;
+  periodo: PeriodoDetalhe;
+}) {
+  return <AudienceDetailView result={await getAudienceDetail(kind, periodo)} />;
 }

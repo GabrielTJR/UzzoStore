@@ -5,6 +5,7 @@ import type {
   DetalheKind,
 } from "@/lib/analytics";
 import { Panel } from "./admin-ui";
+import { RotuloLink } from "./rotulo-link";
 
 /** Endereço do detalhe de um card (o modal abre por URL). */
 export function detalheHref(kind: DetalheKind, periodo?: number): string {
@@ -21,7 +22,7 @@ function VerDetalhes({ kind, periodo }: { kind: DetalheKind; periodo?: number })
       prefetch={false}
       className="shrink-0 text-xs font-medium underline underline-offset-4 hover:text-muted"
     >
-      Ver detalhes
+      <RotuloLink>Ver detalhes</RotuloLink>
     </Link>
   );
 }
@@ -132,7 +133,11 @@ function Stat({
     <>
       <p className="flex items-baseline justify-between gap-2 text-sm text-muted">
         {label}
-        {href && <span className="text-xs underline underline-offset-4">detalhes</span>}
+        {href && (
+          <span className="text-xs underline underline-offset-4">
+            <RotuloLink>detalhes</RotuloLink>
+          </span>
+        )}
       </p>
       <p className="mt-1 text-3xl font-semibold leading-none">{value}</p>
       {detail && <p className="mt-2 text-xs text-muted">{detail}</p>}
