@@ -149,7 +149,15 @@ export function SiteFooter() {
     // ele muda de altura, e a "âncora de rolagem" do Chrome escolhia a faixa
     // da empresa (logo abaixo dos cartões) como referência e rolava a página
     // junto — a tela pulava (o dono viu, 07/10/2026). Só nos cartões não basta.
-    <footer className="bg-black text-white [overflow-anchor:none]">
+    //
+    // `overflow-x: clip` é a OUTRA metade (15/10/2026, medido): no deslize dos
+    // cartões (FLIP), o que vai para a coluna da esquerda começa deslocado para
+    // a direita e passa da borda da tela. `transform` conta como conteúdo, a
+    // página fica mais larga que o celular por um instante e o navegador reduz
+    // o ZOOM para caber — a altura visível pulava de 812 para 1042 px e a tela
+    // subia 230 px, sem nenhum código pedir. `clip` (e não `hidden`) não cria
+    // caixa de rolagem, então nada mais muda.
+    <footer className="overflow-x-clip bg-black text-white [overflow-anchor:none]">
       {/* Newsletter discreta: uma linha e o campo. */}
       <div className="px-page flex flex-col gap-3 border-b border-white/15 py-6 lg:flex-row lg:items-center lg:justify-between lg:py-5">
         <p className="text-sm font-semibold">

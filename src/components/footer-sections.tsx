@@ -37,13 +37,14 @@ export function FooterSections({ secoes }: { secoes: FooterSecao[] }) {
       [...refs.current].map(([k, el]) => [k, el.getBoundingClientRect()]),
     );
     rolagem.current = window.scrollY;
-    // O rodapé NÃO encolhe enquanto está na tela. Ele é o fim da página: se a
-    // seção nova é mais curta (ou ao fechar), a página encurta e o navegador é
-    // OBRIGADO a subir a tela — nenhuma devolução de posição desfaz isso. A
-    // altura mínima só cresce aqui e é solta quando o rodapé sai de vista (o
-    // efeito abaixo), quando encolher já não mexe em nada que se vê.
+    // Trocar de seção não encolhe o rodapé enquanto ele está na tela. Ele é o
+    // fim da página: se a seção nova é mais curta, a página encurta e o
+    // navegador é OBRIGADO a subir a tela. A altura mínima só cresce aqui e é
+    // solta quando o rodapé sai de vista (o efeito abaixo). FECHAR solta na
+    // hora: aí o conteúdo some de verdade, e um vão preto sob os cartões
+    // pareceria defeito.
     const g = grade.current;
-    if (g) g.style.minHeight = `${g.offsetHeight}px`;
+    if (g) g.style.minHeight = id ? `${g.offsetHeight}px` : "";
     setAberta(id);
   }
 
