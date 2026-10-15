@@ -110,8 +110,10 @@ async function validar(
     config.hero.look = { name: nome, slug: data.slug };
   }
 
-  if (config.avisos.filter((a) => a.active).length === 0)
-    return { erro: "Deixe ao menos uma mensagem ligada na faixa de avisos." };
+  // Faixa toda desligada é escolha válida: sem mensagem ligada a faixa não é
+  // renderizada (`AnnouncementBar` devolve null) e o destaque principal ocupa
+  // a altura que ela usava (`comFaixa` no HomeHero). Já foi bloqueado aqui, e
+  // isso obrigava o dono a manter no ar um aviso que não queria mostrar.
 
   return { config };
 }
